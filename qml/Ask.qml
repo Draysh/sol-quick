@@ -11,55 +11,73 @@ import QtQuick
 Item {
     id: ask
 
+    /** The question waiting for an answer, or null. */
     property var current: null
+    /** The question on screen: the last one, still there while it fades out. */
+    property var shown: null
+    /** What had the keys before; it gets them back after. */
+    property Item before: null
 
     anchors.fill: parent
-    visible: !!current
+    visible: !!current || box.opacity > 0
     z: 950
 
     function name(title, label, value, action) {
-        return new Promise(done => ask.current = { kind: "name", title: title, label: label, value: value || "", action: action || "Save", done: done })
+        return new Promise(done => begin({ kind: "name", title: title, label: label, value: value || "", action: action || "Save", done: done }))
     }
     function confirm(title, body, action) {
-        return new Promise(done => ask.current = { kind: "confirm", title: title, body: body, action: action || "Yes", done: done })
+        return new Promise(done => begin({ kind: "confirm", title: title, body: body, action: action || "Yes", done: done }))
+    }
+    // A new question while one is open answers the open one with "no".
+    function begin(question) {
+        const open = current
+        if (!open) before = Window.window ? Window.window.activeFocusItem : null
+        current = question
+        shown = question
+        field.text = question.kind === "name" ? question.value : ""
+        Qt.callLater(() => { if (ask.current === question) (question.kind === "name" ? field.input : box).forceActiveFocus() })
+        if (open) open.done(open.kind === "name" ? null : false)
     }
     function finish(answer) {
         const d = current
-        current = null
         if (!d) return
-        if (d.kind === "name") d.done(answer && field.text.trim() ? field.text.trim() : null)
+        current = null
+        const name = field.text.trim()
+        field.input.focus = false
+        box.focus = false
+        if (before) before.forceActiveFocus()
+        before = null
+        if (d.kind === "name") d.done(answer && name ? name : null)
         else d.done(answer)
     }
-    onCurrentChanged: if (current) { field.text = current.kind === "name" ? current.value : ""; Qt.callLater(() => current && current.kind === "name" ? field.input.forceActiveFocus() : box.forceActiveFocus()) }
 
-    Keys.onEscapePressed: finish(false)
     Item { anchors.fill: parent; opacity: ask.current ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
         Glass { anchors.fill: parent; blur: 0.5; tint: Qt.rgba(0, 0, 0, 0.55) }
-        MouseArea { anchors.fill: parent; onClicked: ask.finish(false) } }
+        MouseArea { anchors.fill: parent; enabled: !!ask.current; onClicked: ask.finish(false) } }
 
     Item {
         id: box
         anchors.centerIn: parent
         width: Math.min(420, parent.width - 32)
         height: card.implicitHeight
-        focus: true
         opacity: ask.current ? 1 : 0
         scale: ask.current ? 1 : 0.97
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
         Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         Keys.onEscapePressed: ask.finish(false)
         Keys.onReturnPressed: ask.finish(true)
+        Keys.onEnterPressed: ask.finish(true)
         MouseArea { anchors.fill: parent }
         Card {
             id: card
             width: parent.width
-            title: ask.current ? ask.current.title : ""
+            title: ask.shown ? ask.shown.title : ""
             gap: Theme.s4
-            Field { id: field; visible: !!ask.current && ask.current.kind === "name"; width: parent.width; label: ask.current ? ask.current.label || "" : ""; maxLength: 200; onAccepted: ask.finish(true) }
-            Words { visible: !!ask.current && ask.current.kind === "confirm"; width: parent.width; text: ask.current ? ask.current.body || "" : "" }
+            Field { id: field; visible: !!ask.shown && ask.shown.kind === "name"; width: parent.width; label: ask.shown ? ask.shown.label || "" : ""; maxLength: 200; onAccepted: ask.finish(true) }
+            Words { visible: !!ask.shown && ask.shown.kind === "confirm"; width: parent.width; text: ask.shown ? ask.shown.body || "" : "" }
             Row { spacing: Theme.s2
-                Button { variant: "primary"; text: ask.current ? ask.current.action : ""; enabled: !ask.current || ask.current.kind !== "name" || field.text.trim() !== ""; onClicked: ask.finish(true) }
-                Button { variant: "quiet"; text: "Cancel"; onClicked: ask.finish(false) } }
+                Button { variant: "primary"; text: ask.shown ? ask.shown.action : ""; enabled: !!ask.current && (ask.current.kind !== "name" || field.text.trim() !== ""); onClicked: ask.finish(true) }
+                Button { variant: "quiet"; text: "Cancel"; enabled: !!ask.current; onClicked: ask.finish(false) } }
         }
     }
 }

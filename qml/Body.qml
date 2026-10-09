@@ -52,8 +52,9 @@ Item {
         property real time: 0
         property int live: root.w.live === "clouds" ? 1 : root.w.live === "corona" ? 2 : 0
         supportsAtlasTextures: false
-        // Alive: a second a second, while the window is awake and the body is big enough to see it.
-        NumberAnimation on time { running: root.animated && Theme.alive && root.disc >= 120 && shade.visible; loops: Animation.Infinite; from: 0; to: 3600; duration: 3600000 }
+        // Alive: a second a second, while the window is awake and the body is
+        // big enough to see it; it picks up where it stopped.
+        FrameAnimation { running: root.animated && root.disc >= 120 && Theme.alive && shade.visible; onTriggered: shade.time = (shade.time + frameTime) % 3600 }
 
         // A body comes up out of the dark, a touch closer as it brightens.
         opacity: root.animated ? 0 : 1

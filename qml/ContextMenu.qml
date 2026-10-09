@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
@@ -21,10 +22,15 @@ Item {
     property real atX: 0
     property real atY: 0
     property int subIndex: -1
+    /** Where the entry with the open list sits in the panel. */
+    property real subAt: 0
     property var subEntries: null
+    /** What had the keys before; it gets them back on close. */
+    property Item before: null
 
     anchors.fill: parent
-    visible: open
+    // Stays until it has faded out.
+    visible: open || panel.opacity > 0
     z: 900
 
     function show(x, y, list) {
@@ -33,6 +39,7 @@ Item {
         subEntries = null
         atX = x
         atY = y
+        if (!open) before = Window.window ? Window.window.activeFocusItem : null
         open = true
         panel.forceActiveFocus()
     }
@@ -41,12 +48,19 @@ Item {
         const p = item.mapToItem(menu, item.width, item.height)
         show(p.x, p.y, list)
     }
-    function close() { open = false }
+    function close() {
+        if (!open) return
+        open = false
+        panel.focus = false
+        if (before) before.forceActiveFocus()
+        before = null
+    }
 
-    function choose(entry, index) {
-        if (entry.separator) return
+    function choose(entry, index, at) {
+        if (!open || entry.separator) return
         if (entry.items) {
             subIndex = index
+            subAt = at
             subEntries = null
             Promise.resolve(entry.items()).then(list => { if (menu.subIndex === index) menu.subEntries = list })
             return
@@ -56,12 +70,13 @@ Item {
     }
 
     Keys.onEscapePressed: close()
-    MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onPressed: menu.close(); onWheel: menu.close() }
+    MouseArea { anchors.fill: parent; enabled: menu.open; acceptedButtons: Qt.AllButtons; onPressed: menu.close(); onWheel: menu.close() }
 
     component Entry: Item {
         id: row
-        property var entry
-        property int index: 0
+        required property var modelData
+        required property int index
+        readonly property var entry: modelData
         property bool sub: false
         width: parent.width
         height: entry.separator ? Theme.s2 + 1 : 34
@@ -83,8 +98,8 @@ Item {
             enabled: !row.entry.separator
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: menu.choose(row.entry, row.index)
-            onEntered: if (!row.sub && row.entry.items) menu.choose(row.entry, row.index)
+            onClicked: menu.choose(row.entry, row.index, row.y)
+            onEntered: if (!row.sub && row.entry.items) menu.choose(row.entry, row.index, row.y)
         }
     }
 
@@ -108,7 +123,7 @@ Item {
             id: list
             x: 0; y: Theme.s1
             width: parent.width
-            Repeater { model: menu.entries; delegate: Entry { required property var modelData; required property int index; entry: modelData; index: index } }
+            Repeater { model: menu.entries; delegate: Entry { } }
         }
 
         // The list beside an entry with items.
@@ -116,7 +131,8 @@ Item {
             id: subPanel
             visible: menu.subIndex >= 0
             x: parent.x + parent.width + subPanel.width + 16 > menu.width ? -width : parent.width
-            y: Math.max(-panel.y + 8, Math.min(menu.subIndex * 34, menu.height - panel.y - height - 8))
+            // Level with its entry, kept inside the window.
+            y: Math.max(-panel.y + 8, Math.min(menu.subAt, menu.height - panel.y - height - 8))
             width: 220
             height: Math.min(menu.height * 0.6, subList.implicitHeight + Theme.s1 * 2)
             color: "transparent"
@@ -133,7 +149,7 @@ Item {
                     y: Theme.s1
                     width: parent.width
                     Text { visible: menu.subEntries === null; x: Theme.s3; height: 34; verticalAlignment: Text.AlignVCenter; text: "…"; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet }
-                    Repeater { model: menu.subEntries || []; delegate: Entry { required property var modelData; required property int index; entry: modelData; index: index; sub: true } }
+                    Repeater { model: menu.subEntries || []; delegate: Entry { sub: true } }
                 }
             }
         }

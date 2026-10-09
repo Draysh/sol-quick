@@ -24,15 +24,17 @@ update key, the icons, the `Handler` for what Sol asks of the app, the
 `kit/template` is the smallest complete example; `cargo build` compiles the
 QML too, so a mistake in a `.qml` file fails the build.
 
-Needs Qt 6.12 or later: `qt6-base`, `qt6-declarative`, `qt6-shadertools`,
-and `qt6-multimedia` for a world that plays sound.
+Needs Qt 6.12 or later: `qt6-base`, `qt6-declarative`, `qt6-shadertools`
+and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 
 ## What is in it
 
-- **`src/app.rs`**: `run`, the `World`, the shared commands (status,
-  connect, forget, settings, updates, install, doors, moons), preview mode
+- **`src/app.rs`**: `run`, the `World`, the shared commands (connect,
+  forget, settings, updates, install, doors, moons, notify), preview mode
   (`SOL_PREVIEW=1` runs against a throwaway copy with sample data) and the
-  screenshot hook (`SOL_SHOT=<png> SOL_SHOT_AFTER=<ms> SOL_SHOT_PATH=<path>`).
+  review hooks: `SOL_SHOT=<png> SOL_SHOT_AFTER=<ms> SOL_SHOT_PATH=<path>`
+  for a screenshot, `SOL_FPS=1` for the frame rate in the journal, and
+  `SOL_DRIVE=<file.qml>` for a script that drives the window end to end.
 - **`src/commands.rs`**: typed async commands the screens call through
   `Sol.call(name, args)`, which returns a promise.
 - **`src/bridge.rs`**: the `SolBackend` singleton the QML side talks to.
@@ -40,13 +42,18 @@ and `qt6-multimedia` for a world that plays sound.
   (the window: Connect until paired, then the `Shell`), `Screen`,
   `PageHead`, `Sheet` and `Body` (the world's photo, lit by a shader),
   `Card`, `Grid`, `Button`, `Field`, `Select`, `Toggle`, `Check`,
-  `TextArea`, `Slider`, `DataRows`, `Progress`, `RingGauge`, `Display`,
-  `Chip`, `Callout`, `Hint`, `Notices`, `ContextMenu`, `Ask`, `Glass` (real
+  `TextArea`, `Slider`, `DataRows`, `Progress`, `Display`,
+  `Chip`, `Callout`, `Hint`, `Notices`, `ContextMenu`, `CommandPalette`, `Key` (a key for one page), `Ask`, `Glass` (real
   blur of the pages behind a menu, a notice, a hint or a dialog), `Settle`
   (the stagger every list arrives with), `Poster`, `WorldGlyph`, `Icon`,
-  `SolCard`, `AppUpdates`, `SettingsCard`, `WithPlanet`, `Widget`.
+  `SolCard`, `AppUpdates`, `SettingsCard`, `WithPlanet`.
 - **`assets/`**: the fonts (Outfit, Shippori Mincho) and every world's
-  photo; **`shaders/`**: the body's lighting, compiled with `qsb`.
+  photo; **`shaders/`**: the body's lighting and the glass, compiled with
+  `qsb` (after changing one, from `shaders/`):
+
+  ```sh
+  for f in body glass; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
+  ```
 
 ## Writing a screen
 
@@ -56,6 +63,24 @@ a `Sheet`. State the screens share goes in the world's own singleton
 `import Sol.<Name>`. Lists are `Repeater`s whose delegates are `Settle`d.
 What the design kit's `DESIGN.md` says about words, spacing and motion holds
 here unchanged; [DESIGN.md](../design/DESIGN.md) has the QML notes.
+
+Light and depth differ from the web's pure black, for long sessions in an
+app: the window is a night sky in three depths, and colour still comes only
+from the worlds.
+
+| Token | What it is |
+| --- | --- |
+| `Theme.deep` | The chrome: the sidebar, a `Sheet`'s band and strip, a `PageHead` |
+| `Theme.space` | The pane, where the work is: `night` (`#0c0e13`) tinted 5 % by the world's own colour, so each app has its own sky |
+| `Theme.raised` / `raisedTop` | A panel off the pane: every `Card` is one, lit a little from above, with `Theme.radius` corners and a hairline |
+| `Theme.textWorld` | A panel's title, in the world's light, over a hairline that splits head from body |
+
+Text has a hierarchy: a fact's label is quiet (`textQuiet`), its value is
+bright (`text`), reading text is softer (`textValue`), and `textBright` is
+for names. Every world has a `role` (`Worlds.qml`, and `sol-world.json` for
+the app menu): what it is for in a word or three, shown under its name in
+the sidebar, in its doors and moon links, in the window title, the tray
+and the app menu ("Terra · Habits and diary").
 
 Things QML's JavaScript lacks or forbids, found the hard way: no
 `Array.flat`/`flatMap` (use `reduce` and `concat`); no `Promise.finally`

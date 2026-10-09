@@ -1,14 +1,19 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
     The keys, on a sheet over the pane: what the Shell does everywhere and
-    what this app adds. `?` opens it, Escape or a click outside closes it.
+    what this app adds. `?` opens it, Escape (the Shell's) or a click
+    outside closes it.
 */
 Item {
     id: root
 
     /** The app's own `{ keys, does }`, shown after the Shell's. */
     property var shortcuts: []
+    /** The sidebar's field is there (`/` goes to it). */
+    property bool finderShown: false
+    /** The app has a search page. */
     property bool search: false
     property int sections: 0
     signal closed()
@@ -16,13 +21,13 @@ Item {
     readonly property var everywhere: [].concat(
         sections ? [{ keys: sections > 1 ? "Ctrl+1 … " + Math.min(sections, 9) : "Ctrl+1", does: "Go to a section, in the order of the sidebar" }] : [],
         [{ keys: "Alt+←  Alt+→", does: "Back and forward, like the mouse’s own buttons" }],
-        search ? [{ keys: "/", does: "Search" }] : [],
+        [{ keys: "Ctrl+K", does: "Go anywhere, do anything, find what the app holds" }],
+        finderShown ? [{ keys: "/", does: "The field in the sidebar: it filters this page, or searches" }]
+            : search ? [{ keys: "/", does: "Search" }] : [],
         [{ keys: "?", does: "This sheet" }])
 
     anchors.fill: parent
     z: 40
-    focus: true
-    Keys.onEscapePressed: root.closed()
 
     Rectangle {
         anchors.fill: parent

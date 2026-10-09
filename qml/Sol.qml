@@ -39,7 +39,7 @@ QtObject {
     Component.onCompleted: {
         if (!Promise.prototype.finally) {
             Promise.prototype.finally = function (f) {
-                return this.then(v => Promise.resolve(f()).then(() => v), e => Promise.resolve(f()).then(() => { throw e }))
+                return Promise.prototype.then.call(this, v => Promise.resolve(f()).then(() => v), e => Promise.resolve(f()).then(() => { throw e }))
             }
         }
     }
@@ -96,15 +96,15 @@ QtObject {
     */
     function doors(me) {
         const w = Worlds.get(me)
-        const solDoor = { world: "sol", label: "Sol", hint: w.name + "’s settings and connections, and every other world, in the browser", open: () => openInSol() }
+        const solDoor = { world: "sol", label: "Sol", role: "Settings and every world", hint: w.name + "’s settings and connections, and every other world, in the browser", open: () => openInSol() }
         return installed().then(here => [solDoor].concat(
-            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ world: k.id, label: k.name, hint: k.tagline, open: () => openWorld(k.id, k.name) }))))
+            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ world: k.id, label: k.name, role: k.role, hint: k.tagline, open: () => openWorld(k.id, k.name) }))))
     }
 
     /** The same doors for the Sheet, under the world's name. */
     function moons(me) {
         return installed().then(here =>
-            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ id: k.id, label: k.name + " · " + k.tagline.toLowerCase(), open: () => openWorld(k.id, k.name) })))
+            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ id: k.id, label: k.name + " · " + (k.role || k.tagline), hint: k.tagline, open: () => openWorld(k.id, k.name) })))
     }
 
     /** `HH:MM` of an ISO time, in the local zone. */

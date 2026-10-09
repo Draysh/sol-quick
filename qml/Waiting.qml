@@ -20,7 +20,7 @@ Item {
             strokeColor: Theme.text; strokeWidth: 1.2; fillColor: "transparent"; capStyle: ShapePath.RoundCap
             PathAngleArc { centerX: root.size / 2; centerY: root.size / 2; radiusX: root.size * 0.375; radiusY: root.size * 0.375; startAngle: -90; sweepAngle: 90 }
         }
-        RotationAnimation on rotation { from: 0; to: 360; duration: 1400; loops: Animation.Infinite; running: Theme.alive }
+        RotationAnimation on rotation { from: 0; to: 360; duration: 1400; loops: Animation.Infinite; running: Theme.alive && root.visible }
     }
     Rectangle {
         anchors.centerIn: parent

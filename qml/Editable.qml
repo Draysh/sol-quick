@@ -1,9 +1,10 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Sol.Design
 
 /*
-    Words that can be changed in place: click them and type; Enter keeps
-    the change, Escape or clicking away drops it. Looks like the text it
+    Words that can be changed in place: click them and type; Enter or
+    clicking away keeps the change, Escape drops it. Looks like the text it
     replaces, in any size, with the line lighting up under it while open.
 
         Editable { text: list.name; size: Theme.text2xl; onCommitted: name => rename(name) }
@@ -18,6 +19,8 @@ Item {
     property string placeholder: "…"
     property bool editing: false
     property string hint: "Click to change"
+    /** In capitals, tracked, like a `Heading` (a page's title that can be renamed). */
+    property bool caps: false
     signal committed(string text)
 
     implicitWidth: editing ? Math.max(120, input.implicitWidth + 24) : label.implicitWidth + 8
@@ -34,7 +37,8 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         text: root.text !== "" ? root.text : root.placeholder
         font.family: Theme.font; font.pixelSize: root.size; font.weight: root.weight
-        font.letterSpacing: root.size >= Theme.textXl ? Theme.track(Theme.trackDisplay, root.size) : 0
+        font.letterSpacing: root.caps ? Theme.track(Theme.trackCaps, root.size) : root.size >= Theme.textXl ? Theme.track(Theme.trackDisplay, root.size) : 0
+        font.capitalization: root.caps ? Font.AllUppercase : Font.MixedCase
         color: mouse.containsMouse ? Theme.textBright : root.color
         Behavior on color { ColorAnimation { duration: Theme.fade } }
     }
@@ -51,13 +55,14 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         font.family: Theme.font; font.pixelSize: root.size; font.weight: root.weight
         font.letterSpacing: label.font.letterSpacing
+        font.capitalization: label.font.capitalization
         color: Theme.textBright
         selectionColor: Theme.text; selectedTextColor: Theme.space
         clip: true
         onAccepted: root.keep()
         onActiveFocusChanged: if (!activeFocus && root.editing) root.keep()
         Keys.onEscapePressed: root.drop()
-        cursorDelegate: Rectangle { width: 1; color: Theme.textBright }
+        cursorDelegate: Rectangle { width: 1; color: Theme.textBright; visible: input.cursorVisible }
     }
     Rectangle { visible: root.editing; x: 4; anchors.bottom: parent.bottom; width: input.width; height: 1; color: Theme.textBright
         transform: Scale { origin.x: 0; xScale: root.editing ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } } }

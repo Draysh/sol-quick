@@ -50,9 +50,9 @@ Card {
     Button { visible: !!root.status && root.status.state === "ready"; variant: "primary"; text: "Restart now"; onClicked: root.act("restart") }
     Words { visible: !!root.status && root.status.state === "failed"; width: parent.width; small: true; color: Theme.dangerText; text: root.status && root.status.state === "failed" ? root.status.error : "" }
 
-    Toggle { visible: root.updates && root.quiet; width: parent.width; label: "Install updates by myself"
+    Toggle { id: autoToggle; visible: root.updates && root.quiet; width: parent.width; label: "Install updates by myself"
         hint: "New versions are put in place quietly and run from the next start."
-        checked: !!root.status && root.status.auto; onToggled: on => root.act("set_auto_update", { auto: on }) }
+        checked: !!root.status && root.status.auto; onToggled: on => Sol.call("set_auto_update", { auto: on }).catch(why => { autoToggle.fail(); Notices.failed(Sol.world, "Updates", why) }) }
     Button { visible: root.updates && !!root.status && root.status.state !== "downloading" && root.status.state !== "ready"; variant: "quiet"; text: "Check now"
         busy: !!root.status && root.status.state === "checking"; onClicked: root.act("check_updates") }
 }

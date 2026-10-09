@@ -20,6 +20,15 @@ Item {
     function fail() { shown = checked; shake.restart(); Sounds.off() }
     implicitWidth: parent ? parent.width : 240
     implicitHeight: 46
+    function flip() { if (!live) return; shown = !shown; Sounds.tick(); toggled(shown) }
+    activeFocusOnTab: true
+    Keys.onSpacePressed: event => { if (!event.isAutoRepeat) flip() }
+    Accessible.role: Accessible.CheckBox
+    Accessible.name: label
+    Accessible.checkable: true
+    Accessible.checked: shown
+    Accessible.onToggleAction: flip()
+    Accessible.onPressAction: flip()
     transform: Translate { id: nudge; x: 0 }
     SequentialAnimation { id: shake; NumberAnimation { target: nudge; property: "x"; to: -4; duration: 40 } NumberAnimation { target: nudge; property: "x"; to: 4; duration: 60 } NumberAnimation { target: nudge; property: "x"; to: -2; duration: 50 } NumberAnimation { target: nudge; property: "x"; to: 0; duration: 50 } }
 
@@ -36,7 +45,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             color: root.shown ? Theme.text : "transparent"
             border.width: 1
-            border.color: root.shown ? Theme.text : mouse.containsMouse && root.live ? Theme.textBright : Qt.rgba(1, 1, 1, 0.6)
+            border.color: root.shown ? Theme.text : (mouse.containsMouse && root.live) || root.activeFocus ? Theme.textBright : Qt.rgba(1, 1, 1, 0.6)
             scale: mouse.pressed && root.live ? 0.85 : 1
             Behavior on color { ColorAnimation { duration: Theme.lock } }
             Behavior on border.color { ColorAnimation { duration: Theme.lock } }
@@ -95,6 +104,6 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: root.busy ? Qt.BusyCursor : root.live ? Qt.PointingHandCursor : Qt.ArrowCursor
-        onClicked: if (root.live) { root.shown = !root.shown; Sounds.tick(); root.toggled(root.shown) }
+        onClicked: root.flip()
     }
 }

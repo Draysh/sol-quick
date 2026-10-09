@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
@@ -31,9 +32,10 @@ Item {
             const p = root.parent.mapToItem(null, 0, root.above ? 0 : root.parent.height)
             sourceComponent = bubble
             active = true
-            if (item) {
-                item.x = Math.max(8, Math.min(win.width - item.width - 8, p.x))
-                item.y = root.above ? p.y - item.height - 6 : p.y + 6
+            const b = item as Item
+            if (b) {
+                b.x = Math.max(8, Math.min(win.width - b.width - 8, p.x))
+                b.y = root.above ? p.y - b.height - 6 : p.y + 6
             }
         }
         function hide() { active = false }

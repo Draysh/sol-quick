@@ -45,7 +45,7 @@ Item {
             font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs)
             font.capitalization: Font.AllUppercase
             font.underline: mouse.containsMouse
-            color: mouse.containsMouse ? Theme.textBright : "#e6e6e6"
+            color: mouse.containsMouse ? Theme.textBright : Theme.text
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
     }

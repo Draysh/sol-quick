@@ -23,33 +23,18 @@ Item {
     implicitWidth: childrenRect.width
     implicitHeight: childrenRect.height
 
-    transform: Translate { id: shift; y: 0 }
-    opacity: 1
-
-    /** The Flickable this scrolls in, if any. */
-    function flickOf() { for (let it = parent; it; it = it.parent) if (it.hasOwnProperty("contentY") && it.hasOwnProperty("contentHeight") && it.hasOwnProperty("contentItem")) return it; return null }
-    function inView(f) { if (f.height <= 0) return true; const y = mapToItem(f.contentItem, 0, 0).y; return y < f.contentY + f.height + 40 }
-    /** Starts `arrival` now if on screen, else when scrolled to. */
-    property var waitingOn: null
-    property var waitingCheck: null
-    function whenSeen(arrival) {
-        const f = flickOf()
-        if (!f || inView(f)) { arrival(); return }
-        const check = () => { if (inView(f)) { unwait(); arrival() } }
-        waitingOn = f; waitingCheck = check
-        f.contentYChanged.connect(check)
-    }
-    function unwait() { if (waitingOn && waitingCheck) { waitingOn.contentYChanged.disconnect(waitingCheck) } waitingOn = null; waitingCheck = null }
-    // Gone before it was seen: the Flickable must forget it.
-    Component.onDestruction: unwait()
-
-    Component.onCompleted: if (animated) { const f = flickOf(); if (!f || inView(f)) arrive.start(); else { opacity = 0; shift.y = slow ? 10 : 6; whenSeen(() => arrive.start()) } }
+    // Out of sight until it arrives, which is when it is on screen.
+    opacity: animated ? 0 : 1
+    transform: Translate { id: shift; y: root.animated ? (root.slow ? 10 : 6) : 0 }
+    /** Arrived late (scrolled to): it comes at once, no stagger. */
+    property bool late: false
+    property var forget: null
+    Component.onCompleted: if (animated) forget = Theme.whenSeen(root, waited => { late = waited; arrive.start() })
+    Component.onDestruction: if (forget) forget()
 
     SequentialAnimation {
         id: arrive
-        PropertyAction { target: root; property: "opacity"; value: 0 }
-        PropertyAction { target: shift; property: "y"; value: root.slow ? 10 : 6 }
-        PauseAnimation { duration: root.wait + Theme.delay(root.place) }
+        PauseAnimation { duration: root.late ? 0 : root.wait + Theme.delay(root.place) }
         ParallelAnimation {
             NumberAnimation { target: root; property: "opacity"; to: 1; duration: root.slow ? Theme.rise : Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
             NumberAnimation { target: shift; property: "y"; to: 0; duration: root.slow ? Theme.rise : Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }

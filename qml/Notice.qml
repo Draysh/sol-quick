@@ -2,15 +2,19 @@ import QtQuick
 
 /*
     One notice: it drops in, a hairline along its bottom runs out as its
-    time does, and it waits while the pointer is on it. The Shell makes
+    time does, and it waits while the pointer is on it. The window makes
     these from `Notices.list`.
 */
 Item {
     id: root
 
-    /** The row of `Notices.list`: id, world, title, body, tone, cycle. */
-    property var model
-    readonly property bool error: !!model && model.tone === "error"
+    // The row of `Notices.list`.
+    required property int key
+    required property string world
+    required property string title
+    required property string body
+    required property string tone
+    readonly property bool error: tone === "error"
 
     implicitHeight: content.implicitHeight + 28
 
@@ -36,12 +40,12 @@ Item {
         x: 18; y: 14
         width: parent.width - 18 - Theme.target
         spacing: 14
-        WorldGlyph { world: root.model ? root.model.world : "sol"; size: 14; y: 2 }
+        WorldGlyph { world: root.world; size: 14; y: 2 }
         Column {
             width: parent.width - 28
             spacing: 2
-            Label { text: root.model ? root.model.title : ""; width: parent.width }
-            Words { visible: !!root.model && root.model.body !== ""; text: root.model ? root.model.body : ""; width: parent.width; small: true }
+            Label { text: root.title; width: parent.width }
+            Words { visible: root.body !== ""; text: root.body; width: parent.width; small: true }
         }
     }
     Button {
@@ -49,7 +53,7 @@ Item {
         icon: "close"
         anchors.right: parent.right; anchors.rightMargin: 4
         y: 2
-        onClicked: Notices.dismiss(root.model.id)
+        onClicked: Notices.dismiss(root.key)
     }
 
     // How long it stays: a line that runs out.
@@ -59,21 +63,15 @@ Item {
         width: parent.width - 2; height: 1
         color: root.error ? Theme.danger : Theme.lineStrong
         transform: Scale { id: left; origin.x: 0; xScale: 1 }
+        // The line is the time: when it has run out, the notice goes.
         NumberAnimation {
-            id: run
             target: left; property: "xScale"; from: 1; to: 0
             duration: Notices.linger
             running: true
             paused: hover.hovered
-        }
-        Connections {
-            target: root
-            function onModelChanged() { run.restart() }
+            onFinished: Notices.dismiss(root.key)
         }
     }
 
-    HoverHandler {
-        id: hover
-        onHoveredChanged: hovered ? Notices.hold(root.model.id) : Notices.release(root.model.id)
-    }
+    HoverHandler { id: hover }
 }

@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
@@ -53,6 +54,7 @@ Row {
         Repeater {
             model: root.lines
             delegate: Settle {
+                id: entry
                 required property string modelData
                 required property int index
                 place: index + 3
@@ -60,14 +62,14 @@ Row {
                 height: words.implicitHeight
                 Text {
                     id: words
-                    text: modelData
+                    text: entry.modelData
                     font.family: Theme.font
                     font.weight: Theme.weightValue
                     font.pixelSize: 11
                     font.letterSpacing: Theme.track(Theme.trackRows, 11)
                     font.capitalization: Font.AllUppercase
                     lineHeight: 1.6; lineHeightMode: Text.ProportionalHeight
-                    color: "#d6d6d6"
+                    color: Theme.text
                     horizontalAlignment: root.flip ? Text.AlignRight : Text.AlignLeft
                 }
             }

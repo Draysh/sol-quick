@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
@@ -24,8 +25,9 @@ FocusScope {
     property alias readOnly: input.readOnly
     property alias input: input
     signal accepted()
-    /** The field was left, or Enter pressed, with its text changed. */
+    /** The field was left, or Enter pressed, with its text changed since it was entered. */
     signal edited()
+    property string entered: ""
 
     readonly property bool invalid: error !== ""
 
@@ -60,10 +62,13 @@ FocusScope {
                 validator: root.time ? timeRule : root.numeric ? numberRule : null
                 inputMethodHints: root.numeric ? Qt.ImhFormattedNumbersOnly : root.time ? Qt.ImhDigitsOnly : Qt.ImhNone
                 onAccepted: root.accepted()
-                onEditingFinished: root.edited()
-                RegularExpressionValidator { id: timeRule; regularExpression: /^([01]?\d|2[0-3]):[0-5]\d$/ }
+                onActiveFocusChanged: if (activeFocus) root.entered = text
+                onEditingFinished: if (text !== root.entered) { root.entered = text; root.edited() }
+                // A time, or nothing (an emptied time field is a change like any other).
+                RegularExpressionValidator { id: timeRule; regularExpression: /^(([01]?\d|2[0-3]):[0-5]\d)?$/ }
                 RegularExpressionValidator { id: numberRule; regularExpression: /^\d*([.,]\d*)?$/ }
-                cursorDelegate: Rectangle { width: 1; color: Theme.textBright; SequentialAnimation on opacity { loops: Animation.Infinite; running: input.activeFocus; NumberAnimation { to: 0; duration: 500 } NumberAnimation { to: 1; duration: 500 } } }
+                // Blinks while the field has the keys; gone (not frozen mid-blink) when it hasn't.
+                cursorDelegate: Rectangle { width: 1; color: Theme.textBright; visible: input.cursorVisible; SequentialAnimation on opacity { loops: Animation.Infinite; running: input.cursorVisible && Theme.alive; alwaysRunToEnd: true; NumberAnimation { to: 0; duration: 500 } NumberAnimation { to: 1; duration: 500 } } }
             }
             Text {
                 anchors.fill: input

@@ -3,26 +3,41 @@ import QtQuick
 
 /*
     Sol · Observatory tokens. Every Sol app uses these and nothing else:
-    black space, one type family, hairlines, and colour that only comes
-    from the worlds themselves. DESIGN.md explains each rule.
+    a night sky in three depths (the chrome deepest, the pane, then the
+    panels raised off it), one type family, hairlines, and colour that only
+    comes from the worlds themselves: each app's night is tinted a little by
+    its own world. DESIGN.md explains each rule.
 */
 QtObject {
     id: theme
 
-    // ---- Space and light ---------------------------------------------------
-    readonly property color space: "#000000"
-    readonly property color surface: Qt.rgba(1, 1, 1, 0.03)
-    readonly property color surfaceHover: Qt.rgba(1, 1, 1, 0.06)
-    readonly property color line: Qt.rgba(1, 1, 1, 0.08)
-    readonly property color lineMid: Qt.rgba(1, 1, 1, 0.14)
-    readonly property color lineStrong: Qt.rgba(1, 1, 1, 0.45)
-    readonly property color tick: Qt.rgba(1, 1, 1, 0.7)
+    // ---- Night and light ---------------------------------------------------
+    /** The night sky: deep blue-black, never pure black, so what is raised off it shows. */
+    readonly property color night: "#0c0e13"
+    /** The pane, where the work is: the night with a touch of the world's own colour. */
+    readonly property color space: Qt.tint(night, tint(world, 0.05))
+    /** The chrome (sidebar, the band and toolbars over a page): a step deeper than the pane. */
+    readonly property color deep: Qt.darker(space, 1.45)
+    /** A panel raised off the pane (a card): a step lighter, lit a little from above. */
+    readonly property color raised: Qt.tint(space, Qt.rgba(1, 1, 1, 0.035))
+    readonly property color raisedTop: Qt.tint(space, Qt.rgba(1, 1, 1, 0.06))
+    /** A panel's corners. */
+    readonly property int radius: 10
 
-    readonly property color text: "#f2f2f2"
+    readonly property color surface: Qt.rgba(1, 1, 1, 0.04)
+    readonly property color surfaceHover: Qt.rgba(1, 1, 1, 0.07)
+    readonly property color line: Qt.rgba(1, 1, 1, 0.07)
+    readonly property color lineMid: Qt.rgba(1, 1, 1, 0.12)
+    readonly property color lineStrong: Qt.rgba(1, 1, 1, 0.36)
+    readonly property color tick: Qt.rgba(1, 1, 1, 0.6)
+
+    readonly property color text: "#e6e8ed"
     readonly property color textBright: "#ffffff"
-    readonly property color textValue: "#bdbdbd"
-    readonly property color textQuiet: "#a8a8a8"
-    readonly property color textFaint: "#5a5a5a"
+    readonly property color textValue: "#c3c7cf"
+    readonly property color textQuiet: "#8b919d"
+    readonly property color textFaint: "#4f5561"
+    /** A heading in the world's light: a panel's title. */
+    readonly property color textWorld: Qt.tint(text, tint(world, 0.55))
 
     readonly property color danger: "#ff6b5a"
     readonly property color dangerText: "#ff8a7a"
@@ -101,4 +116,24 @@ QtObject {
 
     /** How late the `i`th of a list may arrive: a stagger each, never past 400 ms. */
     function delay(i) { return Math.min(i * stagger, 400) }
+
+    /**
+        Runs `arrival` once `item` is on screen in the Flickable it scrolls
+        in: at once when it already is (or nothing scrolls it), else when it
+        is scrolled to, or the window grows, or what is above it shrinks.
+        `arrival(waited)` says whether it had to wait. Returns a function
+        that forgets it, for when the item goes first.
+    */
+    function whenSeen(item, arrival) {
+        let f = item.parent
+        while (f && !(f.hasOwnProperty("contentY") && f.hasOwnProperty("contentHeight") && f.hasOwnProperty("contentItem"))) f = f.parent
+        const seen = () => f.height <= 0 || item.mapToItem(f.contentItem, 0, 0).y < f.contentY + f.height + 40
+        if (!f || seen()) { arrival(false); return () => { } }
+        const changes = [f.contentYChanged, f.heightChanged, f.contentHeightChanged, item.yChanged]
+        let waiting = true
+        const forget = () => { if (!waiting) return; waiting = false; for (const s of changes) s.disconnect(check) }
+        const check = () => { if (seen()) { forget(); arrival(true) } }
+        for (const s of changes) s.connect(check)
+        return forget
+    }
 }

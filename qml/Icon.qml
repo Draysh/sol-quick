@@ -4,7 +4,7 @@ import QtQuick.Shapes
 /*
     The few line glyphs the chrome uses, drawn as hairlines in the current
     colour: `arrow-left`, `arrow-right`, `arrow-up-right`, `close`, `tick`,
-    `chevron-down`, `search`, `plus`, `minus`.
+    `chevron-down`, `search`, `plus`, `minus`, `play`, `sound`.
 */
 Shape {
     id: root

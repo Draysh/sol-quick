@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Sol.Design
 
@@ -32,10 +33,11 @@ Item {
         Repeater {
             model: root.kind === "rows" ? root.count : 0
             delegate: Item {
+                id: row
                 required property int index
                 width: parent.width
                 height: 52
-                Block { y: 14; width: parent.width * (0.35 + (index % 3) * 0.12); height: 12 }
+                Block { y: 14; width: parent.width * (0.35 + (row.index % 3) * 0.12); height: 12 }
                 Block { y: 32; width: parent.width * 0.2; height: 8; opacity: 0.6 }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             }
@@ -68,11 +70,12 @@ Item {
         Repeater {
             model: root.kind === "posters" ? root.count : 0
             delegate: Column {
+                id: poster
                 required property int index
                 width: root.cell
                 spacing: Theme.s2
                 Block { width: parent.width; height: parent.width * 1.5 }
-                Block { width: parent.width * (0.5 + (index % 2) * 0.3); height: 10 }
+                Block { width: parent.width * (0.5 + (poster.index % 2) * 0.3); height: 10 }
             }
         }
     }
@@ -86,8 +89,4 @@ Item {
         gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: "transparent" } GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, 0.035) } GradientStop { position: 1; color: "transparent" } }
         NumberAnimation on x { running: root.visible && Theme.alive; loops: Animation.Infinite; from: -sweep.width; to: root.width; duration: 1600; easing.type: Easing.InOutSine }
     }
-
-    // It leaves as the data arrives: a fade, not a cut.
-    opacity: visible ? 1 : 0
-    Behavior on opacity { NumberAnimation { duration: Theme.fade } }
 }

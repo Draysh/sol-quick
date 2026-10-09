@@ -13,7 +13,8 @@ import QtMultimedia
 QtObject {
     id: sounds
 
-    property Settings prefs: Settings { category: "sol.device"; property bool sounds: false }
+    component Prefs: Settings { property bool sounds: false }
+    property Prefs prefs: Prefs { category: "sol.device" }
     readonly property bool on: prefs.sounds
     function setOn(v) { prefs.sounds = v; if (v) tick() }
 

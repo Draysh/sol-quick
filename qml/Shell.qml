@@ -1,14 +1,19 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtCore
 import QtQuick.Effects
+// By name: Qt has a `Screen` of its own, which a plain `Screen` finds first.
+import Sol.Design as Design
 
 /*
     The frame around every screen: a sidebar on the left (the world, its
     sections, its doors, its status at the bottom) and a pane on the right
-    where the pages live. Ctrl + 1…9 jumps to a section, `/` opens the
-    app's search, `?` a sheet of the keys; Alt+← / → and the mouse's own
-    buttons go back and forth, and going back lands where you left off:
-    every page in the history stays alive with its scroll.
+    where the pages live. Ctrl + 1…9 jumps to a section, `/` goes to the
+    sidebar's field (it filters the page, or searches the app), `?` shows
+    the keys; Alt+← / → and the mouse's own buttons go back and forth.
+    Going back lands where you left off: each section keeps one page alive
+    with its scroll, and a page opened from another lives while the
+    history still leads to it.
 
     The world's light marks the current section and glides to the next one
     when it changes; each screen settles into the pane as it opens.
@@ -42,15 +47,24 @@ Item {
     property alias status: statusSlot.data
     /** A bar along the bottom of the pane, e.g. a player's transport. */
     property alias footer: footSlot.data
+    /** The window's command palette (Ctrl+K), when it has one. */
+    property var commandPalette: null
+    /** Where the pages show, beside the sidebar (the window puts notices over it). */
+    readonly property alias pageArea: pane
     /** The page on screen. */
     readonly property Item page: history.length ? history[here].item : null
     readonly property string path: history.length ? history[here].path : ""
     readonly property var w: Worlds.get(world)
     readonly property bool rail: width < 760
 
-    // ---- History: every page stays, with its scroll ----------------------
+    // ---- History ---------------------------------------------------------------
+    /** `{ path, params, item }`, oldest first; a section's entries share its one page. */
     property var history: []
     property int here: -1
+    /** The most steps kept; older ones are forgotten (and their pages, if nothing else leads there). */
+    readonly property int remembered: 30
+    /** Section path → its page, made the first time it's opened. */
+    property var sectionPages: ({})
     property bool keys: false
 
     // The accent: the world's own colour, or the one chosen for this device; the photo's colours to choose from.
@@ -60,24 +74,39 @@ Item {
     Component.onCompleted: { accent(); go(home) }
     onWorldChanged: accent()
 
-    /** The window's command palette, when it has one. */
-    property var commandPalette: null
+    function isSection(path) { return sections.some(s => s.path === path) }
+
     /** Opens `path` with `params`, as a new step in the history. `hero` is
         `{ item, url }`: a picture that flies from `item` to the new page's `hero`. */
     function go(path, params, hero) {
         const component = pages[path]
         if (!component) { console.warn("Shell: no page at", path); return }
-        if (path === shell.path && JSON.stringify(params || {}) === JSON.stringify(history[here].params || {})) return
-        // What is ahead of here is forgotten, as a browser does.
-        const dropped = history.slice(here + 1)
-        for (const e of dropped) e.item.destroy()
-        const entry = { path: path, params: params || {}, item: null }
-        const item = component.createObject(paneSlot, { params: entry.params, shell: shell, width: Qt.binding(() => paneSlot.width), height: Qt.binding(() => paneSlot.height) })
-        if (!item) { console.warn("Shell: page failed", path, component.errorString()); return }
-        entry.item = item
-        history = history.slice(0, here + 1).concat([entry])
-        show(history.length - 1, sections.some(s => s.path === path) ? "up" : "in")
+        params = params || {}
+        if (path === shell.path && JSON.stringify(params) === JSON.stringify(history[here].params)) return
+        const section = isSection(path) && Object.keys(params).length === 0
+        let item = section ? sectionPages[path] : null
+        if (!item) {
+            item = component.createObject(paneSlot, { params: params, shell: shell, visible: false, width: Qt.binding(() => paneSlot.width), height: Qt.binding(() => paneSlot.height) })
+            if (!item) { console.warn("Shell: page failed", path, component.errorString()); return }
+            if (section) sectionPages[path] = item
+        }
+        // What is ahead of here is forgotten, as a browser does; past `remembered`, the oldest too.
+        let kept = history.slice(0, here + 1).concat([{ path: path, params: params, item: item }])
+        let dropped = history.slice(here + 1)
+        if (kept.length > remembered) { dropped = dropped.concat(kept.slice(0, kept.length - remembered)); kept = kept.slice(kept.length - remembered) }
+        history = kept
+        release(dropped)
+        show(history.length - 1, section ? "up" : "in")
         if (hero && hero.item && hero.url) fly(hero, item)
+    }
+
+    /** Destroys the pages of forgotten steps that nothing else leads to; a section's page stays. */
+    function release(dropped) {
+        for (const e of dropped) {
+            if (Object.values(sectionPages).includes(e.item)) continue
+            if (history.some(h => h.item === e.item)) continue
+            e.item.destroy()
+        }
     }
 
     // ---- The hero: one picture, shared between two pages ------------------
@@ -87,14 +116,34 @@ Item {
         flyer.source = hero.url
         flyer.x = from.x; flyer.y = from.y; flyer.width = hero.item.width; flyer.height = hero.item.height
         flyer.opacity = 1; flyer.visible = true
-        // The new page's hero has its place after a layout pass.
-        Qt.callLater(() => {
-            const target = page.hasOwnProperty("hero") ? page.hero : null
+        // The new page's hero has its place once the page is laid out (after
+        // the next frame, when its Columns have placed it); where it rests,
+        // not where the page's own arrival has it this moment.
+        landing.page = page
+        landing.restart()
+        const win = shell.Window.window
+        if (win) win.frameSwapped.connect(landing.measure)
+    }
+    Timer {
+        id: landing
+        // Without a frame (a hidden window), it measures anyway.
+        interval: 50
+        property Item page: null
+        onTriggered: measure()
+        function measure() {
+            const win = shell.Window.window
+            if (win) win.frameSwapped.disconnect(landing.measure)
+            stop()
+            const p = page
+            page = null
+            if (!p) return
+            const screen = p as Design.Screen
+            const target = screen ? screen.hero : null
             if (!target || !target.visible) { flyer.visible = false; return }
-            const to = target.mapToItem(shell, 0, 0)
+            const to = screen.restingPoint(target, shell)
             toX.to = to.x; toY.to = to.y; toW.to = target.width; toH.to = target.height
             flight.start()
-        })
+        }
     }
     Image {
         id: flyer
@@ -122,7 +171,7 @@ Item {
     function back() {
         if (here > 0) { show(here - 1, "out"); return true }
         // Opened first thing: up to its section, or home.
-        if (deeper) { go(upPath()); return true }
+        if (!isSection(path)) { go(upPath()); return true }
         return false
     }
 
@@ -133,13 +182,17 @@ Item {
     /** `dir`: `up` for a section (it settles), `in` for a page opened from another (it slides in from
         the right), `out` for going back (the page slides out to the right, the one under it comes back). */
     function show(i, dir) {
+        // A leave still running (back and forth quickly) is finished first.
+        if (leave.running) { leave.stop(); settleLeaving() }
         const was = here >= 0 ? history[here].item : null
         here = i
-        const item = history[i].item
+        const entry = history[i]
+        const item = entry.item
         for (const e of history) if (e.item && e.item !== was && e.item !== item) e.item.visible = false
         item.visible = true
         item.x = 0
-        item.back = Qt.binding(() => backTarget())
+        item.opacity = 1
+        item.back = backFor(entry)
         if (was && was !== item) {
             // The page that was here leaves under the one arriving; one coming back settles in again.
             leaving.target = was
@@ -149,9 +202,17 @@ Item {
             leaving.duration = dir === "out" ? Theme.settle : Theme.lock
             leave.restart()
             if (item.hasOwnProperty("reveal")) item.reveal(dir === "out" ? "back" : dir)
-            item.forceActiveFocus()
         }
-        if (page && page.hasOwnProperty("filter")) finder.text = page.filter
+        shell.forceActiveFocus()
+        const screen = page as Design.Screen
+        if (screen) finder.text = screen.filter
+    }
+    function settleLeaving() {
+        const t = leaving.target as Item
+        if (!t) return
+        if (t !== shell.page) t.visible = false
+        t.opacity = 1
+        t.x = 0
     }
     SequentialAnimation {
         id: leave
@@ -159,11 +220,9 @@ Item {
             NumberAnimation { id: leaving; property: "opacity"; to: 0; duration: Theme.lock }
             NumberAnimation { id: slideOut; property: "x"; to: 0; duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
         }
-        ScriptAction { script: { if (leaving.target && leaving.target !== shell.page) leaving.target.visible = false; if (leaving.target) { leaving.target.opacity = 1; leaving.target.x = 0 } } }
+        ScriptAction { script: shell.settleLeaving() }
     }
 
-    /** A page that isn't one of the sections, so it was opened from somewhere. */
-    readonly property bool deeper: path !== "" && !sections.some(s => s.path === path)
     readonly property int current: sections.findIndex(s => s.path === path)
 
     function upPath() {
@@ -171,10 +230,12 @@ Item {
         return s ? s.path : home
     }
 
-    function backTarget() {
-        if (!deeper) return null
-        if (here > 0) {
-            const prev = history[here - 1]
+    /** The way back from `entry`'s page: the step before it, or up to its section. A section has none. */
+    function backFor(entry) {
+        if (isSection(entry.path)) return null
+        const at = history.indexOf(entry)
+        if (at > 0) {
+            const prev = history[at - 1]
             const section = sections.find(s => s.path === prev.path)
             return { label: section ? section.label : (prev.item.title || "Back"), go: () => shell.back() }
         }
@@ -197,12 +258,11 @@ Item {
         if (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier) {
             if (typing()) return
             if (event.text === "?") { keys = !keys; event.accepted = true; return }
-            if (event.text === "/" && !keys && !shell.rail) { finder.input.forceActiveFocus(); finder.input.selectAll(); event.accepted = true; return }
+            if (event.text === "/" && !keys && finder.visible) { finder.input.forceActiveFocus(); finder.input.selectAll(); event.accepted = true; return }
             if (event.text === "/" && search !== "" && !keys) { go(search); event.accepted = true; return }
             if (event.key === Qt.Key_Escape && keys) { keys = false; event.accepted = true; return }
         }
         if (event.modifiers === Qt.ControlModifier || event.modifiers === Qt.MetaModifier) {
-            if (event.key === Qt.Key_K && commandPalette) { commandPalette.show(); event.accepted = true; return }
             const n = event.key - Qt.Key_0
             if (n >= 1 && n <= 9 && sections[n - 1]) { go(sections[n - 1].path); event.accepted = true }
         }
@@ -226,9 +286,11 @@ Item {
         height: parent.height
         Behavior on width { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
 
+        // The chrome sits a step deeper than the pane.
+        Rectangle { anchors.fill: parent; color: Theme.deep }
         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
 
-        // The brand: the world's disc and name.
+        // The brand: the world's disc, its name, and what the app is for.
         Item {
             id: brand
             x: shell.rail ? 0 : 20
@@ -246,30 +308,44 @@ Item {
                     Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
                     Body { world: shell.world; disc: 22; animated: false }
                 }
-                Text {
+                Column {
                     visible: !shell.rail
                     anchors.verticalCenter: parent.verticalCenter
-                    text: shell.w.name
-                    font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textS
-                    font.letterSpacing: Theme.track(0.28, Theme.textS); font.capitalization: Font.AllUppercase
-                    color: Theme.textBright
+                    spacing: 3
+                    Text {
+                        text: shell.w.name
+                        font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textS
+                        font.letterSpacing: Theme.track(0.28, Theme.textS); font.capitalization: Font.AllUppercase
+                        color: Theme.textBright
+                    }
+                    Text {
+                        visible: text !== ""
+                        text: shell.w.role
+                        font.family: Theme.font; font.weight: Theme.weightValue; font.pixelSize: Theme.textXs
+                        font.letterSpacing: Theme.track(0.04, Theme.textXs)
+                        color: Theme.textWorld
+                    }
                 }
             }
             MouseArea { id: brandMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.go(shell.home) }
             Hint { text: shell.w.tagline; when: brandMouse.containsMouse }
         }
 
-        // The field: filters the page in place when it can, searches the app otherwise.
+        // The field: filters the page in place when it can, searches the app
+        // otherwise; there only when it can do one or the other.
         Field {
             id: finder
-            visible: !shell.rail
+            visible: !shell.rail && (filtering || shell.search !== "")
             x: 20
             y: brand.y + brand.height
             width: parent.width - 36
             label: ""
-            placeholder: shell.page && shell.page.filters ? "Filter · /" : shell.search !== "" ? "Search · /" : "Find · /"
-            readonly property bool filtering: !!shell.page && shell.page.filters
-            onTextChanged: if (shell.page && shell.page.hasOwnProperty("filter")) shell.page.filter = text
+            placeholder: filtering ? "Filter · /" : "Search · /"
+            readonly property Design.Screen screen: shell.page as Design.Screen
+            readonly property bool filtering: !!screen && screen.filters
+            // Out of sight (the rail), it filters nothing.
+            onVisibleChanged: if (!visible) text = ""
+            onTextChanged: if (screen) screen.filter = text
             onAccepted: { if (!filtering && shell.search !== "" && text.trim() !== "") { const q = text.trim(); text = ""; shell.go(shell.search, { query: q }) } }
             Keys.onEscapePressed: { text = ""; shell.forceActiveFocus() }
         }
@@ -278,7 +354,7 @@ Item {
         Item {
             id: list
             x: shell.rail ? Theme.s1 : Theme.s2
-            y: shell.rail ? brand.y + brand.height + Theme.s2 : finder.y + finder.height + Theme.s3
+            y: finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
             width: parent.width - x * 2
             height: sectionColumn.implicitHeight
 
@@ -310,9 +386,10 @@ Item {
                         place: index
                         width: sectionColumn.width
                         height: Theme.control
-                        readonly property bool current: shell.path === modelData.path
+                        readonly property bool current: shell.path === row.modelData.path
                         Rectangle {
                             anchors.fill: parent
+                            radius: 6
                             color: row.current ? Theme.surfaceHover : rowMouse.containsMouse ? Theme.surface : "transparent"
                             Behavior on color { ColorAnimation { duration: Theme.fade } }
                         }
@@ -384,22 +461,32 @@ Item {
                     id: door
                     required property var modelData
                     required property int index
-                    place: shell.sections.length + index
+                    place: shell.sections.length + door.index
                     width: doorColumn.width
-                    height: Theme.control
-                    Rectangle { anchors.fill: parent; color: doorMouse.containsMouse ? Theme.surface : "transparent"; Behavior on color { ColorAnimation { duration: Theme.fade } } }
+                    // Another app: its name, and under it what it is for.
+                    height: shell.rail || !door.modelData.role ? Theme.control : Theme.target
+                    Rectangle { anchors.fill: parent; radius: 6; color: doorMouse.containsMouse ? Theme.surface : "transparent"; Behavior on color { ColorAnimation { duration: Theme.fade } } }
                     Row {
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: shell.rail ? parent.horizontalCenter : undefined
                         x: 12; spacing: 12
                         WorldGlyph { world: door.modelData.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
-                        Text {
+                        Column {
                             visible: !shell.rail
                             anchors.verticalCenter: parent.verticalCenter
-                            text: door.modelData.label
-                            font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                            color: doorMouse.containsMouse ? Theme.textBright : Theme.textQuiet
-                            Behavior on color { ColorAnimation { duration: Theme.fade } }
+                            spacing: 1
+                            Text {
+                                text: door.modelData.label
+                                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
+                                color: doorMouse.containsMouse ? Theme.textBright : Theme.text
+                                Behavior on color { ColorAnimation { duration: Theme.fade } }
+                            }
+                            Text {
+                                visible: !!door.modelData.role
+                                text: door.modelData.role || ""
+                                font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightValue
+                                color: Theme.textQuiet
+                            }
                         }
                     }
                     MouseArea { id: doorMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: door.modelData.open() }
@@ -434,33 +521,20 @@ Item {
             width: parent.width
             height: parent.height - footSlot.height
         }
+        // Behind the footer, outside it, so the footer's height follows what is in it.
+        Rectangle { anchors.fill: footSlot; color: Theme.deep }
         Item {
             id: footSlot
             anchors.bottom: parent.bottom
             width: parent.width
             height: childrenRect.height
-            Rectangle { anchors.fill: parent; color: Theme.space; z: -1 }
-        }
-    }
-
-    // Notices drop in at the top edge.
-    Column {
-        id: noticeStack
-        x: pane.x + (pane.width - width) / 2
-        y: Theme.s3
-        width: Math.min(440, shell.width - 32)
-        spacing: Theme.s2
-        z: 50
-        Repeater {
-            model: Notices.list
-            delegate: Notice { required property int index; width: noticeStack.width; model: Notices.list.get(index) }
         }
     }
 
     Loader {
         anchors.fill: parent
         active: shell.keys
-        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
+        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: finder.visible; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
     }
 
     Grain { }

@@ -1,7 +1,7 @@
 [package]
 name = "sol-quick"
 description = "The Sol design language as a Qt Quick module, and the Rust side every world app shares"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -15,7 +15,6 @@ links = "sol_quick"
 
 [dependencies]
 orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v0.7.0", features = ["app"] }
-anyhow = "1"
 cxx = "1"
 cxx-qt = "0.10"
 cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
@@ -24,11 +23,12 @@ gethostname = "1.1"
 open = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "macros"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time"] }
 tracing = "0.1.44"
-image = { version = "0.25", default-features = false, features = ["png"] }
 
+# The tray, notifications and global shortcuts (desktop.rs).
 [target.'cfg(target_os = "linux")'.dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
 notify-rust = { version = "4", default-features = false, features = ["z"] }
 ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
@@ -36,6 +36,7 @@ futures-util = "0.3"
 
 [dev-dependencies]
 tempfile = "3"
+tokio = { version = "1.53", features = ["macros"] }
 
 [build-dependencies]
 cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }

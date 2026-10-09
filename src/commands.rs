@@ -13,12 +13,13 @@ use orbit::link::Link;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-pub type Reply = Pin<Box<dyn Future<Output = Result<Value, String>> + Send>>;
+/// What a command answers: its reply as JSON text, or one sentence on why not.
+pub type Reply = Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
 type Command = Arc<dyn Fn(Link, Value) -> Reply + Send + Sync>;
 
-/// Errors reach the screens as one sentence.
+/// Errors reach the screens as one sentence, with its causes (`{:#}`).
 pub fn say(err: impl std::fmt::Display) -> String {
-    err.to_string()
+    format!("{err:#}")
 }
 
 /// The registry: every command by name.
@@ -43,15 +44,13 @@ impl Commands {
                 Box::pin(async move {
                     let args = parse::<A>(args)?;
                     let out = f(link, args).await?;
-                    serde_json::to_value(out).map_err(say)
+                    // Straight to text: through a `Value`, an `f32` widens to
+                    // `f64` and a rating of 7.3 arrives as 7.300000190734863.
+                    serde_json::to_string(&out).map_err(say)
                 })
             }),
         );
         self
-    }
-
-    pub fn names(&self) -> Vec<&str> {
-        self.0.keys().map(String::as_str).collect()
     }
 
     /// Runs `name` with `args`; an unknown name is a reply like any other.
@@ -70,7 +69,7 @@ impl Commands {
 /// an empty object or nothing at all.
 fn parse<A: DeserializeOwned>(args: Value) -> Result<A, String> {
     let empty = matches!(&args, Value::Object(m) if m.is_empty()) || args.is_null();
-    match serde_json::from_value::<A>(args.clone()) {
+    match serde_json::from_value::<A>(args) {
         Ok(a) => Ok(a),
         Err(_) if empty => serde_json::from_value::<A>(Value::Null).map_err(|e| e.to_string()),
         Err(e) => Err(format!("bad arguments: {e}")),
@@ -110,13 +109,22 @@ mod tests {
         let sum = commands
             .call(link.clone(), "add", serde_json::json!({ "a": 2, "b": 3 }))
             .await;
-        assert_eq!(sum, Ok(Value::from(5)));
+        assert_eq!(sum.as_deref(), Ok("5"));
         let world = commands.call(link.clone(), "world", Value::Null).await;
-        assert_eq!(world, Ok(Value::from("test")));
+        assert_eq!(world.as_deref(), Ok("\"test\""));
         let world = commands
             .call(link.clone(), "world", serde_json::json!({}))
             .await;
-        assert_eq!(world, Ok(Value::from("test")));
-        assert!(commands.call(link, "nope", Value::Null).await.is_err());
+        assert_eq!(world.as_deref(), Ok("\"test\""));
+        assert!(
+            commands
+                .call(link.clone(), "nope", Value::Null)
+                .await
+                .is_err()
+        );
+        // A 32-bit float reaches the screens as written, not widened.
+        commands.add("rating", |_, _: ()| async move { Ok(7.3f32) });
+        let rating = commands.call(link, "rating", Value::Null).await;
+        assert_eq!(rating.as_deref(), Ok("7.3"));
     }
 }

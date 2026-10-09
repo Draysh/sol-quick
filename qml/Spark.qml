@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Particles
 
@@ -41,6 +42,5 @@ Item {
                 opacity: 0.9
             }
         }
-        Age { lifeLeft: 0; once: false; enabled: false }
     }
 }

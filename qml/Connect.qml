@@ -17,7 +17,8 @@ Item {
     property bool busy: false
     property string error: ""
     property real now: Date.now()
-    Timer { interval: 1000; running: true; repeat: true; onTriggered: root.now = Date.now() }
+    // The minutes left on the code, counted down while there is one.
+    Timer { interval: 1000; running: !!root.pairing; repeat: true; triggeredOnStart: true; onTriggered: root.now = Date.now() }
 
     readonly property var pairing: Sol.status && Sol.status.state === "pairing" ? Sol.status : null
     readonly property string ended: Sol.status && Sol.status.state === "unpaired" && Sol.status.error ? Sol.status.error : ""
@@ -91,7 +92,7 @@ Item {
                 font.letterSpacing: Theme.track(0.32, Theme.textXs); font.capitalization: Font.AllUppercase
                 color: Theme.textBright
             }
-            Words { text: root.w.tagline; small: true; color: Theme.textValue; y: -Theme.s2 }
+            Words { text: root.w.tagline; small: true; color: Theme.textValue }
 
             Item {
                 width: parent.width

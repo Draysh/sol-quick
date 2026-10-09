@@ -40,6 +40,8 @@ pub mod qobject {
         #[qproperty(bool, tray)]
         /// `SOL_FPS=1`: the window says how many frames it paints a second.
         #[qproperty(bool, fps)]
+        /// `SOL_DRIVE=<file.qml>`: a script that drives the window, to check it end to end.
+        #[qproperty(QString, drive)]
         type SolBackend = super::Backend;
 
         /// Runs a command; the reply arrives as `replied(id, ok, body)`.
@@ -81,6 +83,12 @@ pub mod qobject {
         #[cxx_name = "planetGone"]
         fn planet_gone(self: Pin<&mut Self>);
 
+        /// Quit asked from outside the window (the tray, an update, a restart):
+        /// the window closes for good, then the app leaves.
+        #[qsignal]
+        #[cxx_name = "quitRequested"]
+        fn quit_requested(self: Pin<&mut Self>);
+
         /// Something the person should hear: a notice for the screens.
         #[qsignal]
         fn notice(self: Pin<&mut Self>, title: QString, body: QString, tone: QString);
@@ -96,12 +104,14 @@ pub mod qobject {
 }
 
 use core::pin::Pin;
+use std::sync::atomic::Ordering;
 
 use cxx_qt::Threading;
 use cxx_qt_lib::QString;
 use orbit::link::Update;
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 
-use crate::app::{self, Runtime};
+use crate::app::{self, Runtime, ToWindow};
 
 pub struct Backend {
     world: QString,
@@ -117,6 +127,7 @@ pub struct Backend {
     preview: bool,
     tray: bool,
     fps: bool,
+    drive: QString,
 }
 
 impl Default for Backend {
@@ -137,8 +148,9 @@ impl Default for Backend {
                 .unwrap_or(2500),
             shot_path: QString::from(&std::env::var("SOL_SHOT_PATH").unwrap_or_default()),
             preview: rt.preview,
-            tray: rt.tray,
+            tray: rt.tray.load(Ordering::Relaxed),
             fps: std::env::var_os("SOL_FPS").is_some(),
+            drive: QString::from(&std::env::var("SOL_DRIVE").unwrap_or_default()),
         }
     }
 }
@@ -152,40 +164,61 @@ impl cxx_qt::Initialize for qobject::SolBackend {
     fn initialize(self: Pin<&mut Self>) {
         let rt = app::runtime();
         let qt = self.qt_thread();
-        rt.set_activate({
+        // Everything Rust tells the window arrives on the Qt thread.
+        rt.set_window({
             let qt = qt.clone();
-            move || {
-                let _ = qt.queue(|me| me.activate());
-            }
-        });
-        rt.set_planet_gone({
-            let qt = qt.clone();
-            move || {
-                let _ = qt.queue(|me| me.planet_gone());
-            }
-        });
-        rt.set_emit({
-            let qt = qt.clone();
-            move |name: String, data: String| {
-                let _ =
-                    qt.queue(move |me| me.world_event(QString::from(&name), QString::from(&data)));
-            }
-        });
-        let link = rt.link.clone();
-        rt.tokio.spawn(async move {
-            let mut updates = link.subscribe();
-            while let Ok(update) = updates.recv().await {
-                let unsent = link.unsent().await.unwrap_or(0) as i32;
-                let _ = qt.queue(move |mut me| {
-                    me.as_mut().set_unsent(unsent);
-                    me.apply(update);
+            move |message| {
+                let _ = qt.queue(move |mut me| match message {
+                    ToWindow::Activate => me.activate(),
+                    ToWindow::PlanetGone => me.planet_gone(),
+                    ToWindow::Quit => me.quit_requested(),
+                    ToWindow::Tray(up) => me.set_tray(up),
+                    ToWindow::Event(name, data) => me
+                        .as_mut()
+                        .world_event(QString::from(&name), QString::from(&data)),
                 });
             }
         });
-        let qt = self.qt_thread();
+        // Subscribed before reading anything, so nothing between is missed.
+        let mut updates = rt.link.subscribe();
         rt.tokio.spawn(async move {
-            let unsent = rt.link.unsent().await.unwrap_or(0) as i32;
-            let _ = qt.queue(move |me| me.set_unsent(unsent));
+            let link = &rt.link;
+            let status = link.status();
+            let app_status = rt.updates.status();
+            let _ = qt.queue(move |mut me| {
+                me.as_mut().set_status(json(&status));
+                me.set_app(json(&app_status));
+            });
+            loop {
+                // Every update waiting, then what is left to send, once.
+                let mut batch = Vec::new();
+                let mut lagged = false;
+                match updates.recv().await {
+                    Ok(update) => batch.push(update),
+                    Err(RecvError::Lagged(_)) => lagged = true,
+                    Err(RecvError::Closed) => return,
+                }
+                loop {
+                    match updates.try_recv() {
+                        Ok(update) => batch.push(update),
+                        Err(TryRecvError::Lagged(_)) => lagged = true,
+                        Err(TryRecvError::Empty | TryRecvError::Closed) => break,
+                    }
+                }
+                if lagged {
+                    // Fell behind a burst: the status as it is now, and the
+                    // screens read everything again.
+                    batch.push(Update::Status(link.status()));
+                    batch.push(Update::Changed(Vec::new()));
+                }
+                let unsent = link.unsent().await.unwrap_or(0) as i32;
+                let _ = qt.queue(move |mut me| {
+                    me.as_mut().set_unsent(unsent);
+                    for update in batch {
+                        me.as_mut().apply(update);
+                    }
+                });
+            }
         });
     }
 }
@@ -224,9 +257,11 @@ impl qobject::SolBackend {
         let args = serde_json::from_str(&args.to_string()).unwrap_or(serde_json::Value::Null);
         let future = rt.commands.call(rt.link.clone(), &command, args);
         rt.tokio.spawn(async move {
-            let (ok, body) = match future.await {
-                Ok(value) => (true, value.to_string()),
-                Err(why) => (false, why),
+            // A command that panics still answers, so the screen's promise settles.
+            let (ok, body) = match rt.tokio.spawn(future).await {
+                Ok(Ok(json)) => (true, json),
+                Ok(Err(why)) => (false, why),
+                Err(_) => (false, format!("{command} failed inside the app")),
             };
             let _ = qt.queue(move |me| me.replied(id, ok, QString::from(&body)));
         });

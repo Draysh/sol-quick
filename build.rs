@@ -26,14 +26,20 @@ fn files(dir: &str, keep: impl Fn(&Path) -> bool) -> Vec<String> {
 }
 
 fn main() {
+    // A file added to one of these folders reruns the build, as a changed one does.
+    for dir in ["qml", "assets", "shaders"] {
+        println!("cargo::rerun-if-changed={dir}");
+    }
     let mut module = QmlModule::new("Sol.Design");
     for file in files("qml", |p| p.extension().is_some_and(|e| e == "qml")) {
         println!("cargo::rerun-if-changed={file}");
+        // `pragma Singleton` among the pragmas the file starts with.
         let singleton = fs::read_to_string(&file)
             .expect("a qml file")
             .lines()
-            .next()
-            .is_some_and(|l| l.trim_start().starts_with("pragma Singleton"));
+            .map(str::trim)
+            .take_while(|l| l.is_empty() || l.starts_with("pragma") || l.starts_with("//"))
+            .any(|l| l == "pragma Singleton");
         module = module.qml_file(QmlFile::from(file.as_str()).singleton(singleton));
     }
     let resources = files("assets", |p| {

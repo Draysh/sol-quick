@@ -15,13 +15,24 @@ Item {
     property color color: Theme.world
     /** Up to four colours from the picture, by hue, the most present first. */
     property var picks: []
-    readonly property bool known: source !== "" && loaded === source
-    property string loaded: ""
+    /** The picture being read; let go once its colour is known. */
+    property string reading: ""
 
     width: 24; height: 24
     visible: false
 
-    onSourceChanged: { if (source === "") { color = Theme.world; return } canvas.loadImage(source) }
+    onSourceChanged: read()
+    Component.onCompleted: read()
+    function read() {
+        // Already on its way.
+        if (reading !== "" && reading === source) return
+        if (reading !== "") canvas.unloadImage(reading)
+        if (source === "") { reading = ""; color = Theme.world; picks = []; return }
+        reading = source
+        canvas.loadImage(source)
+        // Already decoded (here, or by an Image elsewhere): no imageLoaded comes.
+        if (canvas.isImageLoaded(source)) canvas.requestPaint()
+    }
 
     Canvas {
         id: canvas
@@ -29,10 +40,11 @@ Item {
         renderStrategy: Canvas.Immediate
         onImageLoaded: requestPaint()
         onPaint: {
-            if (tone.source === "" || !isImageLoaded(tone.source)) return
+            const src = tone.reading
+            if (src === "" || !isImageLoaded(src)) return
             const g = getContext("2d")
             g.clearRect(0, 0, width, height)
-            g.drawImage(tone.source, 0, 0, width, height)
+            g.drawImage(src, 0, 0, width, height)
             const px = g.getImageData(0, 0, width, height).data
             let r = 0, g2 = 0, b = 0, n = 0, best = 0, br = 0, bg = 0, bb = 0
             const buckets = []
@@ -54,14 +66,15 @@ Item {
                     else buckets[h].n++
                 }
             }
-            if (!n) return
+            if (!n) { unloadImage(src); tone.reading = ""; return }
             tone.picks = buckets.filter(Boolean).sort((a, b) => b.n * b.sat - a.n * a.sat).slice(0, 4).map(x => Qt.lighter(x.color, 1.1))
             const avg = Qt.rgba(r / n / 255, g2 / n / 255, b / n / 255, 1)
             const vivid = Qt.rgba(br / 255, bg / 255, bb / 255, 1)
             // Halfway between: the picture's own colour, not its brightest speck.
             const mix = Qt.rgba((avg.r + vivid.r) / 2, (avg.g + vivid.g) / 2, (avg.b + vivid.b) / 2, 1)
             tone.color = Qt.lighter(mix, 1.15)
-            tone.loaded = tone.source
+            unloadImage(src)
+            tone.reading = ""
         }
     }
 }

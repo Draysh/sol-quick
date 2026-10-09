@@ -1,8 +1,12 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
     A label and a choice from a short list, underlined like a field. The
-    list drops out of the line; focus lights the line from the left.
+    list drops out of the line; focus lights the line from the left. Space,
+    Enter or Down opens it, Up and Down choose, Enter takes the choice,
+    Escape, Tab or a click elsewhere closes it. `value` is the caller's:
+    `chosen` says what was picked, and the caller sets it.
 
         Select { label: "Sort"; options: [{ value: "added", label: "Added" }]; value: "added"; onChosen: v => sort = v }
 */
@@ -18,13 +22,43 @@ FocusScope {
 
     readonly property var current: options.find(o => o.value === value)
     property bool open: false
+    /** The row the keys are on while the list is open. */
+    property int at: 0
 
     implicitWidth: 240
     implicitHeight: column.implicitHeight
     activeFocusOnTab: true
+    Accessible.role: Accessible.ComboBox
+    Accessible.name: label
+    Accessible.description: current ? current.label : placeholder
+
+    function show() {
+        if (!enabled || options.length === 0) return
+        at = Math.max(0, options.findIndex(o => o.value === value))
+        // Placed once as it opens; a wheel or a click elsewhere closes it.
+        const p = line.mapToItem(drop.parent, 0, line.height)
+        drop.x = p.x
+        drop.y = p.y + 2
+        open = true
+    }
+    function pick(i) {
+        const o = options[i]
+        open = false
+        if (o && o.value !== value) chosen(o.value)
+    }
+    onActiveFocusChanged: if (!activeFocus) open = false
     Keys.onPressed: event => {
-        if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Down) { open = !open; event.accepted = true }
-        else if (event.key === Qt.Key_Escape && open) { open = false; event.accepted = true }
+        const k = event.key
+        if (!open) {
+            if (k === Qt.Key_Space || k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Down) { show(); event.accepted = true }
+            return
+        }
+        event.accepted = true
+        if (k === Qt.Key_Escape) open = false
+        else if (k === Qt.Key_Up) at = Math.max(0, at - 1)
+        else if (k === Qt.Key_Down) at = Math.min(options.length - 1, at + 1)
+        else if (k === Qt.Key_Space || k === Qt.Key_Return || k === Qt.Key_Enter) pick(at)
+        else event.accepted = false
     }
 
     Column {
@@ -46,7 +80,7 @@ FocusScope {
                 font.family: Theme.font
                 font.pixelSize: Theme.textM
                 font.weight: Theme.weightValue
-                color: root.current ? Theme.text : Theme.textFaint
+                color: root.current && root.enabled ? Theme.text : Theme.textFaint
                 elide: Text.ElideRight
             }
             Icon {
@@ -70,26 +104,27 @@ FocusScope {
                 color: Theme.textBright
                 transform: Scale { origin.x: 0; xScale: root.activeFocus || root.open ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             }
-            MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); root.open = !root.open } }
+            MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; enabled: root.enabled; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); if (root.open) root.open = false; else root.show() } }
         }
 
         Words { visible: root.hint !== ""; text: root.hint; small: true; quiet: true; width: parent.width }
     }
 
-    // The list, over whatever is under it.
+    // The list, over whatever is under it, on the window so nothing clips it.
     Item {
         id: drop
         parent: root.Window.window ? root.Window.window.contentItem : root
-        visible: root.open
+        visible: root.open || panel.opacity > 0
         z: 900
-        property point at: line.mapToItem(parent, 0, line.height)
-        x: at.x; y: at.y + 2
         width: line.width
         height: list.implicitHeight + 2
 
-        MouseArea { parent: drop.parent; anchors.fill: parent; z: -1; enabled: root.open; onClicked: root.open = false; onWheel: root.open = false }
+        // Over the page (not under it), so the click or wheel closes the list
+        // instead of reaching the page.
+        MouseArea { parent: drop.parent; anchors.fill: parent; z: 899; enabled: root.open; onClicked: root.open = false; onWheel: root.open = false }
 
         Rectangle {
+            id: panel
             anchors.fill: parent
             color: "transparent"
             border.width: 1; border.color: Theme.lineMid
@@ -107,20 +142,23 @@ FocusScope {
                 Repeater {
                     model: root.options
                     delegate: Item {
+                        id: option
                         required property var modelData
                         required property int index
+                        readonly property bool chosen: modelData.value === root.value
                         width: list.width
                         height: Theme.control
-                        Rectangle { anchors.fill: parent; color: hover.containsMouse ? Theme.surfaceHover : modelData.value === root.value ? Theme.surface : "transparent" }
+                        Rectangle { anchors.fill: parent; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
+                        Rectangle { visible: option.index === root.at; width: 2; height: parent.height - 16; y: 8; color: Theme.world }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter; x: 12
                             width: parent.width - 24
-                            text: modelData.label
+                            text: option.modelData.label
                             font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                            color: modelData.value === root.value ? Theme.textBright : Theme.text
+                            color: option.chosen ? Theme.textBright : Theme.text
                             elide: Text.ElideRight
                         }
-                        MouseArea { id: hover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.value = modelData.value; root.open = false; root.chosen(modelData.value) } }
+                        MouseArea { id: hover; anchors.fill: parent; enabled: root.open; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = option.index; onClicked: root.pick(option.index) }
                     }
                 }
             }

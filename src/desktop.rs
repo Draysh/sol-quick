@@ -1,11 +1,15 @@
 //! The desktop around the window: a tray icon with a menu, notifications
 //! that work with the window hidden, and global shortcuts through the
-//! portal. Linux only; elsewhere each is a quiet no-op. Everything here
-//! reaches the screens as world events (`Sol.event`): `tray` and
-//! `shortcut` carry the id that was chosen, `notified` the action taken
-//! on a notification.
+//! portal. Linux only for now: elsewhere there is no tray or shortcut, and
+//! `notify` says it can't. Everything here reaches the screens as world
+//! events (`Sol.event`): `tray` and `shortcut` carry the id that was
+//! chosen, `notified` the action taken on a notification.
 
 use crate::app;
+
+/// The tray, for as long as the app runs.
+#[cfg(target_os = "linux")]
+static TRAY: std::sync::OnceLock<ksni::Handle<Tray>> = std::sync::OnceLock::new();
 
 /// An entry in the tray's menu: its id (what the screens hear) and label.
 pub type TrayItem = (&'static str, &'static str);
@@ -14,13 +18,18 @@ pub type Shortcut = (&'static str, &'static str, &'static str);
 
 /// Shows a desktop notification. `action` is a button: its id comes back
 /// as a `notified` event when it is pressed, or `default` when the
-/// notification itself is.
-pub fn notify(title: &str, body: &str, action: Option<(String, String)>) -> Result<u32, String> {
+/// notification itself is. Waiting for that takes a thread of its own
+/// until the notification is answered or closed.
+pub async fn notify(
+    title: &str,
+    body: &str,
+    action: Option<(String, String)>,
+) -> Result<u32, String> {
     #[cfg(target_os = "linux")]
     {
         let rt = app::runtime();
         let mut n = notify_rust::Notification::new();
-        n.appname(rt.app.name)
+        n.appname(&rt.name)
             .summary(title)
             .body(body)
             .icon(&format!("sol-{}", rt.app.world));
@@ -28,7 +37,7 @@ pub fn notify(title: &str, body: &str, action: Option<(String, String)>) -> Resu
             n.action(id, label);
             n.action("default", "Open");
         }
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = tokio::sync::oneshot::channel();
         std::thread::spawn(move || match n.show() {
             Ok(handle) => {
                 let id = handle.id();
@@ -45,7 +54,7 @@ pub fn notify(title: &str, body: &str, action: Option<(String, String)>) -> Resu
                 let _ = tx.send(Err(e.to_string()));
             }
         });
-        rx.recv().map_err(|e| e.to_string())?
+        rx.await.map_err(|e| e.to_string())?
     }
     #[cfg(not(target_os = "linux"))]
     {
@@ -65,26 +74,22 @@ pub fn start(
     #[cfg(target_os = "linux")]
     {
         let rt = app::runtime();
-        if rt.background {
-            return;
-        }
         let items: Vec<TrayItem> = tray_items.to_vec();
         rt.tokio.spawn(async move {
             use ksni::TrayMethods;
             let tray = Tray {
-                name: rt.app.name,
+                name: &rt.name,
+                title: rt.app.name,
                 world: rt.app.world,
-                icons: icons
-                    .iter()
-                    .filter_map(|(size, png)| pixmap(*size, png))
-                    .collect(),
+                icons: icons.iter().filter_map(|(_, png)| pixmap(png)).collect(),
                 items,
             };
             match tray.spawn().await {
                 Ok(handle) => {
-                    // The handle keeps the tray alive for the life of the app.
-                    std::mem::forget(handle);
+                    let _ = TRAY.set(handle);
+                    rt.set_tray(true);
                 }
+                // No tray to come back from: closing the window quits.
                 Err(e) => tracing::warn!("no tray: {e}"),
             }
         });
@@ -104,9 +109,9 @@ pub fn start(
 }
 
 #[cfg(target_os = "linux")]
-fn pixmap(size: u32, png: &[u8]) -> Option<ksni::Icon> {
+fn pixmap(png: &[u8]) -> Option<ksni::Icon> {
     let img = image::load_from_memory(png).ok()?.to_rgba8();
-    let mut data = Vec::with_capacity((size * size * 4) as usize);
+    let mut data = Vec::with_capacity((img.width() * img.height() * 4) as usize);
     for px in img.pixels() {
         data.extend_from_slice(&[px[3], px[0], px[1], px[2]]);
     }
@@ -119,7 +124,10 @@ fn pixmap(size: u32, png: &[u8]) -> Option<ksni::Icon> {
 
 #[cfg(target_os = "linux")]
 struct Tray {
+    /// The world's name, for "Open Terra".
     name: &'static str,
+    /// The name with what the app is for, for the tray's tooltip.
+    title: &'static str,
     world: &'static str,
     icons: Vec<ksni::Icon>,
     items: Vec<TrayItem>,
@@ -131,7 +139,7 @@ impl ksni::Tray for Tray {
         format!("sol-{}", self.world)
     }
     fn title(&self) -> String {
-        self.name.to_owned()
+        self.title.to_owned()
     }
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
         self.icons.clone()
@@ -139,6 +147,15 @@ impl ksni::Tray for Tray {
     /// A left click brings the window up.
     fn activate(&mut self, _x: i32, _y: i32) {
         app::runtime().activate_window();
+    }
+    /// The panel's tray went away (or came back): closing the window hides
+    /// it only while there is a tray to come back from.
+    fn watcher_offline(&self, _reason: ksni::OfflineReason) -> bool {
+        app::runtime().set_tray(false);
+        true
+    }
+    fn watcher_online(&self) {
+        app::runtime().set_tray(true);
     }
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
         use ksni::menu::{MenuItem, StandardItem};
@@ -166,7 +183,7 @@ impl ksni::Tray for Tray {
         }));
         menu.push(MenuItem::Standard(StandardItem {
             label: "Quit".into(),
-            activate: Box::new(|_: &mut Self| app::leave(0)),
+            activate: Box::new(|_: &mut Self| app::quit()),
             ..Default::default()
         }));
         menu

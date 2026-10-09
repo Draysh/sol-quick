@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 
@@ -32,11 +33,12 @@ Item {
     implicitHeight: Theme.control
     activeFocusOnTab: true
 
+    // One click per press: holding the key doesn't repeat it.
     Keys.onPressed: event => {
         if (!live) return
         if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true
-            root.clicked()
+            if (!event.isAutoRepeat) root.clicked()
         }
     }
 
@@ -120,7 +122,7 @@ Item {
             height: 1
             color: Theme.textBright
             NumberAnimation on x {
-                running: root.busy
+                running: root.busy && root.visible && Theme.alive
                 loops: Animation.Infinite
                 from: -sweep.width
                 to: root.width
@@ -136,20 +138,22 @@ Item {
     Tick { at: "br"; on: root.activeFocus }
 
     component Tick: Item {
+        id: tick
         property string at: "tl"
         property bool on: false
+        readonly property bool tl: at === "tl"
         readonly property real out: on ? 6 : 10
         width: 10; height: 10
         opacity: on ? 1 : 0
-        x: at === "tl" ? -out : root.width + out - width
-        y: at === "tl" ? -out : root.height + out - height
+        x: tl ? -out : root.width + out - width
+        y: tl ? -out : root.height + out - height
         Behavior on opacity { NumberAnimation { duration: Theme.lock } }
         Behavior on x { NumberAnimation { duration: Theme.lock } }
         Behavior on y { NumberAnimation { duration: Theme.lock } }
-        Rectangle { width: at === "tl" ? parent.width : 1; height: 1; color: Theme.textBright; x: 0; y: at === "tl" ? 0 : parent.height - 1 }
-        Rectangle { width: 1; height: at === "tl" ? parent.height : 1; color: Theme.textBright; x: at === "tl" ? 0 : parent.width - 1; y: 0 }
-        Rectangle { visible: at === "br"; width: parent.width; height: 1; color: Theme.textBright; y: parent.height - 1 }
-        Rectangle { visible: at === "br"; width: 1; height: parent.height; color: Theme.textBright; x: parent.width - 1 }
+        Rectangle { width: tick.tl ? parent.width : 1; height: 1; color: Theme.textBright; x: 0; y: tick.tl ? 0 : parent.height - 1 }
+        Rectangle { width: 1; height: tick.tl ? parent.height : 1; color: Theme.textBright; x: tick.tl ? 0 : parent.width - 1; y: 0 }
+        Rectangle { visible: !tick.tl; width: parent.width; height: 1; color: Theme.textBright; y: parent.height - 1 }
+        Rectangle { visible: !tick.tl; width: 1; height: parent.height; color: Theme.textBright; x: parent.width - 1 }
     }
 
     MouseArea {

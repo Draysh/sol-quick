@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
@@ -63,7 +64,7 @@ Item {
             Text { visible: root.rows.length > 0 && root.rows[0].length > 0; text: root.rows.length ? root.rows[0].map(r => r.label + " " + r.value).join(" · ") : ""; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.font; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
         }
 
-        Rectangle { anchors.fill: parent; color: Theme.space }
+        Rectangle { anchors.fill: parent; color: Theme.deep }
 
         // The frame keeps its shape (16:9, or the phone's); the band shows its middle.
         Item {
@@ -76,15 +77,16 @@ Item {
             transformOrigin: Item.Top
             // A slow drift, so the scene breathes.
             transform: Translate { id: breathe; y: 0 }
-            SequentialAnimation { running: Theme.alive; loops: Animation.Infinite; NumberAnimation { target: breathe; property: "y"; to: -4; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
+            SequentialAnimation { running: Theme.alive && root.visible && root.collapse < 1; loops: Animation.Infinite; NumberAnimation { target: breathe; property: "y"; to: -4; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
 
             component Placed: Body {
+                id: placed
                 property var at
-                disc: root.u * at.r * 2
-                x: root.u * (at.cx - at.r)
-                y: root.u * (at.cy - at.r)
-                light: at.light
-                phase: at.phase
+                disc: root.u * placed.at.r * 2
+                x: root.u * (placed.at.cx - placed.at.r)
+                y: root.u * (placed.at.cy - placed.at.r)
+                light: placed.at.light
+                phase: placed.at.phase
             }
 
             Placed { world: root.world; at: root.portrait ? root.w.portrait : root.w.hero }
@@ -131,7 +133,8 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: underRow.implicitWidth
                 height: underRow.implicitHeight
-                visible: root.moons.length > 0 || underRow.children.length > moonRepeater.count
+                // Moons, or anything else put under the name (the Repeater is a child too).
+                visible: root.moons.length > 0 || underRow.children.length > moonRepeater.count + 1
                 Flow {
                     id: underRow
                     spacing: Theme.s4
@@ -169,7 +172,7 @@ Item {
         readonly property int cols: root.portrait ? 2 : 3
         readonly property real margin: Theme.margin(width)
 
-        Rectangle { anchors.fill: parent; color: Theme.space }
+        Rectangle { anchors.fill: parent; color: Theme.deep }
         Item {
             id: stripRow
             x: strip.margin; y: Theme.s2
@@ -180,6 +183,7 @@ Item {
                 id: blockRepeater
                 model: strip.blocks
                 delegate: Settle {
+                    id: block
                     required property var modelData
                     required property int index
                     readonly property int slot: strip.blocks.length === 3 ? index : index === 0 ? 0 : strip.cols - 1
@@ -192,8 +196,8 @@ Item {
                     DataRows {
                         id: rowsView
                         width: parent.width
-                        rows: modelData
-                        align: slot === 0 ? Text.AlignLeft : slot === strip.cols - 1 ? Text.AlignRight : Text.AlignHCenter
+                        rows: block.modelData
+                        align: block.slot === 0 ? Text.AlignLeft : block.slot === strip.cols - 1 ? Text.AlignRight : Text.AlignHCenter
                     }
                 }
             }

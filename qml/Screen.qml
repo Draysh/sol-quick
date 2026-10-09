@@ -2,8 +2,10 @@ import QtQuick
 
 /*
     A page in the pane. Its `header` (a PageHead) stays put; everything else
-    scrolls, padded by the pane's margin. The Shell keeps a Screen alive
-    while it is in the history, so going back lands where you left off.
+    scrolls, padded by the pane's margin. A Sheet as the header is pinned
+    instead: the page scrolls under it and it shrinks to a bar. The Shell
+    keeps a Screen alive while the history leads to it, so going back
+    lands where you left off.
 
         Screen {
             title: "Settings"
@@ -34,7 +36,8 @@ Item {
     /** A Sheet given as the header pins itself over the page: the page scrolls under it, and it shrinks to a bar. */
     function pin(item) {
         pinned = item
-        screen.topPad = Qt.binding(() => item.fullHeight)
+        // The page starts under it, a gap below its line.
+        screen.topPad = Qt.binding(() => item.fullHeight + Theme.s4)
         item.collapse = Qt.binding(() => Math.max(0, Math.min(1, flick.contentY / Math.max(1, item.fullHeight - item.compact))))
     }
     /** Pad the sides by the pane's margin; off for a page that starts with a Sheet. */
@@ -48,10 +51,14 @@ Item {
     /** Something pinned along the bottom of this page (rarely). */
     property alias footer: footSlot.data
     readonly property real margin: Theme.margin(width)
-    /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left. */
+    /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left.
+        The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
     function reveal(dir) { flick.reveal(dir) }
-
-    onHeaderChanged: { for (const h of headSlot.data) if (h && h.hasOwnProperty("screen")) h.screen = screen }
+    /** Where `item` will rest in `into`'s coordinates, once the page's arrival is over (the hero lands there). */
+    function restingPoint(item, into) {
+        const p = item.mapToItem(flick, 0, 0)
+        return screen.mapToItem(into, flick.x + p.x, flick.y + p.y)
+    }
 
     Item {
         id: headSlot
@@ -140,9 +147,12 @@ Item {
     Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 2
-        y: flick.y + (flick.height - height) * (flick.contentHeight > flick.height ? flick.contentY / (flick.contentHeight - flick.height) : 0)
+        // Its track starts under a pinned Sheet, not behind it.
+        readonly property real trackTop: screen.pinned ? screen.pinned.height : flick.y
+        readonly property real track: flick.y + flick.height - trackTop
+        y: trackTop + (track - height) * (flick.contentHeight > flick.height ? Math.max(0, Math.min(1, flick.contentY / (flick.contentHeight - flick.height))) : 0)
         width: 3
-        height: Math.max(24, flick.height * Math.min(1, flick.height / Math.max(1, flick.contentHeight)))
+        height: Math.max(24, track * Math.min(1, flick.height / Math.max(1, flick.contentHeight)))
         radius: 1.5
         color: Qt.rgba(1, 1, 1, 0.18)
         visible: flick.contentHeight > flick.height

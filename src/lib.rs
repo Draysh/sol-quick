@@ -2,14 +2,18 @@
 //! and the Rust side every world's app shares: starting up, the one
 //! QObject the screens talk to (`SolBackend`), and the commands they call.
 //!
-//! A world's `main.rs` is a few lines:
+//! A world's `main.rs` is a few lines (`kit/template` has the whole of one):
 //!
 //! ```ignore
+//! use std::sync::Arc;
+//! use sol_quick::{Commands, World, say};
+//!
 //! fn main() {
 //!     cxx_qt::init_crate!(sol_quick);
-//!     let mut commands = sol_quick::Commands::default();
+//!     cxx_qt::init_qml_module!("Sol.Design");
+//!     let mut commands = Commands::default();
 //!     commands.add("entries", |link, _: ()| async move { world::all(&link).await.map_err(say) });
-//!     sol_quick::run(sol_quick::World {
+//!     sol_quick::run(World {
 //!         manifest: include_str!("../sol-world.json"),
 //!         update_key: include_str!("../update.pub"),
 //!         version: env!("CARGO_PKG_VERSION"),
@@ -18,6 +22,10 @@
 //!         handler: Arc::new(world::World),
 //!         commands,
 //!         main: "qrc:/qt/qml/Sol/Exoplanet/qml/Main.qml",
+//!         sample: None,
+//!         prepare: None,
+//!         tray: &[],
+//!         shortcuts: &[],
 //!     })
 //! }
 //! ```
@@ -28,5 +36,5 @@ pub mod commands;
 pub mod desktop;
 mod single;
 
-pub use app::{Prepare, Sample, World, data_dir, emit, leave, run, runtime};
+pub use app::{Prepare, Sample, World, data_dir, device_name, emit, leave, quit, run, runtime};
 pub use commands::{Commands, say};

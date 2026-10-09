@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 
@@ -24,6 +25,7 @@ Column {
     spacing: Theme.s2
 
     component Line: Row {
+        id: line
         property string text: ""
         property color dot: Theme.textFaint
         property bool glow: false
@@ -32,12 +34,12 @@ Column {
         Item {
             width: 5; height: 5
             anchors.verticalCenter: parent.verticalCenter
-            RectangularShadow { anchors.fill: dotRect; radius: 2.5; blur: 8; color: Theme.tint(parent.parent.dot, parent.parent.glow ? 1 : 0); Behavior on color { ColorAnimation { duration: Theme.fade } } }
-            Rectangle { id: dotRect; anchors.fill: parent; radius: 2.5; color: parent.parent.dot; Behavior on color { ColorAnimation { duration: Theme.fade } } }
+            RectangularShadow { anchors.fill: dotRect; radius: 2.5; blur: 8; color: Theme.tint(line.dot, line.glow ? 1 : 0); Behavior on color { ColorAnimation { duration: Theme.fade } } }
+            Rectangle { id: dotRect; anchors.fill: parent; radius: 2.5; color: line.dot; Behavior on color { ColorAnimation { duration: Theme.fade } } }
         }
-        Quiet { text: parent.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.width - 12) }
+        Quiet { text: line.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.width - 12) }
         HoverHandler { id: hover }
-        Hint { text: parent.hint; when: hover.hovered; above: true }
+        Hint { text: line.hint; when: hover.hovered; above: true }
     }
 
     Line { visible: root.warn !== ""; text: root.warn; dot: Theme.danger; hint: root.warn }

@@ -1,8 +1,9 @@
 import QtQuick
 
 /*
-    A group, marked by two corner ticks instead of a box. The ticks lock on
-    as the card appears. Give it a width; it is as tall as what it holds.
+    A group: a panel raised off the night, its title in the world's light
+    over a hairline, and two corner ticks that lock on to it under the
+    pointer. Give it a width; it is as tall as what it holds.
 
         Card { title: "Log"; width: parent.width; Column { … } }
 */
@@ -22,7 +23,7 @@ Item {
     /** Entries for a right-click (a list, or a function returning one): `{ label, run }`. */
     property var menu: null
 
-    implicitHeight: body.y + body.implicitHeight + 18
+    implicitHeight: body.y + body.implicitHeight + 20
 
     MouseArea {
         anchors.fill: parent
@@ -30,8 +31,8 @@ Item {
         enabled: !!root.menu
         acceptedButtons: Qt.RightButton
         onClicked: mouse => {
-            const win = root.Window.window
-            if (!win || !win.hasOwnProperty("menu")) return
+            const win = root.Window.window as AppWindow
+            if (!win) return
             const p = root.mapToItem(null, mouse.x, mouse.y)
             win.menu.show(p.x, p.y, typeof root.menu === "function" ? root.menu() : root.menu)
         }
@@ -42,26 +43,14 @@ Item {
     opacity: 0
     transform: Translate { id: shift; y: 6 }
 
-    /** The Flickable this scrolls in, if any. */
-    function flickOf() { for (let it = parent; it; it = it.parent) if (it.hasOwnProperty("contentY") && it.hasOwnProperty("contentHeight") && it.hasOwnProperty("contentItem")) return it; return null }
-    function inView(f) { if (f.height <= 0) return true; const y = mapToItem(f.contentItem, 0, 0).y; return y < f.contentY + f.height + 40 }
-    /** Starts `arrival` now if on screen, else when scrolled to. */
-    property var waitingOn: null
-    property var waitingCheck: null
-    function whenSeen(arrival) {
-        const f = flickOf()
-        if (!f || inView(f)) { arrival(); return }
-        const check = () => { if (inView(f)) { unwait(); arrival() } }
-        waitingOn = f; waitingCheck = check
-        f.contentYChanged.connect(check)
-    }
-    function unwait() { if (waitingOn && waitingCheck) { waitingOn.contentYChanged.disconnect(waitingCheck) } waitingOn = null; waitingCheck = null }
-    // Gone before it was seen: the Flickable must forget it.
-    Component.onDestruction: unwait()
-    Component.onCompleted: whenSeen(() => arrive.start())
+    /** Arrived late (scrolled to): it comes at once, no stagger. */
+    property bool late: false
+    property var forget: null
+    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; arrive.start() })
+    Component.onDestruction: if (forget) forget()
     SequentialAnimation {
         id: arrive
-        PauseAnimation { duration: Theme.delay(root.index) }
+        PauseAnimation { duration: root.late ? 0 : Theme.delay(root.index) }
         ParallelAnimation {
             NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
             NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
@@ -75,14 +64,20 @@ Item {
         }
     }
 
+    // The panel: a step lighter than the pane, lit a little from above.
     Rectangle {
         anchors.fill: parent
-        color: over.hovered ? Qt.rgba(1, 1, 1, 0.015) : "transparent"
+        radius: Theme.radius
+        gradient: Gradient {
+            GradientStop { position: 0; color: Theme.raisedTop }
+            GradientStop { position: 1; color: Theme.raised }
+        }
         border.width: 1
-        border.color: over.hovered ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.06)
-        Behavior on color { ColorAnimation { duration: Theme.fade } }
+        border.color: over.hovered ? Theme.lineMid : Theme.line
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
     }
+    // Under the title, a hairline from edge to edge: the head, then the body.
+    Rectangle { visible: head.visible; x: 1; y: head.y + head.height + 13; width: parent.width - 2; height: 1; color: Theme.line }
     HoverHandler { id: over }
 
     Item {
@@ -92,15 +87,21 @@ Item {
         scale: over.hovered ? 1.15 : 1
         transformOrigin: Item.Center
         Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-        Rectangle { x: -1; y: -1; width: 14; height: 1; color: Theme.tick }
-        Rectangle { x: -1; y: -1; width: 1; height: 14; color: Theme.tick }
-        Rectangle { x: parent.width - 13; y: parent.height; width: 14; height: 1; color: Theme.tick }
-        Rectangle { x: parent.width; y: parent.height - 13; width: 1; height: 14; color: Theme.tick }
+        // Under the pointer only: the panel holds the group; the ticks lock on to it.
+        Item {
+            anchors.fill: parent
+            opacity: over.hovered ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Theme.fade } }
+            Rectangle { x: -1; y: -1; width: 14; height: 1; color: Theme.textWorld }
+            Rectangle { x: -1; y: -1; width: 1; height: 14; color: Theme.textWorld }
+            Rectangle { x: parent.width - 13; y: parent.height; width: 14; height: 1; color: Theme.textWorld }
+            Rectangle { x: parent.width; y: parent.height - 13; width: 1; height: 14; color: Theme.textWorld }
+        }
     }
 
     Item {
         id: head
-        x: 20; y: 18
+        x: 20; y: 16
         width: parent.width - 40
         height: visible ? 24 : 0
         visible: root.title !== "" || root.openable
@@ -109,7 +110,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
             WorldGlyph { visible: root.world !== ""; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
-            Label { text: root.title; anchors.verticalCenter: parent.verticalCenter }
+            Label { text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter }
         }
 
         Item {
@@ -138,7 +139,7 @@ Item {
     Column {
         id: body
         x: 20
-        y: head.visible ? head.y + head.height + root.gap : 18
+        y: head.visible ? head.y + head.height + 14 + Math.max(root.gap, Theme.s3) : 20
         width: parent.width - 40
         spacing: root.gap
     }

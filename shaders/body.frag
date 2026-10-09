@@ -1,7 +1,7 @@
 #version 440
 
-// A world, lit from one side. The item is a square 3.4 discs wide: the disc
-// has radius 1 in its middle and the glow reaches out to 1.7. `mode` 0 is a
+// A world, lit from one side. The item is a square 3.4 radii wide: the
+// disc has radius 1 in its middle and the glow reaches out to 1.7. `mode` 0 is a
 // disc (a planet or a moon), 1 a star (Sol), 2 a photograph used whole
 // (Saturn). `away` points from the light to the shadow; `phase` 0 is new,
 // 1 full. `effect` 1 adds Titan's haze, 2 Mercury's split rim. `live` 1
@@ -48,14 +48,17 @@ float clouds(vec2 p, float t) {
 void main() {
     vec2 p = (qt_TexCoord0 - 0.5) * 3.4;
     float d = length(p);
-    float px = 3.4 / 600.0; // about a pixel, for soft edges
+    float px = max(fwidth(d), 1e-4); // a pixel, at any size, for soft edges
     vec4 out_ = vec4(0.0);
 
     if (mode == 2) {
-        // The photograph fitted into the disc's box, whole.
+        // The photograph fitted into the disc's box, whole; the black of
+        // space in it lets the night behind show through.
         vec2 uv = vec2((p.x + 1.0) * 0.5, (p.y / aspect + 1.0) * 0.5);
         if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
-            out_ = texture(source, uv);
+            vec4 c = texture(source, uv);
+            float lit = smoothstep(0.015, 0.09, max(c.r, max(c.g, c.b)));
+            out_ = vec4(c.rgb, 1.0) * lit;
         }
         fragColor = out_ * qt_Opacity;
         return;

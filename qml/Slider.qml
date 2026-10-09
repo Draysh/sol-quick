@@ -19,6 +19,12 @@ Item {
 
     implicitHeight: 16
     implicitWidth: 120
+    // Left and right step a twentieth; the change is a move like any other.
+    activeFocusOnTab: true
+    Keys.onLeftPressed: step(-1)
+    Keys.onRightPressed: step(1)
+    function step(by) { moved(Math.max(from, Math.min(to, value + by * span / 20))) }
+    Accessible.role: Accessible.Slider
 
     readonly property real span: Math.max(1e-6, to - from)
     readonly property real shown: dragging ? dragValue : value
@@ -34,7 +40,7 @@ Item {
         y: parent.height / 2 - 4.5
         width: 9; height: 9; radius: 4.5
         color: Theme.textBright
-        scale: mouse.containsMouse || root.dragging ? 1.4 : 1
+        scale: mouse.containsMouse || root.dragging || root.activeFocus ? 1.4 : 1
         Behavior on scale { NumberAnimation { duration: Theme.lock } }
     }
     MouseArea {
@@ -43,8 +49,11 @@ Item {
         anchors.topMargin: -6; anchors.bottomMargin: -6
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        // A Flickable around it doesn't take the drag away.
+        preventStealing: true
         onPressed: m => { root.dragging = true; root.dragValue = root.at(m.x); if (root.live) root.moved(root.dragValue) }
         onPositionChanged: m => { if (root.dragging) { root.dragValue = root.at(m.x); if (root.live) root.moved(root.dragValue) } }
         onReleased: { root.dragging = false; root.moved(root.dragValue) }
+        onCanceled: root.dragging = false
     }
 }

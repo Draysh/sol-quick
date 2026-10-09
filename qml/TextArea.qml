@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 
 /* Writing more than a line, e.g. a diary; grows as you type. A label, an underline that lights on focus. */
@@ -39,7 +40,7 @@ FocusScope {
                 wrapMode: TextEdit.Wrap
                 textFormat: TextEdit.PlainText
                 focus: true
-                cursorDelegate: Rectangle { width: 1; color: Theme.textBright }
+                cursorDelegate: Rectangle { width: 1; color: Theme.textBright; visible: edit.cursorVisible }
             }
             Text {
                 anchors.fill: edit

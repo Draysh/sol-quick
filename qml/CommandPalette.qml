@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Sol.Design
 
@@ -7,10 +8,10 @@ import Sol.Design
     and, as you type, whatever the app's `find` turns up (titles, albums,
     words). Up and down choose, Enter runs, Escape closes.
 
-        Palette { id: palette; sections: shell.sections; commands: [{ label: "Pick one for me", hint: "…", run: () => … }]; find: q => Sol.call("search", { query: q }).then(…) }
+        CommandPalette { id: palette; sections: shell.sections; commands: [{ label: "Pick one for me", hint: "…", run: () => … }]; find: q => Sol.call("search", { query: q }).then(…) }
 */
 Item {
-    id: palette
+    id: root
 
     property var sections: []
     /** `{ label, hint, keys, run }` */
@@ -19,35 +20,50 @@ Item {
     property var find: null
     property var go: null
     property bool open: false
+    /** Closed again, so whatever had the keys before can have them back. */
+    signal closed()
 
     property var found: []
     property int at: 0
     property bool busy: false
 
     anchors.fill: parent
-    visible: open
+    // Stays until it has faded out.
+    visible: open || box.opacity > 0
     z: 940
 
     function show() { field.text = ""; found = []; at = 0; open = true; Qt.callLater(() => field.input.forceActiveFocus()) }
-    function close() { open = false }
+    function close() {
+        if (!open) return
+        open = false
+        // A hidden field would keep the keys.
+        field.input.focus = false
+        closed()
+    }
+    function move(by) { at = Math.max(0, Math.min(entries.length - 1, at + by)) }
 
     readonly property string q: field.text.trim().toLowerCase()
     /** Everything the palette knows, scored against the words typed. */
     readonly property var entries: {
         const all = []
-        for (const s of sections) all.push({ label: "Go to " + s.label, hint: s.hint || "", keys: "", kind: "section", run: () => palette.go && palette.go(s.path) })
+        for (const s of sections) all.push({ label: "Go to " + s.label, hint: s.hint || "", keys: "", kind: "section", run: () => root.go && root.go(s.path) })
         for (const c of commands) all.push(Object.assign({ kind: "command" }, c))
         for (const f of found) all.push(Object.assign({ kind: "found" }, f))
         if (q === "") return all.slice(0, 12)
         return all.map(e => ({ e, score: score(e.label, q) + score(e.hint || "", q) * 0.3 })).filter(x => x.score > 0 || x.e.kind === "found").sort((a, b) => b.score - a.score).map(x => x.e).slice(0, 12)
     }
     onEntriesChanged: at = Math.min(at, Math.max(0, entries.length - 1))
-    /** Whole words first, then a prefix, then the letters in order. */
+    /** The whole text, then its start, then a word's start, then anywhere, then the
+        letters in order; the earlier in the text, the better ("sett" finds
+        "Go to Settings" before a long title with "Settei" in its middle). */
     function score(text, q) {
         const t = text.toLowerCase()
         if (t === q) return 10
         if (t.startsWith(q)) return 6
-        if (t.includes(q)) return 4
+        const word = t.search(new RegExp("\\b" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+        if (word >= 0) return 5 - Math.min(word, 100) * 0.01
+        const at = t.indexOf(q)
+        if (at >= 0) return 4 - Math.min(at, 100) * 0.01
         let i = 0
         for (const ch of t) if (ch === q[i]) i++
         return i === q.length ? 1 : 0
@@ -57,28 +73,23 @@ Item {
         id: look
         interval: 180
         onTriggered: {
-            const q = palette.q
-            if (!palette.find || q.length < 2) { palette.found = []; return }
-            palette.busy = true
-            Promise.resolve(palette.find(q)).then(list => { if (q === palette.q) palette.found = list || [] }).catch(() => { }).finally(() => palette.busy = false)
+            const q = root.q
+            if (!root.find || q.length < 2) { root.found = []; return }
+            root.busy = true
+            Promise.resolve(root.find(q)).then(list => { if (q === root.q) root.found = list || [] }).catch(() => { }).finally(() => root.busy = false)
         }
     }
     function run() {
         const e = entries[at]
-        if (!e) return
+        if (!open || !e) return
         close()
         e.run()
     }
 
-    Keys.onEscapePressed: close()
-    Keys.onUpPressed: at = Math.max(0, at - 1)
-    Keys.onDownPressed: at = Math.min(entries.length - 1, at + 1)
-    Keys.onReturnPressed: run()
-    Keys.onEnterPressed: run()
 
-    Item { anchors.fill: parent; opacity: palette.open ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
+    Item { anchors.fill: parent; opacity: root.open ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
         Glass { anchors.fill: parent; blur: 0.45; tint: Qt.rgba(0, 0, 0, 0.5) }
-        MouseArea { anchors.fill: parent; onClicked: palette.close() } }
+        MouseArea { anchors.fill: parent; enabled: root.open; onClicked: root.close() } }
 
     Item {
         id: box
@@ -86,8 +97,8 @@ Item {
         y: Math.min(parent.height * 0.18, 120)
         width: Math.min(560, parent.width - 32)
         height: column.implicitHeight + 2
-        opacity: palette.open ? 1 : 0
-        scale: palette.open ? 1 : 0.97
+        opacity: root.open ? 1 : 0
+        scale: root.open ? 1 : 0.97
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
         Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         MouseArea { anchors.fill: parent }
@@ -101,21 +112,21 @@ Item {
             Item {
                 width: parent.width
                 height: 56
-                Field { id: field; x: Theme.s4; width: parent.width - Theme.s4 * 2 - 70; anchors.verticalCenter: parent.verticalCenter; label: ""; placeholder: palette.find ? "Go somewhere, do something, find anything" : "Go somewhere, do something"
-                    Keys.onUpPressed: event => { palette.at = Math.max(0, palette.at - 1); event.accepted = true }
-                    Keys.onDownPressed: event => { palette.at = Math.min(palette.entries.length - 1, palette.at + 1); event.accepted = true }
-                    Keys.onEscapePressed: palette.close()
-                    onAccepted: palette.run() }
-                Quiet { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: palette.busy ? "Looking…" : "Esc" }
+                Field { id: field; x: Theme.s4; width: parent.width - Theme.s4 * 2 - 70; anchors.verticalCenter: parent.verticalCenter; label: ""; placeholder: root.find ? "Go somewhere, do something, find anything" : "Go somewhere, do something"
+                    Keys.onUpPressed: event => { root.move(-1); event.accepted = true }
+                    Keys.onDownPressed: event => { root.move(1); event.accepted = true }
+                    Keys.onEscapePressed: root.close()
+                    onAccepted: root.run() }
+                Quiet { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Esc" }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             }
             Repeater {
-                model: palette.entries
+                model: root.entries
                 delegate: Item {
                     id: row
                     required property var modelData
                     required property int index
-                    readonly property bool on: index === palette.at
+                    readonly property bool on: index === root.at
                     width: column.width
                     height: 44
                     Rectangle { anchors.fill: parent; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
@@ -128,11 +139,11 @@ Item {
                         Text { visible: !!row.modelData.hint; text: row.modelData.hint || ""; width: Math.max(0, column.width - Theme.s4 * 2 - 220); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
                     }
                     Quiet { visible: !!row.modelData.keys; anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: row.modelData.keys || "" }
-                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: palette.at = row.index; onClicked: palette.run() }
+                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
                 }
             }
-            Item { visible: palette.entries.length === 0; width: parent.width; height: 44
-                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: palette.busy ? "Looking…" : "Nothing for that"; font.capitalization: Font.MixedCase } }
+            Item { visible: root.entries.length === 0; width: parent.width; height: 44
+                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; font.capitalization: Font.MixedCase } }
         }
     }
 }
