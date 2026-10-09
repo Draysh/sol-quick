@@ -1,7 +1,8 @@
 import QtQuick
 
 /*
-    Cards in an auto-fit grid: as many columns of at least `min` as fit,
+    Cards in an auto-fit grid: as many columns of at least `min` as fit
+    (never more than there are cards showing, so a short set fills the row),
     24 px apart, each row as tall as its tallest card and every card
     starting at the top of its row. Put it in a Screen; give the cards
     nothing but their content.
@@ -19,7 +20,11 @@ Item {
     implicitHeight: 0
     width: parent ? parent.width : 600
 
-    readonly property int columns: Math.max(1, Math.floor((width + gap) / (min + gap)))
+    /** How many columns of at least `min` the width holds. */
+    readonly property int fit: Math.max(1, Math.floor((width + gap) / (min + gap)))
+    /** The cards that show (set by place()): a short set fills the row instead of leaving empty columns. */
+    property int shown: 0
+    readonly property int columns: Math.max(1, Math.min(fit, shown > 0 ? shown : fit))
     readonly property real cell: (width - gap * (columns - 1)) / columns
 
     onCellChanged: place()
@@ -52,9 +57,18 @@ Item {
         place()
     }
 
+    property bool placing: false
+    property bool again: false
     function place() {
         // A card can still report a height while the grid is going away.
         if (!grid || grid.width <= 0) return
+        // Asked again while placing (a card grew as it was given its width): once more, after.
+        if (placing) { again = true; return }
+        placing = true
+        // Counted first: a card showing or hiding can change the columns, and with them the cell.
+        let n = 0
+        for (const c of slot.children) if (c && c.visible && !isRepeater(c)) n++
+        shown = n
         let col = 0, y = 0, rowHeight = 0, bottom = 0
         for (const c of slot.children) {
             if (!c || !c.visible || isRepeater(c)) continue
@@ -70,5 +84,7 @@ Item {
             }
         }
         grid.implicitHeight = bottom
+        placing = false
+        if (again) { again = false; Qt.callLater(grid.place) }
     }
 }

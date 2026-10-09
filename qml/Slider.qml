@@ -25,6 +25,7 @@ Item {
     Keys.onRightPressed: step(1)
     function step(by) { moved(Math.max(from, Math.min(to, value + by * span / 20))) }
     Accessible.role: Accessible.Slider
+    Accessible.focusable: true
 
     readonly property real span: Math.max(1e-6, to - from)
     readonly property real shown: dragging ? dragValue : value
@@ -34,20 +35,33 @@ Item {
     function at(x) { return from + Math.max(0, Math.min(1, x / width)) * span }
 
     Rectangle { x: 0; y: parent.height / 2; width: parent.width; height: 1; color: Theme.lineStrong }
-    Rectangle { x: 0; y: parent.height / 2; width: parent.width * root.fill; height: 1; color: Theme.textBright }
+    Rectangle { x: 0; y: parent.height / 2; width: parent.width * root.fill; height: 1; color: root.enabled ? Theme.textBright : Theme.textFaint }
     Rectangle {
+        id: knob
         x: parent.width * root.fill - 4.5
         y: parent.height / 2 - 4.5
         width: 9; height: 9; radius: 4.5
-        color: Theme.textBright
-        scale: mouse.containsMouse || root.dragging || root.activeFocus ? 1.4 : 1
+        color: root.enabled ? Theme.textBright : Theme.textFaint
+        scale: root.enabled && (mouse.containsMouse || root.dragging) ? 1.4 : 1
         Behavior on scale { NumberAnimation { duration: Theme.lock } }
+    }
+    // Keyboard focus: a ring locks onto the playhead.
+    Rectangle {
+        anchors.centerIn: knob
+        width: 19; height: 19; radius: 9.5
+        color: "transparent"
+        border.width: 1; border.color: Theme.textBright
+        opacity: root.activeFocus ? 1 : 0
+        scale: root.activeFocus ? 1 : 1.4
+        Behavior on opacity { NumberAnimation { duration: Theme.lock } }
+        Behavior on scale { NumberAnimation { duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
     }
     MouseArea {
         id: mouse
         anchors.fill: parent
         anchors.topMargin: -6; anchors.bottomMargin: -6
         hoverEnabled: true
+        enabled: root.enabled
         cursorShape: Qt.PointingHandCursor
         // A Flickable around it doesn't take the drag away.
         preventStealing: true

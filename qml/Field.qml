@@ -33,13 +33,16 @@ FocusScope {
 
     implicitWidth: 240
     implicitHeight: column.implicitHeight
+    activeFocusOnTab: true
+    Accessible.role: Accessible.EditableText
+    Accessible.name: label !== "" ? label : placeholder
 
     Column {
         id: column
         width: parent.width
         spacing: Theme.s2
 
-        Label { visible: root.label !== ""; text: root.label; width: parent.width }
+        Label { visible: root.label !== ""; text: root.label; width: parent.width; color: root.enabled ? Theme.textBright : Theme.textQuiet }
 
         Item {
             width: parent.width
@@ -57,18 +60,23 @@ FocusScope {
                 selectedTextColor: Theme.space
                 maximumLength: root.maxLength
                 echoMode: root.password ? TextInput.Password : TextInput.Normal
+                passwordCharacter: "•"
                 clip: true
                 focus: true
                 validator: root.time ? timeRule : root.numeric ? numberRule : null
                 inputMethodHints: root.numeric ? Qt.ImhFormattedNumbersOnly : root.time ? Qt.ImhDigitsOnly : Qt.ImhNone
                 onAccepted: root.accepted()
-                onActiveFocusChanged: if (activeFocus) root.entered = text
+                // Left alone, it shows how the text starts; given the keys, the cursor waits at
+                // the end (a click puts it where it lands, after this).
+                onActiveFocusChanged: { if (activeFocus) { root.entered = text; cursorPosition = text.length } else cursorPosition = 0 }
+                onTextChanged: if (!activeFocus) cursorPosition = 0
                 onEditingFinished: if (text !== root.entered) { root.entered = text; root.edited() }
                 // A time, or nothing (an emptied time field is a change like any other).
                 RegularExpressionValidator { id: timeRule; regularExpression: /^(([01]?\d|2[0-3]):[0-5]\d)?$/ }
                 RegularExpressionValidator { id: numberRule; regularExpression: /^\d*([.,]\d*)?$/ }
-                // Blinks while the field has the keys; gone (not frozen mid-blink) when it hasn't.
-                cursorDelegate: Rectangle { width: 1; color: Theme.textBright; visible: input.cursorVisible; SequentialAnimation on opacity { loops: Animation.Infinite; running: input.cursorVisible && Theme.alive; alwaysRunToEnd: true; NumberAnimation { to: 0; duration: 500 } NumberAnimation { to: 1; duration: 500 } } }
+                // Blinks while the field has the keys, in steps (on, off), so a focused field asks for
+                // two frames a second, not every one; gone (not frozen off) when it hasn't the keys.
+                cursorDelegate: Caret { cursorVisible: input.cursorVisible; at: input.cursorPosition }
             }
             Text {
                 anchors.fill: input
@@ -77,12 +85,13 @@ FocusScope {
                 visible: input.text === "" && !input.inputMethodComposing
                 font: input.font
                 color: Theme.textFaint
+                elide: Text.ElideRight
             }
             // The resting line.
             Rectangle {
                 anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
                 height: 1
-                color: root.invalid ? Theme.danger : hover.hovered ? Qt.rgba(1, 1, 1, 0.7) : Theme.lineStrong
+                color: root.invalid ? Theme.danger : !root.enabled ? Theme.lineMid : hover.hovered ? Theme.tint(Theme.ink, 0.7) : Theme.lineStrong
                 Behavior on color { ColorAnimation { duration: Theme.fade } }
             }
             // The light: a line that comes in from the left on focus.
@@ -92,7 +101,7 @@ FocusScope {
                 color: root.invalid ? Theme.danger : Theme.textBright
                 transform: Scale { origin.x: 0; xScale: input.activeFocus ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             }
-            HoverHandler { id: hover; cursorShape: Qt.IBeamCursor }
+            HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 
         Words {

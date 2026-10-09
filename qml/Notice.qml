@@ -32,7 +32,7 @@ Item {
         color: "transparent"
         border.width: 1
         border.color: root.error ? Theme.danger : Theme.lineMid
-        Glass { anchors.fill: parent; anchors.margins: 1; tint: Qt.rgba(0.02, 0.02, 0.02, 0.84) }
+        Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.84) }
     }
 
     Row {

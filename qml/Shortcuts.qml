@@ -22,6 +22,7 @@ Item {
         sections ? [{ keys: sections > 1 ? "Ctrl+1 … " + Math.min(sections, 9) : "Ctrl+1", does: "Go to a section, in the order of the sidebar" }] : [],
         [{ keys: "Alt+←  Alt+→", does: "Back and forward, like the mouse’s own buttons" }],
         [{ keys: "Ctrl+K", does: "Go anywhere, do anything, find what the app holds" }],
+        [{ keys: "↑ ↓  PgUp PgDn", does: "Scroll the page; Home and End go to its top and bottom" }],
         finderShown ? [{ keys: "/", does: "The field in the sidebar: it filters this page, or searches" }]
             : search ? [{ keys: "/", does: "Search" }] : [],
         [{ keys: "?", does: "This sheet" }])
@@ -31,7 +32,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.6)
+        color: Theme.tint(Theme.veil, 0.6)
         opacity: 0
         Component.onCompleted: opacity = 1
         Behavior on opacity { NumberAnimation { duration: Theme.fade } }
@@ -41,25 +42,40 @@ Item {
     Settle {
         anchors.centerIn: parent
         width: Math.min(460, parent.width - Theme.s4 * 2)
-        height: Math.min(sheet.implicitHeight, parent.height - Theme.s4 * 2)
+        height: Math.min(body.implicitHeight + 38, parent.height - Theme.s4 * 2)
 
+        // A panel like the dialog's: raised off the dimmed page, lit from above.
         Rectangle {
             id: sheet
             anchors.fill: parent
-            implicitHeight: body.implicitHeight + 38
-            color: Theme.space
+            radius: Theme.radius
+            gradient: Gradient {
+                GradientStop { position: 0; color: Theme.raisedTop }
+                GradientStop { position: 1; color: Theme.raised }
+            }
             border.width: 1; border.color: Theme.lineMid
             MouseArea { anchors.fill: parent }
 
+            // Taller than the window: it scrolls.
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: 1
+                contentHeight: body.implicitHeight + 36
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+
             Column {
                 id: body
-                x: 20; y: 18
-                width: parent.width - 40
+                x: 19; y: 17
+                width: sheet.width - 40
+                /** The keys' column: as wide as they need, up to 150, never more than two fifths. */
+                readonly property real keysWidth: Math.min(150, width * 0.4)
 
                 Item {
                     width: parent.width; height: Theme.control
-                    Label { text: "Keys"; anchors.verticalCenter: parent.verticalCenter }
-                    Button { variant: "round"; icon: "close"; anchors.right: parent.right; anchors.rightMargin: -10; anchors.verticalCenter: parent.verticalCenter; onClicked: root.closed() }
+                    Label { text: "Keys"; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter }
+                    Button { variant: "round"; icon: "close"; hint: "Close (Esc)"; anchors.right: parent.right; anchors.rightMargin: -10; anchors.verticalCenter: parent.verticalCenter; onClicked: root.closed() }
                 }
 
                 component Group: Item {
@@ -76,14 +92,15 @@ Item {
                         id: keyText
                         y: Theme.s2
                         text: parent.keys
-                        width: 150
+                        width: body.keysWidth
+                        wrapMode: Text.Wrap
                         font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textS
                         font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textS); font.capitalization: Font.AllUppercase
                         color: Theme.textBright
                     }
                     Text {
                         id: doesText
-                        x: 150 + Theme.s4; y: Theme.s2
+                        x: body.keysWidth + Theme.s3; y: Theme.s2
                         width: parent.width - x
                         text: parent.does
                         wrapMode: Text.Wrap
@@ -97,6 +114,7 @@ Item {
                 Repeater { model: root.everywhere; delegate: KeyRow { required property var modelData; keys: modelData.keys; does: modelData.does } }
                 Group { name: "Here"; visible: root.shortcuts.length > 0 }
                 Repeater { model: root.shortcuts; delegate: KeyRow { required property var modelData; keys: modelData.keys; does: modelData.does } }
+            }
             }
         }
     }

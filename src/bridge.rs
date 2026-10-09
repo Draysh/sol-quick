@@ -42,6 +42,10 @@ pub mod qobject {
         #[qproperty(bool, fps)]
         /// `SOL_DRIVE=<file.qml>`: a script that drives the window, to check it end to end.
         #[qproperty(QString, drive)]
+        /// `SOL_LIGHT=night|day`: this run's light, whatever the device's setting says.
+        #[qproperty(QString, light)]
+        /// The page to open first (`--open /title?key=x`, or asked for while starting).
+        #[qproperty(QString, open_path, cxx_name = "openPath")]
         type SolBackend = super::Backend;
 
         /// Runs a command; the reply arrives as `replied(id, ok, body)`.
@@ -66,6 +70,22 @@ pub mod qobject {
         #[cxx_name = "saveWindow"]
         fn save_window(&self, state: &QString);
 
+        /// What a page was last shown (`remember`), for showing it again at
+        /// once on the next start while fresh data comes; "" if nothing.
+        #[qinvokable]
+        fn recall(&self, key: &QString) -> QString;
+
+        /// Keeps what a page shows, as JSON, for `recall`; written only when
+        /// it changed, off the window's thread.
+        #[qinvokable]
+        fn remember(&self, key: &QString, json: &QString);
+
+        /// A count for the app's icon and the tray (cards due, habits left),
+        /// with what it counts; 0 for none.
+        #[qinvokable]
+        #[cxx_name = "setBadge"]
+        fn set_badge(&self, count: i32, what: &QString);
+
         /// A command's reply: the JSON it returned, or why it didn't.
         #[qsignal]
         fn replied(self: Pin<&mut Self>, id: i32, ok: bool, body: QString);
@@ -82,6 +102,11 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "planetGone"]
         fn planet_gone(self: Pin<&mut Self>);
+
+        /// Open a page another app asked for (`/title?key=x`), and come up.
+        #[qsignal]
+        #[cxx_name = "openRequested"]
+        fn open_requested(self: Pin<&mut Self>, path: QString);
 
         /// Quit asked from outside the window (the tray, an update, a restart):
         /// the window closes for good, then the app leaves.
@@ -128,6 +153,8 @@ pub struct Backend {
     tray: bool,
     fps: bool,
     drive: QString,
+    light: QString,
+    open_path: QString,
 }
 
 impl Default for Backend {
@@ -151,6 +178,8 @@ impl Default for Backend {
             tray: rt.tray.load(Ordering::Relaxed),
             fps: std::env::var_os("SOL_FPS").is_some(),
             drive: QString::from(&std::env::var("SOL_DRIVE").unwrap_or_default()),
+            light: QString::from(&std::env::var("SOL_LIGHT").unwrap_or_default()),
+            open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
         }
     }
 }
@@ -176,6 +205,7 @@ impl cxx_qt::Initialize for qobject::SolBackend {
                     ToWindow::Event(name, data) => me
                         .as_mut()
                         .world_event(QString::from(&name), QString::from(&data)),
+                    ToWindow::Open(path) => me.open_requested(QString::from(&path)),
                 });
             }
         });
@@ -281,5 +311,20 @@ impl qobject::SolBackend {
 
     pub fn save_window(&self, state: &QString) {
         Runtime::write_window(&state.to_string());
+    }
+
+    pub fn recall(&self, key: &QString) -> QString {
+        QString::from(&app::recall(&key.to_string()).unwrap_or_default())
+    }
+
+    pub fn remember(&self, key: &QString, json: &QString) {
+        let (key, json) = (key.to_string(), json.to_string());
+        app::runtime()
+            .tokio
+            .spawn_blocking(move || app::remember(&key, &json));
+    }
+
+    pub fn set_badge(&self, count: i32, what: &QString) {
+        crate::tray::badge(count.max(0) as u32, &what.to_string());
     }
 }

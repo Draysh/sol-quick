@@ -36,11 +36,31 @@ FocusScope {
         if (!enabled || options.length === 0) return
         at = Math.max(0, options.findIndex(o => o.value === value))
         // Placed once as it opens; a wheel or a click elsewhere closes it.
-        const p = line.mapToItem(drop.parent, 0, line.height)
-        drop.x = p.x
-        drop.y = p.y + 2
+        place()
         open = true
+        Qt.callLater(keepInView)
     }
+    /** Under the line when the list fits there (or there is more room there than above), else over
+        it; never past the window's edges, scrolling when it is longer than the room. */
+    function place() {
+        const area = drop.parent
+        const p = line.mapToItem(area, 0, 0)
+        const full = options.length * Theme.control + 2
+        const below = area.height - (p.y + line.height + 2) - Theme.s2
+        const above = p.y - 2 - Theme.s2
+        const down = full <= below || below >= above
+        drop.height = Math.max(Math.min(full, Theme.control + 2), Math.min(full, down ? below : above))
+        drop.y = down ? p.y + line.height + 2 : p.y - 2 - drop.height
+        drop.x = Math.max(Theme.s2, Math.min(area.width - drop.width - Theme.s2, p.x))
+        drop.up = !down
+    }
+    /** The row the keys are on stays in sight. */
+    function keepInView() {
+        const top = at * Theme.control, bottom = top + Theme.control
+        if (top < rows.contentY) rows.contentY = top
+        else if (bottom > rows.contentY + rows.height) rows.contentY = bottom - rows.height
+    }
+    onAtChanged: if (open) keepInView()
     function pick(i) {
         const o = options[i]
         open = false
@@ -66,7 +86,7 @@ FocusScope {
         width: parent.width
         spacing: Theme.s2
 
-        Label { text: root.label; width: parent.width }
+        Label { visible: root.label !== ""; text: root.label; width: parent.width; color: root.enabled ? Theme.textBright : Theme.textQuiet }
 
         Item {
             id: line
@@ -85,7 +105,7 @@ FocusScope {
             }
             Icon {
                 name: "chevron-down"; size: 10
-                color: Theme.textQuiet
+                color: root.enabled ? Theme.textQuiet : Theme.textFaint
                 anchors.right: parent.right; anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
                 transform: Translate { y: mouse.containsMouse ? 1 : 0; Behavior on y { NumberAnimation { duration: Theme.settle } } }
@@ -95,7 +115,7 @@ FocusScope {
             Rectangle {
                 anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
                 height: 1
-                color: mouse.containsMouse ? Qt.rgba(1, 1, 1, 0.7) : Theme.lineStrong
+                color: !root.enabled ? Theme.lineMid : mouse.containsMouse ? Theme.tint(Theme.ink, 0.7) : Theme.lineStrong
                 Behavior on color { ColorAnimation { duration: Theme.fade } }
             }
             Rectangle {
@@ -116,8 +136,10 @@ FocusScope {
         parent: root.Window.window ? root.Window.window.contentItem : root
         visible: root.open || panel.opacity > 0
         z: 900
-        width: line.width
+        width: Math.min(line.width, parent ? parent.width - Theme.s2 * 2 : line.width)
         height: list.implicitHeight + 2
+        /** Opened over the line, for want of room under it. */
+        property bool up: false
 
         // Over the page (not under it), so the click or wheel closes the list
         // instead of reaching the page.
@@ -129,38 +151,56 @@ FocusScope {
             color: "transparent"
             border.width: 1; border.color: Theme.lineMid
             opacity: root.open ? 1 : 0
-            transformOrigin: Item.Top
+            transformOrigin: drop.up ? Item.Bottom : Item.Top
             scale: root.open ? 1 : 0.97
-            transform: Translate { y: root.open ? 0 : -6; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
+            transform: Translate { y: root.open ? 0 : drop.up ? 6 : -6; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
             Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Qt.rgba(0, 0, 0, 0.8) }
-            Column {
-                id: list
+            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.8) }
+            Flickable {
+                id: rows
                 x: 1; y: 1
                 width: parent.width - 2
-                Repeater {
-                    model: root.options
-                    delegate: Item {
-                        id: option
-                        required property var modelData
-                        required property int index
-                        readonly property bool chosen: modelData.value === root.value
-                        width: list.width
-                        height: Theme.control
-                        Rectangle { anchors.fill: parent; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
-                        Rectangle { visible: option.index === root.at; width: 2; height: parent.height - 16; y: 8; color: Theme.world }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter; x: 12
-                            width: parent.width - 24
-                            text: option.modelData.label
-                            font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                            color: option.chosen ? Theme.textBright : Theme.text
-                            elide: Text.ElideRight
+                height: parent.height - 2
+                contentHeight: list.implicitHeight
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                Column {
+                    id: list
+                    width: rows.width
+                    Repeater {
+                        model: root.options
+                        delegate: Item {
+                            id: option
+                            required property var modelData
+                            required property int index
+                            readonly property bool chosen: modelData.value === root.value
+                            width: list.width
+                            height: Theme.control
+                            Rectangle { anchors.fill: parent; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
+                            Rectangle { visible: option.index === root.at; width: 2; height: parent.height - 16; y: 8; color: Theme.accent }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter; x: 12
+                                width: parent.width - 24
+                                text: option.modelData.label
+                                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
+                                color: option.chosen ? Theme.textBright : Theme.text
+                                elide: Text.ElideRight
+                            }
+                            MouseArea { id: hover; anchors.fill: parent; enabled: root.open; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = option.index; onClicked: root.pick(option.index) }
                         }
-                        MouseArea { id: hover; anchors.fill: parent; enabled: root.open; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = option.index; onClicked: root.pick(option.index) }
                     }
                 }
+            }
+            // More than shows: a thin bar says where in the list this is.
+            Rectangle {
+                visible: rows.interactive
+                anchors.right: parent.right; anchors.rightMargin: 3
+                y: 1 + (rows.height - height) * (rows.contentY / Math.max(1, rows.contentHeight - rows.height))
+                width: 2; radius: 1
+                height: Math.max(16, rows.height * rows.height / Math.max(1, rows.contentHeight))
+                color: Theme.lineStrong
             }
         }
     }

@@ -41,10 +41,12 @@ Item {
 
         Item {
             width: parent.width
-            height: Theme.target
+            // A long label wraps, and the row grows to hold it.
+            height: Math.max(Theme.target, words.implicitHeight + Theme.s3)
 
             Row {
                 anchors.verticalCenter: parent.verticalCenter
+                width: parent.width
                 spacing: 14
 
                 Item {
@@ -59,11 +61,12 @@ Item {
                         border.color: !root.enabled ? Theme.lineMid : root.activeFocus ? Theme.textBright : root.shown || mouse.containsMouse ? Theme.text : Theme.lineStrong
                         Behavior on border.color { ColorAnimation { duration: Theme.lock } }
                     }
+                    Ticks { on: root.activeFocus; out: 5 }
                     RectangularShadow {
                         anchors.fill: disc
                         radius: disc.radius
                         blur: 10
-                        color: Theme.tint(Theme.world, root.shown ? 0.7 : 0)
+                        color: Theme.tint(Theme.world, root.shown && root.enabled ? 0.7 : 0)
                         Behavior on color { ColorAnimation { duration: Theme.settle } }
                     }
                     Rectangle {
@@ -79,7 +82,10 @@ Item {
                     }
                 }
                 Text {
+                    id: words
                     anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - track.width - parent.spacing
+                    wrapMode: Text.Wrap
                     text: root.label
                     font.family: Theme.font
                     font.pixelSize: Theme.textM

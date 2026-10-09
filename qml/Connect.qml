@@ -68,125 +68,137 @@ Item {
         }
         ItemParticle {
             fade: true
-            delegate: Rectangle { width: 2; height: 2; radius: 1; color: Theme.textBright; opacity: 0.35 }
+            // By day a mote is a shadow on paper: fainter.
+            delegate: Rectangle { width: 2; height: 2; radius: 1; color: Theme.textBright; opacity: Theme.day ? 0.12 : 0.35 }
         }
     }
 
-    // The panel: the name, the tagline, and the card on glass.
-    Settle {
-        id: panel
-        wait: Theme.rise / 3
-        slow: true
-        anchors.centerIn: parent
-        width: Math.min(440, parent.width - Theme.s4 * 2)
-        height: panelColumn.implicitHeight
+    // The panel: the name, the tagline, and the card on glass; in the middle,
+    // or scrolling when the window is shorter than it (the code waiting in Sol is tall).
+    Flickable {
+        id: pane
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: Math.max(height, panel.height + Theme.s4 * 2)
+        interactive: contentHeight > height
+        boundsBehavior: Flickable.StopAtBounds
 
-        Column {
-            id: panelColumn
-            width: parent.width
-            spacing: Theme.s3
+        Settle {
+            id: panel
+            wait: Theme.rise / 3
+            slow: true
+            x: (pane.width - width) / 2
+            y: Math.max(Theme.s4, (pane.height - height) / 2)
+            width: Math.min(440, pane.width - Theme.s4 * 2)
+            height: panelColumn.implicitHeight
 
-            Text {
-                text: root.w.name
-                font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textXs
-                font.letterSpacing: Theme.track(0.32, Theme.textXs); font.capitalization: Font.AllUppercase
-                color: Theme.textBright
-            }
-            Words { text: root.w.tagline; small: true; color: Theme.textValue }
-
-            Item {
+            Column {
+                id: panelColumn
                 width: parent.width
-                height: card.implicitHeight
+                spacing: Theme.s3
 
-                // Real glass: what is behind the card, blurred.
-                ShaderEffectSource {
-                    id: behind
-                    anchors.fill: parent
-                    sourceItem: scene
-                    sourceRect: Qt.rect(panel.x + parent.parent.x + x, panel.y + parent.parent.y + parent.y, width, height)
-                    visible: false
-                    live: true
+                Text {
+                    text: root.w.name
+                    font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textXs
+                    font.letterSpacing: Theme.track(0.32, Theme.textXs); font.capitalization: Font.AllUppercase
+                    color: Theme.textBright
                 }
-                MultiEffect {
-                    anchors.fill: parent
-                    source: behind
-                    blurEnabled: true
-                    blur: 0.8
-                    blurMax: 32
-                    autoPaddingEnabled: false
-                }
-                Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.72) }
+                Words { text: root.w.tagline; small: true; color: Theme.textValue }
 
-                Card {
-                    id: card
+                Item {
                     width: parent.width
-                    gap: Theme.s4
+                    height: card.implicitHeight
 
-                    Item { width: 1; height: 10 }
+                    // Real glass: what is behind the card, blurred.
+                    ShaderEffectSource {
+                        id: behind
+                        anchors.fill: parent
+                        sourceItem: scene
+                        sourceRect: Qt.rect(panel.x + parent.parent.x + x - pane.contentX, panel.y + parent.parent.y + parent.y - pane.contentY, width, height)
+                        visible: false
+                        live: true
+                    }
+                    MultiEffect {
+                        anchors.fill: parent
+                        source: behind
+                        blurEnabled: true
+                        blur: 0.8
+                        blurMax: 32
+                        autoPaddingEnabled: false
+                    }
+                    Rectangle { anchors.fill: parent; color: Theme.tint(Theme.veil, 0.72) }
 
-                    // Approve in Sol.
-                    Column {
-                        visible: !!root.pairing
+                    Card {
+                        id: card
                         width: parent.width
-                        spacing: Theme.s4
-                        Heading { level: 2; text: "Approve in Sol" }
-                        Words {
+                        gap: Theme.s4
+
+                        Item { width: 1; height: 10 }
+
+                        // Approve in Sol.
+                        Column {
+                            visible: !!root.pairing
                             width: parent.width
-                            text: "Open Sol at <b>" + (root.pairing ? root.pairing.server : "") + "</b> and approve this code, under Devices or on " + root.w.name + "’s page."
-                            textFormat: Text.RichText
-                        }
-                        Item {
-                            width: parent.width; height: 210 + Theme.s3 * 2
-                            Reticle {
-                                anchors.centerIn: parent
-                                size: 210; tilt: root.w.tilt
-                                Rectangle {
-                                    width: digits.implicitWidth + 20; height: digits.implicitHeight + 4
-                                    color: Theme.space
-                                    Text {
-                                        id: digits
-                                        anchors.centerIn: parent
-                                        text: root.pairing ? root.pairing.code : ""
-                                        font.family: Theme.font; font.weight: Theme.weightDisplay; font.pixelSize: 30
-                                        font.letterSpacing: Theme.track(0.14, 30)
-                                        color: Theme.text
+                            spacing: Theme.s4
+                            Heading { level: 2; text: "Approve in Sol" }
+                            Words {
+                                width: parent.width
+                                text: "Open Sol at <b>" + (root.pairing ? root.pairing.server : "") + "</b> and approve this code, under Devices or on " + root.w.name + "’s page."
+                                textFormat: Text.RichText
+                            }
+                            Item {
+                                width: parent.width; height: 210 + Theme.s3 * 2
+                                Reticle {
+                                    anchors.centerIn: parent
+                                    size: 210; tilt: root.w.tilt
+                                    Rectangle {
+                                        width: digits.implicitWidth + 20; height: digits.implicitHeight + 4
+                                        color: Theme.space
+                                        Text {
+                                            id: digits
+                                            anchors.centerIn: parent
+                                            text: root.pairing ? root.pairing.code : ""
+                                            font.family: Theme.font; font.weight: Theme.weightDisplay; font.pixelSize: 30
+                                            font.letterSpacing: Theme.track(0.14, 30)
+                                            color: Theme.text
+                                        }
                                     }
                                 }
                             }
+                            Quiet { text: "Waiting · " + root.minutesLeft + " min left"; width: parent.width; horizontalAlignment: Text.AlignHCenter }
+                            Button { variant: "quiet"; text: "Cancel"; onClicked: Sol.call("cancel") }
                         }
-                        Quiet { text: "Waiting · " + root.minutesLeft + " min left"; width: parent.width; horizontalAlignment: Text.AlignHCenter }
-                        Button { variant: "quiet"; text: "Cancel"; onClicked: Sol.call("cancel") }
-                    }
 
-                    // Connect to Sol.
-                    Column {
-                        visible: !root.pairing
-                        width: parent.width
-                        spacing: Theme.s4
-                        Heading { level: 2; text: "Connect to Sol" }
-                        Words { width: parent.width; text: root.w.name + " keeps its data in your Sol. Where does it run?" }
-                        Field {
-                            id: address
+                        // Connect to Sol.
+                        Column {
+                            visible: !root.pairing
                             width: parent.width
-                            label: "Sol address"
-                            placeholder: "https://sol.your-tailnet.ts.net"
-                            error: root.error !== "" ? root.error : root.ended
-                            onTextChanged: root.server = text
-                            onAccepted: root.connect()
-                            Component.onCompleted: input.forceActiveFocus()
+                            spacing: Theme.s4
+                            Heading { level: 2; text: "Connect to Sol" }
+                            Words { width: parent.width; text: root.w.name + " keeps its data in your Sol. Where does it run?" }
+                            Field {
+                                id: address
+                                width: parent.width
+                                label: "Sol address"
+                                placeholder: "https://sol.your-tailnet.ts.net"
+                                error: root.error !== "" ? root.error : root.ended
+                                onTextChanged: root.server = text
+                                onAccepted: root.connect()
+                                Component.onCompleted: input.forceActiveFocus()
+                            }
+                            Button { variant: "primary"; text: "Connect"; busy: root.busy; enabled: root.server.trim() !== ""; onClicked: root.connect() }
                         }
-                        Button { variant: "primary"; text: "Connect"; busy: root.busy; enabled: root.server.trim() !== ""; onClicked: root.connect() }
+
+                        Item { width: 1; height: 10 }
                     }
-
-                    Item { width: 1; height: 10 }
                 }
-            }
 
-            Row {
-                visible: !!Sol.app && Sol.app.here && Sol.app.here.state === "loose"
-                spacing: Theme.s2
-                Quiet { text: root.w.name + " isn’t installed yet."; anchors.verticalCenter: parent.verticalCenter }
-                Button { variant: "quiet"; text: "Install it"; onClicked: Sol.call("install_app").catch(why => root.error = String(why)) }
+                Row {
+                    visible: !!Sol.app && Sol.app.here && Sol.app.here.state === "loose"
+                    spacing: Theme.s2
+                    Quiet { text: root.w.name + " isn’t installed yet."; anchors.verticalCenter: parent.verticalCenter }
+                    Button { variant: "quiet"; text: "Install it"; onClicked: Sol.call("install_app").catch(why => root.error = String(why)) }
+                }
             }
         }
     }

@@ -52,7 +52,7 @@ Item {
     }
 
     Item { anchors.fill: parent; opacity: ask.current ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Glass { anchors.fill: parent; blur: 0.5; tint: Qt.rgba(0, 0, 0, 0.55) }
+        Glass { anchors.fill: parent; blur: 0.5; tint: Theme.tint(Theme.veil, 0.55) }
         MouseArea { anchors.fill: parent; enabled: !!ask.current; onClicked: ask.finish(false) } }
 
     Item {

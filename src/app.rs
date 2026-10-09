@@ -76,6 +76,8 @@ pub(crate) enum ToWindow {
     Tray(bool),
     /// A world's own event: a name and its JSON.
     Event(String, String),
+    /// Open a page: `/title?key=x` (another app asked, or `--open`).
+    Open(String),
 }
 
 type ToWindowFn = Box<dyn Fn(ToWindow) + Send + Sync>;
@@ -89,6 +91,8 @@ pub struct Runtime {
     pub manifest_json: String,
     /// The world's name alone ("Terra"); `app.name` carries its role too.
     pub name: String,
+    /// What the app is for ("Habits and diary"), from sol-world.json.
+    pub role: String,
     pub app: App,
     /// Started by its planet: no window, just the work.
     pub background: bool,
@@ -151,6 +155,86 @@ impl Runtime {
     }
 }
 
+/// Where `remember` keeps what a page last showed: a file per key, named
+/// by a stable hash of it (FNV-1a), under the app's data folder.
+fn seen_file(key: &str) -> PathBuf {
+    let hash = key.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
+        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    });
+    runtime()
+        .data_dir
+        .join("seen")
+        .join(format!("{hash:016x}.json"))
+}
+
+/// Forgets what pages showed that nothing has shown for 30 days (a key per
+/// day, like a diary's page, would otherwise keep every day).
+pub(crate) fn prune_seen() {
+    let Ok(entries) = std::fs::read_dir(runtime().data_dir.join("seen")) else {
+        return;
+    };
+    let month = std::time::Duration::from_secs(30 * 24 * 3600);
+    for entry in entries.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| t.elapsed().is_ok_and(|age| age > month));
+        if old {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// What a page last showed, if it was kept.
+pub(crate) fn recall(key: &str) -> Option<String> {
+    std::fs::read_to_string(seen_file(key)).ok()
+}
+
+/// Keeps what a page shows; nothing is written when it is what was kept.
+pub(crate) fn remember(key: &str, json: &str) {
+    let path = seen_file(key);
+    if std::fs::read_to_string(&path).is_ok_and(|kept| kept == json) {
+        // Still shown: kept from pruning (its date moved on once a day at most).
+        let day = std::time::Duration::from_secs(24 * 3600);
+        if let Ok(file) = std::fs::File::options().append(true).open(&path)
+            && file
+                .metadata()
+                .and_then(|m| m.modified())
+                .is_ok_and(|t| t.elapsed().is_ok_and(|age| age > day))
+        {
+            let _ = file.set_modified(std::time::SystemTime::now());
+        }
+        return;
+    }
+    let part = path.with_extension("part");
+    let wrote = path
+        .parent()
+        .map(std::fs::create_dir_all)
+        .unwrap_or(Ok(()))
+        .and_then(|()| std::fs::write(&part, json))
+        .and_then(|()| std::fs::rename(&part, &path));
+    if let Err(e) = wrote {
+        tracing::warn!("couldn't keep what {} showed: {e}", path.display());
+    }
+}
+
+/// A page asked for before the window could take it (`--open`, or a knock
+/// while starting); the window opens it once it is up.
+static PENDING_OPEN: Mutex<Option<String>> = Mutex::new(None);
+
+/// Opens `path` in the window and brings it up, or keeps it for the window.
+fn open_page(path: String) {
+    match RUNTIME.get() {
+        Some(rt) if rt.tell(ToWindow::Open(path.clone())) => rt.activate_window(),
+        _ => *PENDING_OPEN.lock().expect("pending lock") = Some(path),
+    }
+}
+
+/// The page asked for before the window was up, once.
+pub(crate) fn take_pending_open() -> Option<String> {
+    PENDING_OPEN.lock().expect("pending lock").take()
+}
+
 /// Once per version: a newer one is out, or one was put in place quietly.
 pub(crate) fn news(status: &updates::Status) -> Option<String> {
     let (key, news) = match &status.state {
@@ -186,6 +270,51 @@ fn platform() -> Option<String> {
         os @ ("linux" | "windows" | "macos") => Some(os.into()),
         _ => None,
     }
+}
+
+/// Where the desktop starts the app at login: `~/.config/autostart/sol-<world>.desktop`.
+fn autostart_entry(app: &App) -> Option<PathBuf> {
+    Some(
+        dirs::config_dir()?
+            .join("autostart")
+            .join(format!("{}.desktop", app.bin_name())),
+    )
+}
+
+/// The installed binary, which is the one that can start with the computer.
+fn installed_bin(app: &App) -> Option<PathBuf> {
+    match install::here(app) {
+        install::Here::Installed { path, .. } => Some(path),
+        _ => None,
+    }
+}
+
+/// Whether the app starts with the computer; None when this copy can't.
+fn autostart(app: &App) -> Option<bool> {
+    installed_bin(app)?;
+    Some(autostart_entry(app)?.exists())
+}
+
+fn set_autostart(app: &App, on: bool) -> Result<(), String> {
+    use crate::commands::say;
+    let bin = installed_bin(app).ok_or("only the installed copy starts with the computer")?;
+    let path = autostart_entry(app).ok_or("no config folder for autostart")?;
+    if on {
+        std::fs::create_dir_all(path.parent().ok_or("no autostart folder")?).map_err(say)?;
+        std::fs::write(
+            &path,
+            format!(
+                "[Desktop Entry]\nType=Application\nName={}\nExec=\"{}\" --background\nIcon={}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
+                app.name,
+                bin.display(),
+                app.bin_name(),
+            ),
+        )
+        .map_err(say)?;
+    } else if path.exists() {
+        std::fs::remove_file(&path).map_err(say)?;
+    }
+    Ok(())
 }
 
 /// What the app is for, in a word or three: `role` in sol-world.json
@@ -263,6 +392,9 @@ fn shared(commands: &mut Commands, app: App, parent: Option<String>) {
     #[derive(serde::Deserialize)]
     struct Which {
         world: String,
+        /// A page there: `/title?key=x`.
+        #[serde(default)]
+        path: Option<String>,
     }
     #[derive(serde::Deserialize)]
     struct Auto {
@@ -311,7 +443,23 @@ fn shared(commands: &mut Commands, app: App, parent: Option<String>) {
             |_, _: ()| async move { Ok(orbit::doors::installed()) },
         )
         .add("open_world", |_, a: Which| async move {
-            orbit::doors::open(&a.world).map_err(say)
+            let Some(path) = a.path else {
+                return orbit::doors::open(&a.world).map_err(say);
+            };
+            // Running: it opens the page. If not, it starts, and opens it once it answers.
+            let knock = single::Knock::Open(path);
+            let preview = runtime().preview;
+            if single::knock(&a.world, preview, &knock) {
+                return Ok(());
+            }
+            orbit::doors::open(&a.world).map_err(say)?;
+            for _ in 0..40 {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                if single::knock(&a.world, preview, &knock) {
+                    return Ok(());
+                }
+            }
+            Err(format!("{} started, but didn't open the page", a.world))
         })
         .add("check_updates", |_, _: ()| async move {
             let updates = &runtime().updates;
@@ -340,6 +488,16 @@ fn shared(commands: &mut Commands, app: App, parent: Option<String>) {
         install::relaunch(&path).map_err(say)?;
         quit();
         Ok(())
+    });
+    // Starting with the computer, in the tray without a window: only the
+    // installed copy can (null otherwise).
+    commands.add(
+        "autostart",
+        move |_, _: ()| async move { Ok(autostart(&app)) },
+    );
+    commands.add("set_autostart", move |_, a: On| async move {
+        set_autostart(&app, a.on)?;
+        Ok(autostart(&app))
     });
     commands.add("install_app", move |_, _: ()| async move {
         let bin = install::install(&app).map_err(say)?;
@@ -422,11 +580,31 @@ pub fn run(world: World) -> ! {
     let background = moons::in_background();
     let preview = std::env::var_os("SOL_PREVIEW").is_some();
     // One copy at a time: a later one brings this one's window up and leaves.
-    let first = single::claim(&manifest.id, preview, !background, || {
-        if let Some(rt) = RUNTIME.get() {
-            rt.activate_window();
+    // `--open /title?key=x`: at that page (here, or in the copy already running).
+    let open_at = std::env::args()
+        .skip_while(|a| a != "--open")
+        .nth(1)
+        .filter(|p| p.starts_with('/'));
+    let knock = if background {
+        None
+    } else {
+        Some(
+            open_at
+                .clone()
+                .map_or(single::Knock::Show, single::Knock::Open),
+        )
+    };
+    let first = single::claim(&manifest.id, preview, knock, |knock| match knock {
+        single::Knock::Show => {
+            if let Some(rt) = RUNTIME.get() {
+                rt.activate_window();
+            }
         }
+        single::Knock::Open(path) => open_page(path),
     });
+    if let Some(path) = open_at {
+        open_page(path);
+    }
     if !first {
         std::process::exit(0);
     }
@@ -500,6 +678,7 @@ pub fn run(world: World) -> ! {
         tokio: tokio.handle().clone(),
         manifest_json: world.manifest.to_owned(),
         name: manifest.name.clone(),
+        role: role(world.manifest).unwrap_or_default(),
         app,
         background,
         preview,
@@ -513,6 +692,7 @@ pub fn run(world: World) -> ! {
         panic!("sol_quick::run twice");
     }
 
+    let parent_started = parent.is_some() && background;
     // Without a window, a moon leaves once its planet has (or at once,
     // unpaired: there's nothing to do until it's opened and paired).
     if let Some(parent) = parent {
@@ -528,11 +708,17 @@ pub fn run(world: World) -> ! {
         });
     }
 
-    // The tray and the global shortcuts, beside the window; not for a moon
-    // its planet started, nor a preview.
-    if !background && !preview {
-        crate::desktop::start(world.tray, world.shortcuts, world.icons);
+    // The Sol tray, for every app here but a preview (a moon its planet
+    // started is there too, to be opened); global shortcuts beside a window.
+    if !preview {
+        crate::tray::start(world.tray);
     }
+    // Shortcuts for every window there may be: a planet that started hidden
+    // (with the computer) too, not a moon its planet started.
+    if !preview && !parent_started {
+        crate::desktop::start(world.shortcuts);
+    }
+    runtime().tokio.spawn_blocking(prune_seen);
     // Sync; the screens follow through `SolBackend`.
     link.start(world.handler);
 

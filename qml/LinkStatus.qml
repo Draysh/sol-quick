@@ -14,6 +14,8 @@ Column {
     property int unsent: 0
     property string busy: ""
     property string warn: ""
+    /** Just the dots, centred (the Shell's rail): the words are in their hints. */
+    property bool compact: false
 
     readonly property string line: online
         ? (busy !== "" ? busy : unsent ? "Sending " + unsent : "In sync")
@@ -31,15 +33,18 @@ Column {
         property bool glow: false
         property string hint: ""
         spacing: 6
+        x: root.compact ? (root.width - width) / 2 : 0
+        // A dot alone is a small thing to point at: room around it.
+        padding: root.compact ? 8 : 0
         Item {
             width: 5; height: 5
             anchors.verticalCenter: parent.verticalCenter
             RectangularShadow { anchors.fill: dotRect; radius: 2.5; blur: 8; color: Theme.tint(line.dot, line.glow ? 1 : 0); Behavior on color { ColorAnimation { duration: Theme.fade } } }
             Rectangle { id: dotRect; anchors.fill: parent; radius: 2.5; color: line.dot; Behavior on color { ColorAnimation { duration: Theme.fade } } }
         }
-        Quiet { text: line.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.width - 12) }
+        Quiet { visible: !root.compact; text: line.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.width - 12) }
         HoverHandler { id: hover }
-        Hint { text: line.hint; when: hover.hovered; above: true }
+        Hint { text: root.compact ? line.text + " · " + line.hint : line.hint; when: hover.hovered; above: true }
     }
 
     Line { visible: root.warn !== ""; text: root.warn; dot: Theme.danger; hint: root.warn }

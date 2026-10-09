@@ -43,13 +43,14 @@ Item {
             id: box
             width: 16; height: 16
             anchors.verticalCenter: parent.verticalCenter
-            color: root.shown ? Theme.text : "transparent"
+            color: root.shown ? (root.enabled ? Theme.text : Theme.textFaint) : "transparent"
             border.width: 1
-            border.color: root.shown ? Theme.text : (mouse.containsMouse && root.live) || root.activeFocus ? Theme.textBright : Qt.rgba(1, 1, 1, 0.6)
+            border.color: !root.enabled ? Theme.lineMid : root.shown ? Theme.text : (mouse.containsMouse && root.live) || root.activeFocus ? Theme.textBright : Theme.tint(Theme.ink, 0.6)
             scale: mouse.pressed && root.live ? 0.85 : 1
             Behavior on color { ColorAnimation { duration: Theme.lock } }
             Behavior on border.color { ColorAnimation { duration: Theme.lock } }
             Behavior on scale { SpringAnimation { spring: 5; damping: 0.3 } }
+            Ticks { on: root.activeFocus; out: 5 }
             // Lock: the box swells for a moment as the tick goes in.
             transform: Scale { id: swell; origin.x: 8; origin.y: 8; xScale: 1; yScale: 1 }
             SequentialAnimation {
@@ -83,7 +84,7 @@ Item {
             font.family: Theme.font
             font.pixelSize: Theme.textM
             font.weight: Theme.weightValue
-            color: root.shown ? Theme.textQuiet : Theme.text
+            color: !root.enabled ? Theme.textFaint : root.shown ? Theme.textQuiet : Theme.text
             elide: Text.ElideRight
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
@@ -98,6 +99,27 @@ Item {
     }
 
     onShownChanged: if (shown) lockIn.restart()
+
+    // Busy (its change on the way): a hairline sweeps along the bottom, as on a busy Button.
+    Item {
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        height: 1
+        clip: true
+        visible: root.busy
+        Rectangle {
+            id: sweep
+            width: parent.width * 0.3
+            height: 1
+            color: Theme.textQuiet
+            NumberAnimation on x {
+                running: root.busy && root.visible && Theme.alive
+                loops: Animation.Infinite
+                from: -sweep.width; to: root.width
+                duration: 1400
+                easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.ease
+            }
+        }
+    }
 
     MouseArea {
         id: mouse

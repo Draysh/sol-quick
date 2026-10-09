@@ -32,7 +32,7 @@ Item {
     visible: open || box.opacity > 0
     z: 940
 
-    function show() { field.text = ""; found = []; at = 0; open = true; Qt.callLater(() => field.input.forceActiveFocus()) }
+    function show() { field.text = ""; found = []; at = 0; rows.contentY = 0; open = true; Qt.callLater(() => field.input.forceActiveFocus()) }
     function close() {
         if (!open) return
         open = false
@@ -53,6 +53,11 @@ Item {
         return all.map(e => ({ e, score: score(e.label, q) + score(e.hint || "", q) * 0.3 })).filter(x => x.score > 0 || x.e.kind === "found").sort((a, b) => b.score - a.score).map(x => x.e).slice(0, 12)
     }
     onEntriesChanged: at = Math.min(at, Math.max(0, entries.length - 1))
+    onAtChanged: {
+        const top = at * 44, bottom = top + 44
+        if (top < rows.contentY) rows.contentY = top
+        else if (bottom > rows.contentY + rows.height) rows.contentY = bottom - rows.height
+    }
     /** The whole text, then its start, then a word's start, then anywhere, then the
         letters in order; the earlier in the text, the better ("sett" finds
         "Go to Settings" before a long title with "Settei" in its middle). */
@@ -88,7 +93,7 @@ Item {
 
 
     Item { anchors.fill: parent; opacity: root.open ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Glass { anchors.fill: parent; blur: 0.45; tint: Qt.rgba(0, 0, 0, 0.5) }
+        Glass { anchors.fill: parent; blur: 0.45; tint: Theme.tint(Theme.veil, 0.5) }
         MouseArea { anchors.fill: parent; enabled: root.open; onClicked: root.close() } }
 
     Item {
@@ -103,7 +108,7 @@ Item {
         Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         MouseArea { anchors.fill: parent }
         Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: Theme.lineStrong
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Qt.rgba(0, 0, 0, 0.86) } }
+            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.86) } }
 
         Column {
             id: column
@@ -120,26 +125,42 @@ Item {
                 Quiet { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Esc" }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             }
-            Repeater {
-                model: root.entries
-                delegate: Item {
-                    id: row
-                    required property var modelData
-                    required property int index
-                    readonly property bool on: index === root.at
-                    width: column.width
-                    height: 44
-                    Rectangle { anchors.fill: parent; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
-                    Rectangle { visible: row.on; width: 2; height: parent.height - 16; y: 8; color: Theme.world }
-                    Row {
-                        x: Theme.s4
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.s3
-                        Text { text: row.modelData.label; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue; color: row.on ? Theme.textBright : Theme.text }
-                        Text { visible: !!row.modelData.hint; text: row.modelData.hint || ""; width: Math.max(0, column.width - Theme.s4 * 2 - 220); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
+            // As many rows as the window has room for; the rest scroll, the keys' row in sight.
+            Flickable {
+                id: rows
+                width: parent.width
+                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 58 - Theme.s4))
+                contentHeight: rowColumn.implicitHeight
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
+                Column {
+                    id: rowColumn
+                    width: rows.width
+                    Repeater {
+                        model: root.entries
+                        delegate: Item {
+                            id: row
+                            required property var modelData
+                            required property int index
+                            readonly property bool on: index === root.at
+                            // What the label, the hint and the keys share: the label first.
+                            readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0)
+                            width: rowColumn.width
+                            height: 44
+                            Rectangle { anchors.fill: parent; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
+                            Rectangle { visible: row.on; width: 2; height: parent.height - 16; y: 8; color: Theme.accent }
+                            Row {
+                                x: Theme.s4
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.s3
+                                Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue; color: row.on ? Theme.textBright : Theme.text }
+                                Text { readonly property real spare: row.room - labelText.width - Theme.s3; visible: !!row.modelData.hint && spare >= 60; text: row.modelData.hint || ""; width: Math.max(0, Math.min(implicitWidth, spare)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            Quiet { id: keysText; visible: !!row.modelData.keys; anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: row.modelData.keys || "" }
+                            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
+                        }
                     }
-                    Quiet { visible: !!row.modelData.keys; anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: row.modelData.keys || "" }
-                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
                 }
             }
             Item { visible: root.entries.length === 0; width: parent.width; height: 44

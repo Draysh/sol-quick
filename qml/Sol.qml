@@ -53,6 +53,28 @@ QtObject {
         })
     }
 
+    /**
+        Calls `command` like `call`, and first, at once, hands `use` the reply
+        it gave last time on this device (`use(reply, true)`), so a page shows
+        what it showed while the fresh reply comes (`use(reply, false)`).
+        Resolves with the fresh reply.
+    */
+    function callSeen(command, args, use) {
+        const key = command + " " + JSON.stringify(args || {})
+        const last = SolBackend.recall(key)
+        if (last !== "") {
+            try { use(JSON.parse(last), true) } catch (e) { }
+        }
+        return call(command, args).then(reply => {
+            SolBackend.remember(key, JSON.stringify(reply))
+            use(reply, false)
+            return reply
+        })
+    }
+
+    /** A count on the app's icon and in the Sol tray (`"due"`, `"habits left"`); 0 clears it. */
+    function badge(count, what) { SolBackend.setBadge(count || 0, what || "") }
+
     /** A world's own event for its screens: `Connections { target: Sol; function onEvent(name, data) { … } }`. */
     signal event(string name, var data)
 
@@ -79,9 +101,9 @@ QtObject {
         call("open_in_sol").catch(why => Notices.failed("sol", "Couldn’t open Sol", why))
     }
 
-    /** Another world's app on this computer. */
-    function openWorld(id, name) {
-        call("open_world", { world: id }).catch(why => Notices.failed("sol", "Couldn’t open " + (name || id), why))
+    /** Another world's app on this computer; at a page of it with `path` (`/title?key=x`). */
+    function openWorld(id, name, path) {
+        call("open_world", path ? { world: id, path: path } : { world: id }).catch(why => Notices.failed("sol", "Couldn’t open " + (name || id), why))
     }
 
     /** The worlds whose apps are installed on this computer. */

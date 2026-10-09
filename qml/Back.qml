@@ -21,7 +21,7 @@ Item {
         anchors.fill: face
         anchors.topMargin: 6
         blur: 24
-        color: Qt.rgba(0, 0, 0, 0.5)
+        color: Theme.tint(Theme.veil, 0.5)
     }
     Rectangle {
         id: face

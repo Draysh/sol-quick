@@ -9,8 +9,16 @@ Item {
     property string hint: ""
     signal clicked()
 
-    implicitWidth: row.implicitWidth + 8
+    // From the words' own width, not the width they are given (which follows this).
+    implicitWidth: 22 + row.spacing + words.implicitWidth + 8
     implicitHeight: Theme.target
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Link
+    Accessible.name: text
+    Accessible.description: hint
+    Accessible.onPressAction: clicked()
+    Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { event.accepted = true; if (!event.isAutoRepeat) root.clicked() } }
+    readonly property bool lit: mouse.containsMouse || activeFocus
 
     Row {
         id: row
@@ -39,16 +47,20 @@ Item {
             id: words
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
+            // Held to less than it wants (a narrow sheet), the name elides.
+            width: Math.max(0, Math.min(implicitWidth, root.width - 8 - 22 - row.spacing))
+            elide: Text.ElideRight
             font.family: Theme.font
             font.weight: Theme.weightValue
             font.pixelSize: Theme.textXs
             font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs)
             font.capitalization: Font.AllUppercase
-            font.underline: mouse.containsMouse
-            color: mouse.containsMouse ? Theme.textBright : Theme.text
+            font.underline: root.lit
+            color: root.lit ? Theme.textBright : Theme.text
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
     }
+    Item { anchors.centerIn: parent; width: row.width + 12; height: row.height + 12; Ticks { on: root.activeFocus; out: 2 } }
     MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clicked() }
     Hint { text: root.hint; when: mouse.containsMouse }
 }

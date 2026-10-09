@@ -29,13 +29,17 @@ Item {
         function show() {
             const win = root.Window.window
             if (!win) return
-            const p = root.parent.mapToItem(null, 0, root.above ? 0 : root.parent.height)
+            const top = root.parent.mapToItem(null, 0, 0)
+            const bottom = top.y + root.parent.height
             sourceComponent = bubble
             active = true
             const b = item as Item
             if (b) {
-                b.x = Math.max(8, Math.min(win.width - b.width - 8, p.x))
-                b.y = root.above ? p.y - b.height - 6 : p.y + 6
+                b.x = Math.max(8, Math.min(win.width - b.width - 8, top.x))
+                // Where it was asked for, unless the window ends there: then the other side.
+                const under = bottom + 6, over = top.y - b.height - 6
+                const fitsUnder = under + b.height <= win.height - 8, fitsOver = over >= 8
+                b.y = (root.above ? !fitsOver && fitsUnder : fitsUnder || !fitsOver) ? Math.min(under, win.height - b.height - 8) : Math.max(8, over)
             }
         }
         function hide() { active = false }
@@ -44,9 +48,10 @@ Item {
     Component {
         id: bubble
         Rectangle {
+            id: tipBox
             parent: root.Window.window ? root.Window.window.contentItem : null
             z: 1000
-            width: words.implicitWidth + 20
+            width: words.width + 20
             height: words.implicitHeight + 12
             color: "transparent"
             border.width: 1
@@ -55,10 +60,14 @@ Item {
             transform: Translate { id: lift; y: root.above ? 3 : -3; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             Component.onCompleted: { opacity = 1; lift.y = 0 }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Qt.rgba(0.02, 0.02, 0.02, 0.86) }
+            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.86) }
+            // A long line wraps inside the window.
+            TextMetrics { id: natural; font: words.font; text: root.text }
             Text {
                 id: words
                 anchors.centerIn: parent
+                width: Math.min(Math.ceil(natural.advanceWidth) + 1, (tipBox.parent ? tipBox.parent.width : 400) - 36, 420)
+                wrapMode: Text.Wrap
                 text: root.text
                 font.family: Theme.font
                 font.pixelSize: Theme.textS

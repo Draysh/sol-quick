@@ -29,9 +29,41 @@ Item {
     readonly property bool hovered: mouse.containsMouse && live
     readonly property bool pressed: mouse.pressed && live
 
-    implicitWidth: round ? Theme.control : row.implicitWidth + (quiet ? 20 : 32)
+    /** Its padding either side of the label, both together. */
+    readonly property real pad: quiet ? 20 : 32
+    readonly property real iconRoom: icon !== "" ? 12 + (text !== "" ? Theme.s2 : 0) : 0
+    readonly property real natural: round ? Theme.control : iconRoom + (text !== "" ? label.implicitWidth : 0) + pad
+    // The property a container gives its children's room in (see `room`). Read by name,
+    // since it is on that container, not on every Item.
+    readonly property string roomKey: "childRoom"
+    /**
+        The room it really has: the width of the first thing around it that sets one. A Row,
+        a Column, a Grid or a layout is passed over (it is as wide as what it holds, so
+        measuring against it would hold a button that shows up later to the width the others
+        left it); a Flow counts (it wraps at its width), as does any plain item, card or page.
+        A container that places its children itself and sizes itself from them says how much
+        room they have with `childRoom` (the Sheet's line under the name does).
+    */
+    readonly property real room: {
+        for (let p = parent; p; p = p.parent) {
+            const given = p[root.roomKey]
+            if (given !== undefined) return given
+            const flow = p.hasOwnProperty("flow") && !p.hasOwnProperty("columns")
+            const positions = p.hasOwnProperty("populate") || p.hasOwnProperty("layoutDirection") || p.hasOwnProperty("columnSpacing")
+            if (positions && !flow) continue
+            return p.width > 0 ? p.width : Infinity
+        }
+        return Infinity
+    }
+    // Never wider than that room: a label too long for it elides instead of running out;
+    // with room to spare, it is always its natural width.
+    implicitWidth: round ? natural : Math.min(natural, room)
     implicitHeight: Theme.control
     activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: text !== "" ? text : hint
+    Accessible.description: hint
+    Accessible.onPressAction: if (live) clicked()
 
     // One click per press: holding the key doesn't repeat it.
     Keys.onPressed: event => {
@@ -64,15 +96,17 @@ Item {
         id: face
         anchors.fill: parent
         radius: root.round ? height / 2 : 0
-        color: !root.live ? "transparent"
+        // The main action keeps its fill while it works, a little dimmed.
+        color: root.primary && root.busy && root.enabled ? Theme.tint(Theme.text, 0.55)
+            : !root.live ? "transparent"
             : root.primary ? (root.hovered ? Theme.textBright : Theme.text)
             : root.quiet ? "transparent"
             : root.hovered ? Theme.surfaceHover : "transparent"
         border.width: root.quiet ? 0 : 1
         border.color: !root.enabled ? Theme.lineMid
-            : root.primary ? Theme.text
+            : root.primary ? face.color
             : root.hovered ? Theme.text
-            : root.round ? Qt.rgba(1, 1, 1, 0.35) : Qt.rgba(1, 1, 1, 0.4)
+            : root.round ? Theme.tint(Theme.ink, 0.35) : Theme.tint(Theme.ink, 0.4)
         Behavior on color { ColorAnimation { duration: Theme.fade } }
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
     }
@@ -93,14 +127,16 @@ Item {
             id: label
             visible: root.text !== ""
             text: root.text
+            width: Math.max(0, Math.min(implicitWidth, root.width - root.pad - root.iconRoom))
+            elide: Text.ElideRight
             font.family: Theme.font
             font.weight: Theme.weightLabel
             font.pixelSize: Theme.textXs
             font.letterSpacing: Theme.track(0.16, Theme.textXs)
             font.capitalization: Font.AllUppercase
             color: !root.enabled ? Theme.textFaint
-                : root.busy ? Theme.textQuiet
                 : root.primary ? Theme.space
+                : root.busy ? Theme.textQuiet
                 : root.quiet ? (root.hovered ? Theme.textBright : Theme.textQuiet)
                 : Theme.text
             Behavior on color { ColorAnimation { duration: Theme.fade } }
@@ -134,27 +170,7 @@ Item {
     }
 
     // Focus: two ticks lock onto the control, like a reticle finding its target.
-    Tick { at: "tl"; on: root.activeFocus }
-    Tick { at: "br"; on: root.activeFocus }
-
-    component Tick: Item {
-        id: tick
-        property string at: "tl"
-        property bool on: false
-        readonly property bool tl: at === "tl"
-        readonly property real out: on ? 6 : 10
-        width: 10; height: 10
-        opacity: on ? 1 : 0
-        x: tl ? -out : root.width + out - width
-        y: tl ? -out : root.height + out - height
-        Behavior on opacity { NumberAnimation { duration: Theme.lock } }
-        Behavior on x { NumberAnimation { duration: Theme.lock } }
-        Behavior on y { NumberAnimation { duration: Theme.lock } }
-        Rectangle { width: tick.tl ? parent.width : 1; height: 1; color: Theme.textBright; x: 0; y: tick.tl ? 0 : parent.height - 1 }
-        Rectangle { width: 1; height: tick.tl ? parent.height : 1; color: Theme.textBright; x: tick.tl ? 0 : parent.width - 1; y: 0 }
-        Rectangle { visible: !tick.tl; width: parent.width; height: 1; color: Theme.textBright; y: parent.height - 1 }
-        Rectangle { visible: !tick.tl; width: 1; height: parent.height; color: Theme.textBright; x: parent.width - 1 }
-    }
+    Ticks { on: root.activeFocus }
 
     MouseArea {
         id: mouse

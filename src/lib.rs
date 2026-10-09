@@ -35,6 +35,7 @@ pub mod bridge;
 pub mod commands;
 pub mod desktop;
 mod single;
+mod tray;
 
 pub use app::{Prepare, Sample, World, data_dir, device_name, emit, leave, quit, run, runtime};
 pub use commands::{Commands, say};

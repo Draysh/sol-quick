@@ -42,8 +42,8 @@ Item {
     }
     /** Pad the sides by the pane's margin; off for a page that starts with a Sheet. */
     property bool padded: true
-    /** Space above the content. */
-    property real topPad: padded ? Theme.s4 : 0
+    /** Space above the content (and, on a page with no header, room for the way back floating over it). */
+    property real topPad: (padded ? Theme.s4 : 0) + (floatingBack.visible ? floatingBack.height + Theme.s3 : 0)
     property alias header: headSlot.data
     default property alias content: column.data
     property alias contentY: flick.contentY
@@ -53,7 +53,20 @@ Item {
     readonly property real margin: Theme.margin(width)
     /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left.
         The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
-    function reveal(dir) { flick.reveal(dir) }
+    function reveal(dir) { flick.reveal(dir); revealHead(dir) }
+    /** The header's words settle in with the page, when it can (a PageHead). */
+    function revealHead(dir) { for (const h of headSlot.children) if (typeof h.reveal === "function") h.reveal(dir) }
+    /** Scrolls the page by `dy` pixels (the keys' arrows and pages), eased like a wheel notch. */
+    function scrollBy(dy) {
+        const max = Math.max(0, flick.contentHeight - flick.height)
+        const to = Math.max(0, Math.min(max, (glide.running ? glide.to : flick.contentY) + dy))
+        bounce.stop()
+        glide.stop(); glide.from = flick.contentY; glide.to = to
+        glide.duration = Theme.fade
+        glide.start()
+    }
+    /** How far a page key scrolls: the visible height, less a line to keep your place. */
+    readonly property real pageStep: Math.max(48, flick.height - (pinned ? pinned.compact : 0) - 48)
     /** Where `item` will rest in `into`'s coordinates, once the page's arrival is over (the hero lands there). */
     function restingPoint(item, into) {
         const p = item.mapToItem(flick, 0, 0)
@@ -70,6 +83,7 @@ Item {
 
     // The way back floats over the corner when no PageHead shows it.
     Back {
+        id: floatingBack
         visible: !!screen.back && headSlot.children.length === 0
         label: screen.back ? screen.back.label : ""
         floating: true
@@ -128,7 +142,7 @@ Item {
         // The screen settles into the pane as it opens, and again when the Shell comes back to it.
         opacity: 0
         transform: Translate { id: shift; y: 6; x: 0 }
-        Component.onCompleted: arrive.start()
+        Component.onCompleted: { arrive.start(); screen.revealHead("up") }
         function reveal(dir) {
             arrive.stop(); flick.opacity = 0
             shift.y = dir === "in" || dir === "back" ? 0 : 6
@@ -154,7 +168,7 @@ Item {
         width: 3
         height: Math.max(24, track * Math.min(1, flick.height / Math.max(1, flick.contentHeight)))
         radius: 1.5
-        color: Qt.rgba(1, 1, 1, 0.18)
+        color: Theme.tint(Theme.ink, 0.18)
         visible: flick.contentHeight > flick.height
         opacity: flick.moving || glide.running || hover.hovered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.fade } }

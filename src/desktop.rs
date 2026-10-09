@@ -1,15 +1,11 @@
-//! The desktop around the window: a tray icon with a menu, notifications
-//! that work with the window hidden, and global shortcuts through the
-//! portal. Linux only for now: elsewhere there is no tray or shortcut, and
-//! `notify` says it can't. Everything here reaches the screens as world
-//! events (`Sol.event`): `tray` and `shortcut` carry the id that was
-//! chosen, `notified` the action taken on a notification.
+//! The desktop around the window: notifications that work with the window
+//! hidden, and global shortcuts through the portal (the tray is `tray`).
+//! Linux only for now: elsewhere there is no shortcut, and `notify` says it
+//! can't. Both reach the screens as world events (`Sol.event`): `shortcut`
+//! carries the id that was pressed, `notified` the action taken on a
+//! notification.
 
 use crate::app;
-
-/// The tray, for as long as the app runs.
-#[cfg(target_os = "linux")]
-static TRAY: std::sync::OnceLock<ksni::Handle<Tray>> = std::sync::OnceLock::new();
 
 /// An entry in the tray's menu: its id (what the screens hear) and label.
 pub type TrayItem = (&'static str, &'static str);
@@ -63,131 +59,20 @@ pub async fn notify(
     }
 }
 
-/// Puts the app in the tray and binds its global shortcuts, once the
-/// runtime is up. Failures are logged, never fatal: a desktop without a
-/// tray or a portal just doesn't get them.
-pub fn start(
-    tray_items: &'static [TrayItem],
-    shortcuts: &'static [Shortcut],
-    icons: &'static [(u32, &'static [u8])],
-) {
+/// Binds the app's global shortcuts, once the runtime is up. Failures are
+/// logged, never fatal: a desktop without the portal just doesn't get them.
+pub fn start(shortcuts: &'static [Shortcut]) {
     #[cfg(target_os = "linux")]
-    {
-        let rt = app::runtime();
-        let items: Vec<TrayItem> = tray_items.to_vec();
-        rt.tokio.spawn(async move {
-            use ksni::TrayMethods;
-            let tray = Tray {
-                name: &rt.name,
-                title: rt.app.name,
-                world: rt.app.world,
-                icons: icons.iter().filter_map(|(_, png)| pixmap(png)).collect(),
-                items,
-            };
-            match tray.spawn().await {
-                Ok(handle) => {
-                    let _ = TRAY.set(handle);
-                    rt.set_tray(true);
-                }
-                // No tray to come back from: closing the window quits.
-                Err(e) => tracing::warn!("no tray: {e}"),
+    if !shortcuts.is_empty() {
+        let shortcuts: Vec<Shortcut> = shortcuts.to_vec();
+        app::runtime().tokio.spawn(async move {
+            if let Err(e) = bind(&shortcuts).await {
+                tracing::warn!("global shortcuts unavailable: {e}");
             }
         });
-        if !shortcuts.is_empty() {
-            let shortcuts: Vec<Shortcut> = shortcuts.to_vec();
-            rt.tokio.spawn(async move {
-                if let Err(e) = bind(&shortcuts).await {
-                    tracing::warn!("global shortcuts unavailable: {e}");
-                }
-            });
-        }
     }
     #[cfg(not(target_os = "linux"))]
-    {
-        let _ = (tray_items, shortcuts, icons);
-    }
-}
-
-#[cfg(target_os = "linux")]
-fn pixmap(png: &[u8]) -> Option<ksni::Icon> {
-    let img = image::load_from_memory(png).ok()?.to_rgba8();
-    let mut data = Vec::with_capacity((img.width() * img.height() * 4) as usize);
-    for px in img.pixels() {
-        data.extend_from_slice(&[px[3], px[0], px[1], px[2]]);
-    }
-    Some(ksni::Icon {
-        width: img.width() as i32,
-        height: img.height() as i32,
-        data,
-    })
-}
-
-#[cfg(target_os = "linux")]
-struct Tray {
-    /// The world's name, for "Open Terra".
-    name: &'static str,
-    /// The name with what the app is for, for the tray's tooltip.
-    title: &'static str,
-    world: &'static str,
-    icons: Vec<ksni::Icon>,
-    items: Vec<TrayItem>,
-}
-
-#[cfg(target_os = "linux")]
-impl ksni::Tray for Tray {
-    fn id(&self) -> String {
-        format!("sol-{}", self.world)
-    }
-    fn title(&self) -> String {
-        self.title.to_owned()
-    }
-    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        self.icons.clone()
-    }
-    /// A left click brings the window up.
-    fn activate(&mut self, _x: i32, _y: i32) {
-        app::runtime().activate_window();
-    }
-    /// The panel's tray went away (or came back): closing the window hides
-    /// it only while there is a tray to come back from.
-    fn watcher_offline(&self, _reason: ksni::OfflineReason) -> bool {
-        app::runtime().set_tray(false);
-        true
-    }
-    fn watcher_online(&self) {
-        app::runtime().set_tray(true);
-    }
-    fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        use ksni::menu::{MenuItem, StandardItem};
-        let mut menu: Vec<MenuItem<Self>> = self
-            .items
-            .iter()
-            .map(|(id, label)| {
-                let id = *id;
-                MenuItem::Standard(StandardItem {
-                    label: (*label).to_owned(),
-                    activate: Box::new(move |_: &mut Self| {
-                        app::emit("tray", &serde_json::json!({ "id": id }));
-                    }),
-                    ..Default::default()
-                })
-            })
-            .collect();
-        if !menu.is_empty() {
-            menu.push(MenuItem::Separator);
-        }
-        menu.push(MenuItem::Standard(StandardItem {
-            label: format!("Open {}", self.name),
-            activate: Box::new(|_: &mut Self| app::runtime().activate_window()),
-            ..Default::default()
-        }));
-        menu.push(MenuItem::Standard(StandardItem {
-            label: "Quit".into(),
-            activate: Box::new(|_: &mut Self| app::quit()),
-            ..Default::default()
-        }));
-        menu
-    }
+    let _ = shortcuts;
 }
 
 /// Binds the shortcuts through the GlobalShortcuts portal and passes each

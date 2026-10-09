@@ -26,7 +26,7 @@ Item {
         Item {
             width: parent.width
             height: 13
-            Rectangle { y: 6; width: parent.width; height: 1; color: Qt.rgba(1, 1, 1, 0.2) }
+            Rectangle { y: 6; width: parent.width; height: 1; color: Theme.tint(Theme.ink, 0.2) }
             // The fill is scaled, never resized: the compositor's work.
             Rectangle { y: 6; width: parent.width; height: 1; color: Theme.text; transform: Scale { origin.x: 0; xScale: root.shown } }
             Rectangle { x: parent.width * root.shown; width: 1; height: 13; color: Theme.text }
@@ -35,8 +35,9 @@ Item {
             visible: root.start !== "" || root.end !== ""
             width: parent.width
             height: visible ? Theme.textXs * 1.6 : 0
-            Quiet { text: root.start; anchors.left: parent.left }
-            Quiet { text: root.end; anchors.right: parent.right }
+            // The end says the figures; the start gives way to it.
+            Quiet { text: root.start; anchors.left: parent.left; width: Math.max(0, Math.min(implicitWidth, parent.width - (root.end !== "" ? endText.implicitWidth + Theme.s3 : 0))) }
+            Quiet { id: endText; text: root.end; anchors.right: parent.right }
         }
     }
 }

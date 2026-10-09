@@ -1,7 +1,7 @@
 [package]
 name = "sol-quick"
 description = "The Sol design language as a Qt Quick module, and the Rust side every world app shares"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -30,6 +30,7 @@ tracing = "0.1.44"
 [target.'cfg(target_os = "linux")'.dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
 notify-rust = { version = "4", default-features = false, features = ["z"] }
 ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
 futures-util = "0.3"

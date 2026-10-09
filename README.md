@@ -33,8 +33,10 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
   forget, settings, updates, install, doors, moons, notify), preview mode
   (`SOL_PREVIEW=1` runs against a throwaway copy with sample data) and the
   review hooks: `SOL_SHOT=<png> SOL_SHOT_AFTER=<ms> SOL_SHOT_PATH=<path>`
-  for a screenshot, `SOL_FPS=1` for the frame rate in the journal, and
-  `SOL_DRIVE=<file.qml>` for a script that drives the window end to end.
+  for a screenshot, `SOL_FPS=1` for the frames really painted each second
+  in the journal (0 while nothing moves), and
+  `SOL_DRIVE=<file.qml>` for a script that drives the window end to end, and
+  `SOL_LIGHT=night|day` to see one light whatever the device's setting.
 - **`src/commands.rs`**: typed async commands the screens call through
   `Sol.call(name, args)`, which returns a promise.
 - **`src/bridge.rs`**: the `SolBackend` singleton the QML side talks to.
@@ -43,7 +45,8 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
   `PageHead`, `Sheet` and `Body` (the world's photo, lit by a shader),
   `Card`, `Grid`, `Button`, `Field`, `Select`, `Toggle`, `Check`,
   `TextArea`, `Slider`, `DataRows`, `Progress`, `Display`,
-  `Chip`, `Callout`, `Hint`, `Notices`, `ContextMenu`, `CommandPalette`, `Key` (a key for one page), `Ask`, `Glass` (real
+  `Chip`, `Callout`, `Hint`, `Notices`, `ContextMenu`, `CommandPalette`, `Key` (a key for one page), `Ask`,
+  `Ticks` (the keyboard-focus mark every control shows), `Glass` (real
   blur of the pages behind a menu, a notice, a hint or a dialog), `Settle`
   (the stagger every list arrives with), `Poster`, `WorldGlyph`, `Icon`,
   `SolCard`, `AppUpdates`, `SettingsCard`, `WithPlanet`.
@@ -102,19 +105,48 @@ journalctl --user -S -1min | grep '<world>\['     # QML runtime errors land here
 
 ## The desktop around the window
 
-`sol_quick::desktop` (Linux): every app sits in the **tray** with Open and
-Quit, plus the entries a world lists in `World::tray` (Neptune puts the
-transport there); closing the window hides it, the tray's Quit ends it. A
-`notify` command shows a **desktop notification** with an optional button;
-what was pressed comes back as a `notified` event (Terra's reminders tick
-the habit from one). `World::shortcuts` binds **global keys** through the
-desktop's portal and sends a `shortcut` event on each press; the desktop
-may ask to confirm the keys the first time. Neptune's MPRIS (media keys,
-the desktop's player widget) lives in its audio crate.
+- **One Sol tray** (`src/tray.rs`): the first Sol app to start shows a
+  single Sol icon; the others join it, each as a submenu (Open, the entries
+  a world lists in `World::tray`, Quit), and the next takes over when it
+  quits. Closing a window hides it while the tray is there.
+- **Counts**: `Sol.badge(10, "due")` puts a count beside the app in the
+  tray, in its tooltip, and on its icon in docks that read the Launcher
+  Entry API.
+- **Desktop widgets**: a world sets `widget` (a Component) and
+  `widgetName` on its `AppWindow`; Settings → On this device shows it on
+  the desktop (a layer-shell panel in a corner, under the windows) while
+  the app runs. Wayland with layer-shell-qt only; elsewhere nothing shows.
+- **Start with the computer**: the installed copy can start at login in
+  the tray, without a window (`autostart` / `set_autostart`).
+- **Notifications**: `notify` shows one with an optional button; what was
+  pressed comes back as a `notified` event (Terra's reminders tick the
+  habit from one).
+- **Global keys**: `World::shortcuts` binds them through the desktop's
+  portal and sends a `shortcut` event on each press; the desktop may ask
+  to confirm them the first time. Neptune's MPRIS (media keys, the
+  desktop's player widget) lives in its audio crate.
+
+## Night and day, the sky, charts, instant start
+
+- **Night and day**: `Theme.day`, from Settings → On this device ("As the
+  desktop is", "With the sun", always night, always day) for every Sol app
+  on the computer (`~/.config/sol/device.conf`). Overlays use `Theme.ink`
+  at an alpha (white at night, black by day), dims and glass `Theme.veil`.
+  A world's colour as a small mark (a glyph, the current section's light,
+  the chosen row) is `Theme.mark(c)` / `Theme.accent`: deepened by day,
+  so a white moon still shows on the pale sky.
+- **The real sky**: Luna shows tonight's phase and Terra's light follows
+  the local hour wherever a body is drawn (`Worlds.skyOf`, `Worlds.moonAt`).
+- **Charts**: `Chart` draws bars or lines for one or more series over the
+  same labels, grows in when seen, and says the exact values under the
+  pointer.
+- **Instant start**: `Sol.callSeen(command, args, use)` hands a page what
+  it showed last time on this device at once, then the fresh reply; kept
+  in the app's data folder (`seen/`), written only when it changed.
 
 ## The palette and the hero
 
-Ctrl+K opens the **command palette** (`Palette`): the sections, the window's
+Ctrl+K opens the **command palette** (`CommandPalette`): the sections, the window's
 `commands`, and what its `find` turns up as you type (Saturn searches
 titles, Neptune the library, Mercury the dictionary). `Shell.go(path,
 params, { item, url })` flies a picture from where it was clicked to the
@@ -132,8 +164,12 @@ end gives and springs back, the wheel bounces at the ends. A page opened
 from another slides in from the right and back out; a section settles.
 The sidebar's field filters the page in place when the page says
 `filters: true` (it reads `filter`), and searches the app otherwise; `/`
-focuses it. `Editable` turns words into a field on click (a `PageHead`
-with `editable: true` renames); `Check` shows the click at once and takes
+focuses it (on the rail it waits behind a button and floats over the pane).
+The arrows, Page Up / Down, Home and End scroll the page. Every control
+that takes the keys shows it with `Ticks`; a `PageHead` too narrow for its
+actions puts them on lines of their own under the title. `Editable` turns
+words into a field on click, or Enter (a `PageHead` with `editable: true`
+renames); `Check` shows the click at once and takes
 it back with a shake on `fail()`; a `Card` with a `menu` opens it on
 right-click. `Skeleton` draws a page's shape while its data is on the way.
 `Sounds` (off until turned on in `DeviceCard`, which also picks the

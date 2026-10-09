@@ -90,6 +90,45 @@ QtObject {
         }
     }
 
+    // ---- The real sky ----------------------------------------------------------
+    /** The time the sky is drawn for: a minute's precision is plenty. */
+    property date now: new Date()
+    property Timer minute: Timer { interval: 60000; running: true; repeat: true; onTriggered: worlds.now = new Date() }
+
+    /**
+        The moon at `date`: its age in days since new, the lit fraction, whether
+        it is waxing, and its name. From a known new moon and the mean synodic
+        month; within a few hours of the almanac, which a disc can't show.
+    */
+    function moonAt(date) {
+        const synodic = 29.530588853
+        const knownNew = Date.UTC(2000, 0, 6, 18, 14)
+        const days = (date.getTime() - knownNew) / 86400000
+        const age = ((days % synodic) + synodic) % synodic
+        const fraction = (1 - Math.cos(2 * Math.PI * age / synodic)) / 2
+        const names = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous", "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"]
+        return { age: age, fraction: fraction, waxing: age < synodic / 2, name: names[Math.floor(age / synodic * 8 + 0.5) % 8] }
+    }
+
+    /**
+        Where the light falls on a world now, for the ones that follow the real
+        sky; null for the rest. Luna shows tonight's phase, lit on the right
+        while it waxes (as seen from the north). Terra is seen from above where
+        you are: lit from the east in the morning, full at noon, from the west
+        in the evening, a thin crescent at midnight.
+    */
+    function skyOf(id) {
+        if (id === "luna") {
+            const m = moonAt(now)
+            return { phase: Math.max(0.03, m.fraction), light: m.waxing ? 90 : 270 }
+        }
+        if (id === "terra") {
+            const h = now.getHours() + now.getMinutes() / 60
+            return { phase: Math.max(0.08, (1 - Math.cos(2 * Math.PI * h / 24)) / 2), light: h < 12 ? 90 : 270 }
+        }
+        return null
+    }
+
     /** The moons that open from a world's screens. */
     function moonsOf(id) {
         return Object.values(table).filter(w => w.parent === id)

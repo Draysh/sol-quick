@@ -15,7 +15,7 @@ Item {
     id: glass
 
     property real blur: 0.7
-    property color tint: Qt.rgba(0, 0, 0, 0.74)
+    property color tint: Theme.tint(Theme.veil, 0.74)
     /** How far in from the edge the picture bends, in pixels; 0 for flat glass. */
     property real bend: 14
     readonly property Item behind: { const w = Window.window as AppWindow; return w ? w.backdrop : null }

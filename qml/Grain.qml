@@ -9,7 +9,8 @@ Image {
     anchors.fill: parent
     source: "../assets/grain.png"
     fillMode: Image.Tile
-    opacity: 0.14
+    // By day the specks show as speckle on paper: a touch only.
+    opacity: Theme.day ? 0.04 : 0.14
     enabled: false
     z: 100
 }

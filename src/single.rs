@@ -1,15 +1,34 @@
 //! One copy of each world at a time: a later copy asks the first to bring
-//! its window up, and leaves. The door is a Unix socket in the runtime
-//! directory, named for the world (a preview has its own), and the copy
-//! that binds it is the one that runs.
+//! its window up (or to open a page), and leaves. The door is a Unix socket
+//! in the runtime directory, named for the world (a preview has its own),
+//! and the copy that binds it is the one that runs. Another app can knock
+//! on it too, to open a page here (`knock`).
 
 #[cfg(unix)]
 use std::{
-    io::{ErrorKind, Read, Write},
+    io::{BufRead, BufReader, ErrorKind, Read, Write},
     os::unix::net::{UnixListener, UnixStream},
     path::PathBuf,
     sync::OnceLock,
 };
+
+/// What a knock on the door asks for.
+pub enum Knock {
+    /// Bring the window up.
+    Show,
+    /// Bring it up at a page: `/title?key=x`.
+    Open(String),
+}
+
+impl Knock {
+    #[cfg(unix)]
+    fn line(&self) -> String {
+        match self {
+            Knock::Show => "show\n".into(),
+            Knock::Open(path) => format!("open {}\n", path.replace('\n', " ")),
+        }
+    }
+}
 
 /// The socket this copy bound; removed again when it leaves.
 #[cfg(unix)]
@@ -28,11 +47,15 @@ fn socket(world: &str, preview: bool) -> PathBuf {
 }
 
 /// Claims the world for this copy. Returns false when another copy is
-/// already running; it was asked to bring its window up when `show` (a
-/// planet starting its moon again doesn't ask). Otherwise this copy holds
-/// the door, and each later copy that asks calls `on_show`, on a thread of
-/// its own.
-pub fn claim(world: &str, preview: bool, show: bool, on_show: impl Fn() + Send + 'static) -> bool {
+/// already running; it was asked for `knock` (a planet starting its moon
+/// again passes None, and doesn't ask). Otherwise this copy holds the door,
+/// and each later knock calls `on_knock`, on a thread of its own.
+pub fn claim(
+    world: &str,
+    preview: bool,
+    knock: Option<Knock>,
+    on_knock: impl Fn(Knock) + Send + 'static,
+) -> bool {
     #[cfg(unix)]
     {
         let path = socket(world, preview);
@@ -40,7 +63,8 @@ pub fn claim(world: &str, preview: bool, show: bool, on_show: impl Fn() + Send +
             Ok(listener) => listener,
             Err(e) if e.kind() == ErrorKind::AddrInUse => {
                 if let Ok(mut stream) = UnixStream::connect(&path) {
-                    let _ = stream.write_all(if show { b"show\n" } else { b"wait\n" });
+                    let line = knock.map_or_else(|| "wait\n".to_owned(), |k| k.line());
+                    let _ = stream.write_all(line.as_bytes());
                     let mut ack = [0u8; 4];
                     let _ = stream.read(&mut ack);
                     return false;
@@ -59,10 +83,13 @@ pub fn claim(world: &str, preview: bool, show: bool, on_show: impl Fn() + Send +
             .name("sol-single".into())
             .spawn(move || {
                 for mut stream in listener.incoming().flatten() {
-                    let mut buf = [0u8; 8];
-                    let n = stream.read(&mut buf).unwrap_or(0);
-                    if buf[..n].starts_with(b"show") {
-                        on_show();
+                    let mut line = String::new();
+                    let _ = BufReader::new((&stream).take(4096)).read_line(&mut line);
+                    let line = line.trim_end();
+                    if line == "show" {
+                        on_knock(Knock::Show);
+                    } else if let Some(path) = line.strip_prefix("open ") {
+                        on_knock(Knock::Open(path.to_owned()));
                     }
                     let _ = stream.write_all(b"ok\n");
                 }
@@ -74,8 +101,27 @@ pub fn claim(world: &str, preview: bool, show: bool, on_show: impl Fn() + Send +
     }
     #[cfg(not(unix))]
     {
-        let _ = (world, preview, show, on_show);
+        let _ = (world, preview, knock, on_knock);
         true
+    }
+}
+
+/// Knocks on another world's door (its running copy); false when nobody
+/// answers.
+pub fn knock(world: &str, preview: bool, what: &Knock) -> bool {
+    #[cfg(unix)]
+    {
+        let Ok(mut stream) = UnixStream::connect(socket(world, preview)) else {
+            return false;
+        };
+        let mut ack = [0u8; 3];
+        stream.write_all(what.line().as_bytes()).is_ok()
+            && stream.read(&mut ack).is_ok_and(|n| n > 0)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (world, preview, what);
+        false
     }
 }
 

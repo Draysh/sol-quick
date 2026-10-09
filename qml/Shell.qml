@@ -76,6 +76,15 @@ Item {
 
     function isSection(path) { return sections.some(s => s.path === path) }
 
+    /** On the rail, the sidebar's field is folded away until it is used. */
+    property bool finding: false
+    onRailChanged: finding = false
+    /** The sidebar's field gets the keys (on the rail, it unfolds over the pane first). */
+    function find() {
+        finding = true
+        Qt.callLater(() => { finder.input.forceActiveFocus(); finder.input.selectAll() })
+    }
+
     /** Opens `path` with `params`, as a new step in the history. `hero` is
         `{ item, url }`: a picture that flies from `item` to the new page's `hero`. */
     function go(path, params, hero) {
@@ -258,9 +267,17 @@ Item {
         if (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier) {
             if (typing()) return
             if (event.text === "?") { keys = !keys; event.accepted = true; return }
-            if (event.text === "/" && !keys && finder.visible) { finder.input.forceActiveFocus(); finder.input.selectAll(); event.accepted = true; return }
+            if (event.text === "/" && !keys && finder.usable) { find(); event.accepted = true; return }
             if (event.text === "/" && search !== "" && !keys) { go(search); event.accepted = true; return }
             if (event.key === Qt.Key_Escape && keys) { keys = false; event.accepted = true; return }
+            // The page scrolls from the keys too: arrows a line, Page Up / Down a page, Home and End.
+            const screen = page as Design.Screen
+            if (screen && !keys && event.modifiers === Qt.NoModifier) {
+                const by = event.key === Qt.Key_Down ? 48 : event.key === Qt.Key_Up ? -48
+                    : event.key === Qt.Key_PageDown ? screen.pageStep : event.key === Qt.Key_PageUp ? -screen.pageStep
+                    : event.key === Qt.Key_End ? 1e9 : event.key === Qt.Key_Home ? -1e9 : 0
+                if (by !== 0) { screen.scrollBy(by); event.accepted = true; return }
+            }
         }
         if (event.modifiers === Qt.ControlModifier || event.modifiers === Qt.MetaModifier) {
             const n = event.key - Qt.Key_0
@@ -282,6 +299,8 @@ Item {
 
     Item {
         id: side
+        // Over the pane: the field floats out over it on the rail.
+        z: 2
         width: shell.rail ? Theme.rail : Theme.sidebar
         height: parent.height
         Behavior on width { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
@@ -314,6 +333,8 @@ Item {
                     spacing: 3
                     Text {
                         text: shell.w.name
+                        width: Math.min(implicitWidth, brand.width - 34)
+                        elide: Text.ElideRight
                         font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textS
                         font.letterSpacing: Theme.track(0.28, Theme.textS); font.capitalization: Font.AllUppercase
                         color: Theme.textBright
@@ -321,6 +342,8 @@ Item {
                     Text {
                         visible: text !== ""
                         text: shell.w.role
+                        width: Math.min(implicitWidth, brand.width - 34)
+                        elide: Text.ElideRight
                         font.family: Theme.font; font.weight: Theme.weightValue; font.pixelSize: Theme.textXs
                         font.letterSpacing: Theme.track(0.04, Theme.textXs)
                         color: Theme.textWorld
@@ -332,29 +355,55 @@ Item {
         }
 
         // The field: filters the page in place when it can, searches the app
-        // otherwise; there only when it can do one or the other.
+        // otherwise; there only when it can do one or the other. On the rail it
+        // waits behind a button and floats over the top of the pane while used.
+        Item {
+            id: findButton
+            visible: shell.rail && finder.usable
+            y: brand.y + brand.height
+            width: parent.width
+            height: Theme.control
+            activeFocusOnTab: false
+            Rectangle { anchors.centerIn: parent; width: Theme.control; height: Theme.control; radius: 6; color: findMouse.containsMouse || shell.finding ? Theme.surface : "transparent"; Behavior on color { ColorAnimation { duration: Theme.fade } } }
+            Icon { anchors.centerIn: parent; name: "search"; size: 13; color: findMouse.containsMouse || shell.finding ? Theme.textBright : Theme.textQuiet }
+            MouseArea { id: findMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.find() }
+            Hint { text: (finder.filtering ? "Filter this page" : "Search") + " · /"; when: findMouse.containsMouse }
+        }
+        // Its ground while it floats over the pane.
+        Rectangle {
+            visible: shell.rail && finder.visible
+            x: finder.x - Theme.s3; y: finder.y - Theme.s1
+            width: finder.width + Theme.s3 * 2; height: finder.height + Theme.s1 * 2
+            radius: 6
+            color: Theme.deep
+            border.width: 1; border.color: Theme.lineMid
+        }
         Field {
             id: finder
-            visible: !shell.rail && (filtering || shell.search !== "")
-            x: 20
-            y: brand.y + brand.height
-            width: parent.width - 36
-            label: ""
-            placeholder: filtering ? "Filter · /" : "Search · /"
             readonly property Design.Screen screen: shell.page as Design.Screen
             readonly property bool filtering: !!screen && screen.filters
-            // Out of sight (the rail), it filters nothing.
+            readonly property bool usable: filtering || shell.search !== ""
+            visible: usable && (!shell.rail || shell.finding)
+            x: shell.rail ? side.width + Theme.s4 : 20
+            y: shell.rail ? Theme.s2 : brand.y + brand.height
+            width: shell.rail ? Math.min(320, shell.width - side.width - Theme.s4 * 2) : parent.width - 36
+            label: ""
+            placeholder: filtering ? "Filter · /" : "Search · /"
+            // Gone (a page that doesn't filter, a search sent), it filters nothing.
             onVisibleChanged: if (!visible) text = ""
             onTextChanged: if (screen) screen.filter = text
-            onAccepted: { if (!filtering && shell.search !== "" && text.trim() !== "") { const q = text.trim(); text = ""; shell.go(shell.search, { query: q }) } }
-            Keys.onEscapePressed: { text = ""; shell.forceActiveFocus() }
+            onAccepted: { if (!filtering && shell.search !== "" && text.trim() !== "") { const q = text.trim(); text = ""; shell.finding = false; shell.go(shell.search, { query: q }) } }
+            Keys.onEscapePressed: { text = ""; shell.finding = false; shell.forceActiveFocus() }
         }
+        // Left empty on the rail, it folds away again.
+        Connections { target: finder.input; function onActiveFocusChanged() { if (!finder.input.activeFocus && finder.text === "") shell.finding = false } }
 
         // The sections, with the world's light on the current one.
         Item {
             id: list
             x: shell.rail ? Theme.s1 : Theme.s2
-            y: finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
+            y: shell.rail ? (findButton.visible ? findButton.y + findButton.height + Theme.s2 : brand.y + brand.height + Theme.s2)
+                : finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
             width: parent.width - x * 2
             height: sectionColumn.implicitHeight
 
@@ -363,14 +412,14 @@ Item {
                 x: 0
                 width: 2
                 height: Theme.control - 18
-                color: Theme.world
+                color: Theme.accent
                 opacity: shell.current >= 0 ? 1 : 0
                 y: (shell.current >= 0 ? shell.current : 0) * (Theme.control + 2) + 9
                 property bool moved: false
                 onYChanged: moved = true
                 Behavior on y { enabled: light.moved; SpringAnimation { spring: 3.2; damping: 0.28; mass: 0.9 } }
                 Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-                RectangularShadow { anchors.fill: parent; blur: 8; spread: 0; color: Theme.world; z: -1 }
+                RectangularShadow { anchors.fill: parent; blur: 8; spread: 0; color: Theme.accent; z: -1 }
             }
 
             Column {
@@ -429,17 +478,21 @@ Item {
                         }
                         Rectangle {
                             id: badge
-                            visible: !shell.rail && !!row.modelData.badge
-                            anchors.right: parent.right; anchors.rightMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(18, badgeText.implicitWidth + 10); height: 18; radius: 9
-                            color: Theme.world
-                            Text { id: badgeText; anchors.centerIn: parent; text: row.modelData.badge || ""; font.family: Theme.font; font.pixelSize: 10; font.weight: Theme.weightLabel; color: Theme.space }
+                            visible: !!row.modelData.badge
+                            // At the row's end; on the rail, smaller, over the mark's shoulder.
+                            x: shell.rail ? parent.width / 2 + 3 : parent.width - 12 - width
+                            y: shell.rail ? 2 : (parent.height - height) / 2
+                            width: Math.max(height, badgeText.implicitWidth + (shell.rail ? 6 : 10)); height: shell.rail ? 14 : 18; radius: height / 2
+                            // The world's light, deepened by day, so the number reads on it in both.
+                            color: Theme.textWorld
+                            border.width: shell.rail ? 2 : 0; border.color: row.current ? Theme.surfaceHover : Theme.deep
+                            Text { id: badgeText; anchors.centerIn: parent; text: row.modelData.badge || ""; font.family: Theme.font; font.pixelSize: shell.rail ? 9 : 10; font.weight: Theme.weightLabel; color: Theme.space }
                             onVisibleChanged: if (visible) pop.restart()
                             SequentialAnimation { id: pop; NumberAnimation { target: badge; property: "scale"; from: 0.6; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
                         }
                         MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.go(row.modelData.path) }
-                        Hint { text: [row.modelData.hint, row.index < 9 ? "Ctrl+" + (row.index + 1) : ""].filter(Boolean).join(" · "); when: rowMouse.containsMouse }
+                        // On the rail only the mark shows: the hint names the section too.
+                        Hint { text: [shell.rail ? row.modelData.label + (row.modelData.badge ? " (" + row.modelData.badge + ")" : "") : "", row.modelData.hint, row.index < 9 ? "Ctrl+" + (row.index + 1) : ""].filter(Boolean).join(" · "); when: rowMouse.containsMouse }
                     }
                 }
             }
@@ -477,6 +530,8 @@ Item {
                             spacing: 1
                             Text {
                                 text: door.modelData.label
+                                width: Math.min(implicitWidth, doorColumn.width - 34)
+                                elide: Text.ElideRight
                                 font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
                                 color: doorMouse.containsMouse ? Theme.textBright : Theme.text
                                 Behavior on color { ColorAnimation { duration: Theme.fade } }
@@ -484,13 +539,15 @@ Item {
                             Text {
                                 visible: !!door.modelData.role
                                 text: door.modelData.role || ""
+                                width: Math.min(implicitWidth, doorColumn.width - 34)
+                                elide: Text.ElideRight
                                 font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightValue
                                 color: Theme.textQuiet
                             }
                         }
                     }
                     MouseArea { id: doorMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: door.modelData.open() }
-                    Hint { text: door.modelData.hint || ""; when: doorMouse.containsMouse }
+                    Hint { text: [shell.rail ? door.modelData.label + (door.modelData.role ? " · " + door.modelData.role : "") : "", door.modelData.hint || ""].filter(Boolean).join(" · "); when: doorMouse.containsMouse }
                 }
             }
         }
@@ -498,9 +555,9 @@ Item {
         // The bottom: where the app stands with Sol.
         Column {
             id: statusSlot
-            visible: !shell.rail
-            x: 20
-            width: parent.width - 36
+            // On the rail it stays, as dots (LinkStatus is compact there).
+            x: shell.rail ? Theme.s2 : 20
+            width: parent.width - (shell.rail ? Theme.s2 * 2 : 36)
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Theme.s3
             spacing: Theme.s2
@@ -533,8 +590,9 @@ Item {
 
     Loader {
         anchors.fill: parent
+        z: 3
         active: shell.keys
-        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: finder.visible; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
+        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
     }
 
     Grain { }

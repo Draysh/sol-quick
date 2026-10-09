@@ -13,7 +13,7 @@ Item {
         preferredRendererType: Shape.CurveRenderer
         antialiasing: true
         ShapePath {
-            strokeColor: Qt.rgba(1, 1, 1, 0.14); strokeWidth: 1; fillColor: "transparent"
+            strokeColor: Theme.tint(Theme.ink, 0.14); strokeWidth: 1; fillColor: "transparent"
             PathAngleArc { centerX: root.size / 2; centerY: root.size / 2; radiusX: root.size * 0.375; radiusY: root.size * 0.375; startAngle: 0; sweepAngle: 360 }
         }
         ShapePath {
@@ -25,6 +25,6 @@ Item {
     Rectangle {
         anchors.centerIn: parent
         width: root.size * 0.09; height: width; radius: width / 2
-        color: Theme.world
+        color: Theme.accent
     }
 }

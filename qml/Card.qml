@@ -58,7 +58,7 @@ Item {
                 PauseAnimation { duration: Theme.settle / 2 }
                 ParallelAnimation {
                     NumberAnimation { target: ticks; property: "opacity"; from: 0; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-                    NumberAnimation { target: ticks; property: "scale"; from: 0.3; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+                    NumberAnimation { target: ticks; property: "lock"; from: 18; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
                 }
             }
         }
@@ -84,18 +84,21 @@ Item {
         id: ticks
         anchors.fill: parent
         opacity: 0
-        scale: over.hovered ? 1.15 : 1
-        transformOrigin: Item.Center
-        Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        /** How far past the corners they sit: a few pixels under the pointer, the same on any card. */
+        property real out: over.hovered ? 5 : 0
+        /** Extra distance while the card arrives, so they lock on as it settles. */
+        property real lock: 0
+        readonly property real off: out + lock
+        Behavior on out { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         // Under the pointer only: the panel holds the group; the ticks lock on to it.
         Item {
             anchors.fill: parent
             opacity: over.hovered ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            Rectangle { x: -1; y: -1; width: 14; height: 1; color: Theme.textWorld }
-            Rectangle { x: -1; y: -1; width: 1; height: 14; color: Theme.textWorld }
-            Rectangle { x: parent.width - 13; y: parent.height; width: 14; height: 1; color: Theme.textWorld }
-            Rectangle { x: parent.width; y: parent.height - 13; width: 1; height: 14; color: Theme.textWorld }
+            Rectangle { x: -1 - ticks.off; y: -1 - ticks.off; width: 14; height: 1; color: Theme.textWorld }
+            Rectangle { x: -1 - ticks.off; y: -1 - ticks.off; width: 1; height: 14; color: Theme.textWorld }
+            Rectangle { x: parent.width - 13 + ticks.off; y: parent.height + ticks.off; width: 14; height: 1; color: Theme.textWorld }
+            Rectangle { x: parent.width + ticks.off; y: parent.height - 13 + ticks.off; width: 1; height: 14; color: Theme.textWorld }
         }
     }
 
@@ -109,12 +112,23 @@ Item {
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
-            WorldGlyph { visible: root.world !== ""; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
-            Label { text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter }
+            WorldGlyph { id: glyph; visible: root.world !== ""; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
+            // A long title elides before the Open link.
+            Label {
+                text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter
+                width: Math.max(0, Math.min(implicitWidth, head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0)))
+            }
         }
 
         Item {
+            id: openLink
             visible: root.openable
+            activeFocusOnTab: visible
+            Accessible.role: Accessible.Link
+            Accessible.name: "Open " + root.title
+            Accessible.onPressAction: root.opened()
+            Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { event.accepted = true; if (!event.isAutoRepeat) root.opened() } }
+            Item { anchors.centerIn: parent; width: open.width + 8; height: open.height + 8; Ticks { on: openLink.activeFocus; out: 2 } }
             anchors.right: parent.right
             anchors.rightMargin: -8
             anchors.verticalCenter: parent.verticalCenter
@@ -124,10 +138,10 @@ Item {
                 id: open
                 anchors.centerIn: parent
                 spacing: 6
-                Quiet { text: "Open"; color: openMouse.containsMouse ? Theme.textBright : Theme.textQuiet; Behavior on color { ColorAnimation { duration: Theme.fade } } }
+                Quiet { text: "Open"; color: openMouse.containsMouse || openLink.activeFocus ? Theme.textBright : Theme.textQuiet; Behavior on color { ColorAnimation { duration: Theme.fade } } }
                 Icon {
                     name: "arrow-up-right"; size: 12
-                    color: openMouse.containsMouse ? Theme.textBright : Theme.textQuiet
+                    color: openMouse.containsMouse || openLink.activeFocus ? Theme.textBright : Theme.textQuiet
                     anchors.verticalCenter: parent.verticalCenter
                     transform: Translate { x: openMouse.containsMouse ? 1 : 0; y: openMouse.containsMouse ? -1 : 0; Behavior on x { NumberAnimation { duration: Theme.settle } } Behavior on y { NumberAnimation { duration: Theme.settle } } }
                 }

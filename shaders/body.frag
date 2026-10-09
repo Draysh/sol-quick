@@ -22,6 +22,7 @@ layout(std140, binding = 0) uniform buf {
     float aspect;   // the photograph's height / width (mode 2)
     float time;
     int live;
+    float day;      // 1 by day: the night side lets the sky through, as the moon does in daylight
 };
 layout(binding = 1) uniform sampler2D source;
 
@@ -114,7 +115,7 @@ void main() {
         base = mix(base, vec3(0.92, 0.94, 0.97), cover);
     }
     vec3 body = base * lit * (1.0 - shadow * 0.985);
-    vec4 disc = vec4(body, 1.0) * inside;
+    vec4 disc = vec4(body, 1.0) * inside * (1.0 - shadow * day * 0.92);
 
     // The glow, only on the lit limb: masked by a soft circle on the shadow side.
     vec2 shade = away * (reach * 1.1 + 0.05);

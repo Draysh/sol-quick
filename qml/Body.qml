@@ -13,10 +13,11 @@ Item {
 
     property string world: "terra"
     property real disc: 200
-    /** Where the light comes from, degrees clockwise from the top; the world's own by default. */
-    property real light: w.hero.light
-    /** 0 is new, 1 is full; the world's own by default. */
-    property real phase: w.hero.phase
+    /** Where the light comes from, degrees clockwise from the top: the real sky's for the worlds that follow it, else the world's own. */
+    property real light: sky ? sky.light : w.hero.light
+    /** 0 is new, 1 is full; as `light`. */
+    property real phase: sky ? sky.phase : w.hero.phase
+    readonly property var sky: Worlds.skyOf(world)
     property bool animated: true
 
     readonly property var w: Worlds.get(world)
@@ -45,16 +46,19 @@ Item {
         property variant source: photo
         property vector2d away: Qt.vector2d(root.away_x, root.away_y)
         property real phase: Math.min(1, Math.max(0, root.phase))
+        Behavior on phase { NumberAnimation { duration: Theme.rise; easing.type: Easing.InOutSine } }
         property color world: root.w.color
         property int mode: root.w.render === "star" ? 1 : root.w.render === "photo" ? 2 : 0
         property int effect: root.w.effect === "haze" ? 1 : root.w.effect === "split-rim" ? 2 : 0
         property real aspect: photo.status === Image.Ready && photo.implicitWidth > 0 ? photo.implicitHeight / photo.implicitWidth : 0.484
         property real time: 0
         property int live: root.w.live === "clouds" ? 1 : root.w.live === "corona" ? 2 : 0
+        property real day: Theme.day ? 1 : 0
         supportsAtlasTextures: false
         // Alive: a second a second, while the window is awake and the body is
         // big enough to see it; it picks up where it stopped.
-        FrameAnimation { running: root.animated && root.disc >= 120 && Theme.alive && shade.visible; onTriggered: shade.time = (shade.time + frameTime) % 3600 }
+        // Only for a world that moves (clouds, a corona): a still one never asks for a frame.
+        FrameAnimation { running: shade.live !== 0 && root.animated && root.disc >= 120 && Theme.alive && shade.visible; onTriggered: shade.time = (shade.time + frameTime) % 3600 }
 
         // A body comes up out of the dark, a touch closer as it brightens.
         opacity: root.animated ? 0 : 1
