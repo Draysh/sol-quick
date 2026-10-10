@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Shapes
 
-/* One checklist row: a square box, the label, and a short note on the right. The tick draws itself in. */
+/* One checklist row: a box (`Theme.radiusS` corners), the label, and a short note on the right. The tick draws itself in. */
 Item {
     id: root
 
@@ -42,6 +42,7 @@ Item {
         Rectangle {
             id: box
             width: 16; height: 16
+            radius: Theme.radiusS
             anchors.verticalCenter: parent.verticalCenter
             color: root.shown ? (root.enabled ? Theme.text : Theme.textFaint) : "transparent"
             border.width: 1
@@ -50,7 +51,7 @@ Item {
             Behavior on color { ColorAnimation { duration: Theme.lock } }
             Behavior on border.color { ColorAnimation { duration: Theme.lock } }
             Behavior on scale { SpringAnimation { spring: 5; damping: 0.3 } }
-            Ticks { on: root.activeFocus; out: 5 }
+            Ticks { on: root.activeFocus; out: 5; radius: box.radius }
             // Lock: the box swells for a moment as the tick goes in.
             transform: Scale { id: swell; origin.x: 8; origin.y: 8; xScale: 1; yScale: 1 }
             SequentialAnimation {

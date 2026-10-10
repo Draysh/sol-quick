@@ -27,13 +27,7 @@ Item {
         NumberAnimation { target: drop; property: "y"; to: 0; duration: 320; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        color: "transparent"
-        border.width: 1
-        border.color: root.error ? Theme.danger : Theme.lineMid
-        Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.84) }
-    }
+    GlassPanel { id: panel; anchors.fill: parent; edge: root.error ? Theme.danger : Theme.lineMid; shade: 0.84 }
 
     Row {
         id: content
@@ -56,11 +50,11 @@ Item {
         onClicked: Notices.dismiss(root.key)
     }
 
-    // How long it stays: a line that runs out.
+    // How long it stays: a line that runs out, between the corners.
     Rectangle {
         id: time
-        x: 1; y: parent.height - 2
-        width: parent.width - 2; height: 1
+        x: panel.radius; y: parent.height - 2
+        width: parent.width - panel.radius * 2; height: 1
         color: root.error ? Theme.danger : Theme.lineStrong
         transform: Scale { id: left; origin.x: 0; xScale: 1 }
         // The line is the time: when it has run out, the notice goes.

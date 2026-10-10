@@ -7,9 +7,10 @@ import QtQuick.Effects
     or a dialog to sit on. It reads the window's `backdrop` (AppWindow
     sets it to the frame the pages live in), so it must sit outside it, on
     the window; without one it is just a dark panel. Put it first, under
-    the content, filling the panel.
+    the content, filling the panel; with `radius`, it rounds with it (the
+    shader cuts the corners, so nothing frosted shows past them).
 
-        Rectangle { Glass { anchors.fill: parent } … }
+        Rectangle { radius: Theme.radius; Glass { anchors.fill: parent; radius: Theme.radius } … }
 */
 Item {
     id: glass
@@ -18,7 +19,11 @@ Item {
     property color tint: Theme.tint(Theme.veil, 0.74)
     /** How far in from the edge the picture bends, in pixels; 0 for flat glass. */
     property real bend: 14
-    readonly property Item behind: { const w = Window.window as AppWindow; return w ? w.backdrop : null }
+    /** Its corners. */
+    property real radius: 0
+    /** What it blurs, when not the window's backdrop (pairing's scene). */
+    property Item from: null
+    readonly property Item behind: { if (from) return from; const w = Window.window as AppWindow; return w ? w.backdrop : null }
 
     /** The part of the backdrop right under the glass, however it got there. */
     function place() {
@@ -75,7 +80,8 @@ Item {
         property variant source: blurred
         property vector2d size: Qt.vector2d(glass.width, glass.height)
         property real edge: glass.bend
+        property real radius: glass.radius
         fragmentShader: "../shaders/glass.frag.qsb"
     }
-    Rectangle { anchors.fill: parent; color: glass.tint }
+    Rectangle { anchors.fill: parent; radius: glass.radius; color: glass.tint }
 }

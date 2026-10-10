@@ -87,20 +87,8 @@ FocusScope {
                 color: Theme.textFaint
                 elide: Text.ElideRight
             }
-            // The resting line.
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: root.invalid ? Theme.danger : !root.enabled ? Theme.lineMid : hover.hovered ? Theme.tint(Theme.ink, 0.7) : Theme.lineStrong
-                Behavior on color { ColorAnimation { duration: Theme.fade } }
-            }
-            // The light: a line that comes in from the left on focus.
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: root.invalid ? Theme.danger : Theme.textBright
-                transform: Scale { origin.x: 0; xScale: input.activeFocus ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
-            }
+            // The resting line, and the light that comes in from the left on focus.
+            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: input.activeFocus; hovered: hover.hovered; invalid: root.invalid }
             HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 

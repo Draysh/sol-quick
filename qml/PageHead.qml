@@ -121,11 +121,10 @@ Item {
         Component.onCompleted: watch()
 
         property var watched: []
-        function isRepeater(c) { return c.hasOwnProperty("delegate") && c.hasOwnProperty("model") && c.hasOwnProperty("count") }
         function watch() {
             const now = []
             for (const c of children) {
-                if (isRepeater(c)) continue
+                if (Theme.isRepeater(c)) continue
                 now.push(c)
                 if (watched.indexOf(c) >= 0) continue
                 c.widthChanged.connect(actionRow.place)

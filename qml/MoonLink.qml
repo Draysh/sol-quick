@@ -60,7 +60,7 @@ Item {
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
     }
-    Item { anchors.centerIn: parent; width: row.width + 12; height: row.height + 12; Ticks { on: root.activeFocus; out: 2 } }
+    Item { anchors.centerIn: parent; width: row.width + 12; height: row.height + 12; Ticks { on: root.activeFocus; out: 2; radius: Theme.radiusS } }
     MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.clicked() }
     Hint { text: root.hint; when: mouse.containsMouse }
 }

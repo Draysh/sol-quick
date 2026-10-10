@@ -8,7 +8,7 @@ import Sol.Design
     `settingsVersion`), the app's own updates (`app`), and `call`, which
     runs a command on the Rust side and returns a promise.
 
-        Sol.call("tick_habit", { id: habit.id, done: true }).then(h => …).catch(why => Notices.failed(world, "Not ticked", why))
+        Sol.call("tick_habit", { id: habit.id, done: true }).then(h => …).catch(why => Sol.fail("Not ticked", why))
 */
 QtObject {
     id: sol
@@ -69,6 +69,85 @@ QtObject {
             SolBackend.remember(key, JSON.stringify(reply))
             use(reply, false)
             return reply
+        })
+    }
+
+    // ---- Little helpers every world's screens share -----------------------------
+    /** A failure as a notice from this world: titled for what didn't happen, the reason as its body. */
+    function fail(title, why) { return Notices.failed(world, title, why) }
+
+    /** Whether two replies say the same (so what shows can stay as it is). */
+    function same(a, b) { return JSON.stringify(a) === JSON.stringify(b) }
+
+    /**
+        Sets `item[name]` to `value` only when it says something new, so a
+        reload that changed nothing draws nothing again.
+    */
+    function update(item, name, value) {
+        if (!same(item[name], value)) item[name] = value
+    }
+
+    /**
+        Loads `command` into `item[name]`: on a cold start at once with what
+        this device saw last, then with the fresh reply, which changes
+        nothing on screen when it says the same. What was seen last is
+        skipped when `item[name]` already holds something. `then(reply)`
+        follows each reply taken. Resolves with the fresh reply.
+    */
+    function fill(item, name, command, args, then) {
+        return callSeen(command, args || {}, (reply, seen) => {
+            if (seen && item[name]) return
+            update(item, name, reply)
+            if (then) then(reply)
+        })
+    }
+
+    /**
+        Runs `command` and gives its reply to `use(reply, seen)`. On a page's
+        `first` load, what this device showed last time comes at once
+        (`seen` true), then the fresh reply, so the page is there on a cold
+        start; later loads ask Sol only. Resolves with the fresh reply.
+    */
+    function fetch(first, command, args, use) {
+        return first ? callSeen(command, args, use) : call(command, args).then(r => { use(r, false); return r })
+    }
+
+    /**
+        Brings a ListModel to `rows` (each with a `key`, or the role named
+        `key`) in place: a row whose key stays where it was keeps its
+        delegate, and what the delegate holds (a tick's animation, a field's
+        focus), while its data changes. From the first row that differs on,
+        the rest is made again.
+    */
+    function sync(model, rows, key) {
+        const k = key || "key"
+        let i = 0
+        for (; i < rows.length && i < model.count && model.get(i)[k] === rows[i][k]; i++) model.set(i, rows[i])
+        if (model.count > i) model.remove(i, model.count - i)
+        for (; i < rows.length; i++) model.append(rows[i])
+    }
+
+    /**
+        Brings `model` (a ListModel with `dynamicRoles`) in line with
+        `rows`: each row under `role`, known by `keyOf(row)`. Rows that stay
+        are moved where they belong and updated in place, so their cards
+        aren't made again (no card arrives twice). A Grid doesn't hear a
+        move: place it after.
+    */
+    function follow(model, rows, keyOf, role) {
+        const keys = rows.map(keyOf)
+        for (let i = model.count - 1; i >= 0; i--) if (keys.indexOf(model.get(i).key) < 0) model.remove(i)
+        rows.forEach((r, i) => {
+            const json = JSON.stringify(r)
+            const entry = { key: keys[i], json: json }
+            entry[role] = r
+            let at = i
+            while (at < model.count && model.get(at).key !== keys[i]) at++
+            if (at === model.count) model.insert(i, entry)
+            else {
+                if (at !== i) model.move(at, i, 1)
+                if (model.get(i).json !== json) model.set(i, entry)
+            }
         })
     }
 

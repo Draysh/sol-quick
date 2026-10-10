@@ -47,20 +47,17 @@ Item {
 
     Component {
         id: bubble
-        Rectangle {
+        GlassPanel {
             id: tipBox
             parent: root.Window.window ? root.Window.window.contentItem : null
             z: 1000
             width: words.width + 20
             height: words.implicitHeight + 12
-            color: "transparent"
-            border.width: 1
-            border.color: Theme.lineMid
+            shade: 0.86
             opacity: 0
             transform: Translate { id: lift; y: root.above ? 3 : -3; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             Component.onCompleted: { opacity = 1; lift.y = 0 }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.86) }
             // A long line wraps inside the window.
             TextMetrics { id: natural; font: words.font; text: root.text }
             Text {

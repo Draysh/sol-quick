@@ -19,10 +19,7 @@ Shortcut {
     readonly property AppWindow window: on ? (on.Window.window as AppWindow) : null
     readonly property Item focused: on ? on.Window.activeFocusItem : null
     /** Keys go to a field that takes text, not to the page. */
-    readonly property bool typing: {
-        const input = focused as TextInput, edit = focused as TextEdit
-        return (!!input && !input.readOnly) || (!!edit && !edit.readOnly)
-    }
+    readonly property bool typing: Theme.typing(focused)
     readonly property bool covered: !!window && (!!window.ask.current || window.commandPalette.open || window.menu.open)
 
     enabled: when && !!on && on.visible && !typing && !covered

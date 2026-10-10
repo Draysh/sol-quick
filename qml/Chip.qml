@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 
 /*
-    A small choice: a hairline box with a word in it. Pressed, it takes the
+    A small choice: a hairline box with a word in it, its corners `Theme.radiusM`. Pressed, it takes the
     world's light. `tag` draws it smaller, with a # before the word. Space
     or Enter presses it from the keys.
 
@@ -33,6 +33,7 @@ Item {
 
     RectangularShadow {
         anchors.fill: face
+        radius: face.radius
         blur: 18
         color: Theme.tint(Theme.world, root.on ? 0.25 : 0)
         Behavior on color { ColorAnimation { duration: Theme.settle } }
@@ -40,6 +41,7 @@ Item {
     Rectangle {
         id: face
         anchors.fill: parent
+        radius: Theme.radiusM
         color: root.on ? Theme.surfaceHover : mouse.containsMouse ? Theme.surface : "transparent"
         border.width: 1
         // The world's light, deepened by day so a pale world's still shows.
@@ -60,6 +62,6 @@ Item {
     }
     scale: mouse.pressed ? 0.97 : 1
     Behavior on scale { NumberAnimation { duration: Theme.lock } }
-    Ticks { on: root.activeFocus; out: 5 }
+    Ticks { on: root.activeFocus; out: 5; radius: face.radius }
     MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: root.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: root.clicked() }
 }

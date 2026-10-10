@@ -1,7 +1,16 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 
-/* Writing more than a line, e.g. a diary; grows as you type. A label, an underline that lights on focus. */
+/*
+    Writing more than a line, e.g. a diary; grows as you type. A label, an
+    underline that lights on focus. `large` writes at reading size with no
+    label, for a page of writing (Terra's Write screen); `single` takes
+    Enter as the way on (`accepted`), for an answer that is one thought
+    however long it runs. Escape gives the keys back to the window.
+
+        TextArea { label: "Your notes"; hint: "Kept as you leave the field"; text: notes }
+        TextArea { large: true; name: "Today"; minLines: 6; placeholder: "Write as much or as little as you like." }
+*/
 FocusScope {
     id: root
 
@@ -11,13 +20,25 @@ FocusScope {
     property string hint: ""
     property int minLines: 3
     property bool jp: false
+    /** Reading size, a line's height from the font, for writing at length. */
+    property bool large: false
+    /** Enter on its own is the way on (`accepted`); Shift or Ctrl with it is left to the window. */
+    property bool single: false
+    /** What it is, for a screen reader, when no label shows (the question is above it). */
+    property string name: ""
     property alias edit: edit
+    signal accepted()
 
-    implicitWidth: 240
+    implicitWidth: large ? 320 : 240
     implicitHeight: column.implicitHeight
     activeFocusOnTab: true
     Accessible.role: Accessible.EditableText
-    Accessible.name: label !== "" ? label : placeholder
+    Accessible.name: label !== "" ? label : name !== "" ? name : placeholder
+
+    /** Gives it the keys. */
+    function focusIn() { edit.forceActiveFocus() }
+
+    FontMetrics { id: metrics; font: edit.font }
 
     Column {
         id: column
@@ -28,14 +49,15 @@ FocusScope {
 
         Item {
             width: parent.width
-            height: Math.max(root.minLines * Theme.textM * 1.6, edit.implicitHeight) + 12
+            height: root.large ? Math.max(root.minLines * metrics.lineSpacing, edit.implicitHeight) + Theme.s3
+                : Math.max(root.minLines * Theme.textM * 1.6, edit.implicitHeight) + 12
 
             TextEdit {
                 id: edit
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-                anchors.topMargin: 4
+                anchors.topMargin: root.large ? 0 : 4
                 font.family: root.jp ? Theme.fontJp : Theme.font
-                font.pixelSize: Theme.textM
+                font.pixelSize: root.large ? Theme.textL : Theme.textM
                 font.weight: Theme.weightValue
                 color: root.enabled ? Theme.text : Theme.textFaint
                 selectionColor: Theme.text
@@ -43,6 +65,9 @@ FocusScope {
                 wrapMode: TextEdit.Wrap
                 textFormat: TextEdit.PlainText
                 focus: true
+                Keys.onReturnPressed: event => root.enter(event)
+                Keys.onEnterPressed: event => root.enter(event)
+                Keys.onEscapePressed: { const s = Theme.screenOf(root); if (s && s.shell) s.shell.forceActiveFocus() }
                 // Tab moves on, as in every other field; plain text has no use for a tab.
                 Keys.onTabPressed: event => { const n = edit.nextItemInFocusChain(true); if (n) n.forceActiveFocus(Qt.TabFocusReason); event.accepted = true }
                 Keys.onBacktabPressed: event => { const n = root.nextItemInFocusChain(false); if (n) n.forceActiveFocus(Qt.BacktabFocusReason); event.accepted = true }
@@ -56,21 +81,17 @@ FocusScope {
                 color: Theme.textFaint
                 wrapMode: Text.Wrap
             }
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: !root.enabled ? Theme.lineMid : hover.hovered ? Theme.tint(Theme.ink, 0.7) : Theme.lineStrong
-                Behavior on color { ColorAnimation { duration: Theme.fade } }
-            }
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: Theme.textBright
-                transform: Scale { origin.x: 0; xScale: edit.activeFocus ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
-            }
+            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: edit.activeFocus; hovered: hover.hovered }
             HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 
         Words { visible: root.hint !== ""; text: root.hint; small: true; quiet: true; width: parent.width }
+    }
+
+    // Enter on its own is the way on in a single answer; otherwise (or with a modifier) a new line, or the window's (Ctrl+Enter).
+    function enter(event) {
+        if (!single || (event.modifiers & ~Qt.KeypadModifier) !== Qt.NoModifier) { event.accepted = false; return }
+        event.accepted = true
+        accepted()
     }
 }

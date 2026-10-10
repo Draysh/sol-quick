@@ -2,7 +2,7 @@ import QtQuick
 
 /*
     Something taking its place: rises a few pixels and fades in as it
-    appears. `index` is its place in a list, so each comes a stagger after
+    appears. `place` is its place in a list, so each comes a stagger after
     the one before (never more than 400 ms late). Give it a size; what is
     inside fills it.
 

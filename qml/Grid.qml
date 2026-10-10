@@ -40,11 +40,10 @@ Item {
     /** The cards now in the grid, each placed again when it grows or hides. */
     property var watched: []
     /** A Repeater among the cards is not a card. */
-    function isRepeater(c) { return c.hasOwnProperty("delegate") && c.hasOwnProperty("model") && c.hasOwnProperty("count") }
     function watch() {
         if (!grid || !slot) return
         const cards = []
-        for (const c of slot.children) if (c && c.hasOwnProperty("implicitHeight") && !isRepeater(c)) cards.push(c)
+        for (const c of slot.children) if (c && c.hasOwnProperty("implicitHeight") && !Theme.isRepeater(c)) cards.push(c)
         for (const c of cards) {
             if (watched.indexOf(c) >= 0) continue
             c.implicitHeightChanged.connect(grid.place)
@@ -67,11 +66,11 @@ Item {
         placing = true
         // Counted first: a card showing or hiding can change the columns, and with them the cell.
         let n = 0
-        for (const c of slot.children) if (c && c.visible && !isRepeater(c)) n++
+        for (const c of slot.children) if (c && c.visible && !Theme.isRepeater(c)) n++
         shown = n
         let col = 0, y = 0, rowHeight = 0, bottom = 0
         for (const c of slot.children) {
-            if (!c || !c.visible || isRepeater(c)) continue
+            if (!c || !c.visible || Theme.isRepeater(c)) continue
             c.width = grid.cell
             c.x = col * (grid.cell + grid.gap)
             c.y = y

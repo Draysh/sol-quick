@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtCore
 import QtQuick.Effects
 // By name: Qt has a `Screen` of its own, which a plain `Screen` finds first.
 import Sol.Design as Design
@@ -13,7 +12,9 @@ import Sol.Design as Design
     the keys; Alt+← / → and the mouse's own buttons go back and forth.
     Going back lands where you left off: each section keeps one page alive
     with its scroll, and a page opened from another lives while the
-    history still leads to it.
+    history still leads to it. A section opened with params from another
+    page (`/write?day=…` from the Diary) is a page opened from it: it
+    slides in and shows the way back.
 
     The world's light marks the current section and glides to the next one
     when it changes; each screen settles into the pane as it opens.
@@ -44,11 +45,9 @@ Item {
     /** The app's own keys, for the sheet `?` opens. */
     property var shortcuts: []
     /** The bottom of the sidebar: LinkStatus. */
-    property alias status: statusSlot.data
+    property alias status: side.status
     /** A bar along the bottom of the pane, e.g. a player's transport. */
     property alias footer: footSlot.data
-    /** The window's command palette (Ctrl+K), when it has one. */
-    property var commandPalette: null
     /** Where the pages show, beside the sidebar (the window puts notices over it). */
     readonly property alias pageArea: pane
     /** The page on screen. */
@@ -68,8 +67,7 @@ Item {
     property bool keys: false
 
     // The accent: the world's own colour, or the one chosen for this device; the photo's colours to choose from.
-    Settings { id: devicePrefs; category: "sol." + shell.world; property string accent: "" }
-    function accent() { Theme.world = devicePrefs.accent !== "" ? devicePrefs.accent : w.color }
+    function accent() { Theme.world = Theme.chosenAccent !== "" ? Theme.chosenAccent : w.color }
     Tone { source: shell.w.image; onPicksChanged: Theme.picks = picks }
     Component.onCompleted: { accent(); go(home) }
     onWorldChanged: accent()
@@ -82,7 +80,7 @@ Item {
     /** The sidebar's field gets the keys (on the rail, it unfolds over the pane first). */
     function find() {
         finding = true
-        Qt.callLater(() => { finder.input.forceActiveFocus(); finder.input.selectAll() })
+        Qt.callLater(() => { side.finder.input.forceActiveFocus(); side.finder.input.selectAll() })
     }
 
     /** Opens `path` with `params`, as a new step in the history. `hero` is
@@ -124,6 +122,7 @@ Item {
         flight.stop(); land.stop()
         flyer.source = hero.url
         flyer.x = from.x; flyer.y = from.y; flyer.width = hero.item.width; flyer.height = hero.item.height
+        flyer.radius = cornerOf(hero.item)
         flyer.opacity = 1; flyer.visible = true
         // The new page's hero has its place once the page is laid out (after
         // the next frame, when its Columns have placed it); where it rests,
@@ -150,20 +149,30 @@ Item {
             const target = screen ? screen.hero : null
             if (!target || !target.visible) { flyer.visible = false; return }
             const to = screen.restingPoint(target, shell)
-            toX.to = to.x; toY.to = to.y; toW.to = target.width; toH.to = target.height
+            toX.to = to.x; toY.to = to.y; toW.to = target.width; toH.to = target.height; toR.to = shell.cornerOf(target)
             flight.start()
         }
     }
-    Image {
+    /** A picture's corners (a rounded Picture's), for the flight to keep and change them. */
+    function cornerOf(item) { return item && item.rounded ? item.radius : 0 }
+    Item {
         id: flyer
+        property alias source: flyerImage.source
+        property real radius: 0
         visible: false
         z: 40
-        fillMode: Image.PreserveAspectCrop
-        asynchronous: true
-        cache: true
-        smooth: true
         layer.enabled: visible
         layer.effect: MultiEffect { shadowEnabled: true; shadowBlur: 1; shadowOpacity: 0.6; shadowVerticalOffset: 10 }
+        Image {
+            id: flyerImage
+            anchors.fill: parent
+            visible: false
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            cache: true
+            smooth: true
+        }
+        Rounded { anchors.fill: parent; image: flyerImage; radius: flyer.radius }
     }
     SequentialAnimation {
         id: flight
@@ -172,6 +181,7 @@ Item {
             NumberAnimation { id: toY; target: flyer; property: "y"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
             NumberAnimation { id: toW; target: flyer; property: "width"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
             NumberAnimation { id: toH; target: flyer; property: "height"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { id: toR; target: flyer; property: "radius"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
         }
         ScriptAction { script: land.start() }
     }
@@ -180,7 +190,7 @@ Item {
     function back() {
         if (here > 0) { show(here - 1, "out"); return true }
         // Opened first thing: up to its section, or home.
-        if (!isSection(path)) { go(upPath()); return true }
+        if (opened(history[here])) { go(upPath()); return true }
         return false
     }
 
@@ -214,7 +224,7 @@ Item {
         }
         shell.forceActiveFocus()
         const screen = page as Design.Screen
-        if (screen) finder.text = screen.filter
+        if (screen) side.finder.text = screen.filter
     }
     function settleLeaving() {
         const t = leaving.target as Item
@@ -239,9 +249,18 @@ Item {
         return s ? s.path : home
     }
 
+    /** Whether `entry`'s page was opened from another: a page that isn't a section, or a section's
+        path opened with params from another path (`/write?day=…` from the Diary). */
+    function opened(entry) {
+        if (!isSection(entry.path)) return true
+        if (Object.keys(entry.params).length === 0) return false
+        const at = history.indexOf(entry)
+        return at <= 0 || history[at - 1].path !== entry.path
+    }
+
     /** The way back from `entry`'s page: the step before it, or up to its section. A section has none. */
     function backFor(entry) {
-        if (isSection(entry.path)) return null
+        if (!opened(entry)) return null
         const at = history.indexOf(entry)
         if (at > 0) {
             const prev = history[at - 1]
@@ -253,10 +272,8 @@ Item {
     }
 
     // ---- Keys ---------------------------------------------------------------
-    function typing() {
-        const f = Window.activeFocusItem
-        return !!f && (f.hasOwnProperty("cursorPosition") || f.hasOwnProperty("inputMethodComposing"))
-    }
+    /** Keys go to a field that takes text, not to the Shell. */
+    function typing() { return Theme.typing(Window.activeFocusItem) }
 
     Keys.onPressed: event => {
         if (event.modifiers === Qt.AltModifier && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
@@ -267,7 +284,7 @@ Item {
         if (event.modifiers === Qt.NoModifier || event.modifiers === Qt.ShiftModifier) {
             if (typing()) return
             if (event.text === "?") { keys = !keys; event.accepted = true; return }
-            if (event.text === "/" && !keys && finder.usable) { find(); event.accepted = true; return }
+            if (event.text === "/" && !keys && side.finder.usable) { find(); event.accepted = true; return }
             if (event.text === "/" && search !== "" && !keys) { go(search); event.accepted = true; return }
             if (event.key === Qt.Key_Escape && keys) { keys = false; event.accepted = true; return }
             // The page scrolls from the keys too: arrows a line, Page Up / Down a page, Home and End.
@@ -297,273 +314,7 @@ Item {
     // ---- The frame ----------------------------------------------------------
     Rectangle { anchors.fill: parent; color: Theme.space }
 
-    Item {
-        id: side
-        // Over the pane: the field floats out over it on the rail.
-        z: 2
-        width: shell.rail ? Theme.rail : Theme.sidebar
-        height: parent.height
-        Behavior on width { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-
-        // The chrome sits a step deeper than the pane.
-        Rectangle { anchors.fill: parent; color: Theme.deep }
-        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
-
-        // The brand: the world's disc, its name, and what the app is for.
-        Item {
-            id: brand
-            x: shell.rail ? 0 : 20
-            width: shell.rail ? parent.width : parent.width - 36
-            height: Theme.navHeight
-            y: Theme.s2
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.horizontalCenter: shell.rail ? parent.horizontalCenter : undefined
-                spacing: 12
-                Item {
-                    width: 22; height: 22
-                    anchors.verticalCenter: parent.verticalCenter
-                    scale: brandMouse.containsMouse ? 1.08 : 1
-                    Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-                    Body { world: shell.world; disc: 22; animated: false }
-                }
-                Column {
-                    visible: !shell.rail
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
-                    Text {
-                        text: shell.w.name
-                        width: Math.min(implicitWidth, brand.width - 34)
-                        elide: Text.ElideRight
-                        font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textS
-                        font.letterSpacing: Theme.track(0.28, Theme.textS); font.capitalization: Font.AllUppercase
-                        color: Theme.textBright
-                    }
-                    Text {
-                        visible: text !== ""
-                        text: shell.w.role
-                        width: Math.min(implicitWidth, brand.width - 34)
-                        elide: Text.ElideRight
-                        font.family: Theme.font; font.weight: Theme.weightValue; font.pixelSize: Theme.textXs
-                        font.letterSpacing: Theme.track(0.04, Theme.textXs)
-                        color: Theme.textWorld
-                    }
-                }
-            }
-            MouseArea { id: brandMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.go(shell.home) }
-            Hint { text: shell.w.tagline; when: brandMouse.containsMouse }
-        }
-
-        // The field: filters the page in place when it can, searches the app
-        // otherwise; there only when it can do one or the other. On the rail it
-        // waits behind a button and floats over the top of the pane while used.
-        Item {
-            id: findButton
-            visible: shell.rail && finder.usable
-            y: brand.y + brand.height
-            width: parent.width
-            height: Theme.control
-            activeFocusOnTab: false
-            Rectangle { anchors.centerIn: parent; width: Theme.control; height: Theme.control; radius: 6; color: findMouse.containsMouse || shell.finding ? Theme.surface : "transparent"; Behavior on color { ColorAnimation { duration: Theme.fade } } }
-            Icon { anchors.centerIn: parent; name: "search"; size: 13; color: findMouse.containsMouse || shell.finding ? Theme.textBright : Theme.textQuiet }
-            MouseArea { id: findMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.find() }
-            Hint { text: (finder.filtering ? "Filter this page" : "Search") + " · /"; when: findMouse.containsMouse }
-        }
-        // Its ground while it floats over the pane.
-        Rectangle {
-            visible: shell.rail && finder.visible
-            x: finder.x - Theme.s3; y: finder.y - Theme.s1
-            width: finder.width + Theme.s3 * 2; height: finder.height + Theme.s1 * 2
-            radius: 6
-            color: Theme.deep
-            border.width: 1; border.color: Theme.lineMid
-        }
-        Field {
-            id: finder
-            readonly property Design.Screen screen: shell.page as Design.Screen
-            readonly property bool filtering: !!screen && screen.filters
-            readonly property bool usable: filtering || shell.search !== ""
-            visible: usable && (!shell.rail || shell.finding)
-            x: shell.rail ? side.width + Theme.s4 : 20
-            y: shell.rail ? Theme.s2 : brand.y + brand.height
-            width: shell.rail ? Math.min(320, shell.width - side.width - Theme.s4 * 2) : parent.width - 36
-            label: ""
-            placeholder: filtering ? "Filter · /" : "Search · /"
-            // Gone (a page that doesn't filter, a search sent), it filters nothing.
-            onVisibleChanged: if (!visible) text = ""
-            onTextChanged: if (screen) screen.filter = text
-            onAccepted: { if (!filtering && shell.search !== "" && text.trim() !== "") { const q = text.trim(); text = ""; shell.finding = false; shell.go(shell.search, { query: q }) } }
-            Keys.onEscapePressed: { text = ""; shell.finding = false; shell.forceActiveFocus() }
-        }
-        // Left empty on the rail, it folds away again.
-        Connections { target: finder.input; function onActiveFocusChanged() { if (!finder.input.activeFocus && finder.text === "") shell.finding = false } }
-
-        // The sections, with the world's light on the current one.
-        Item {
-            id: list
-            x: shell.rail ? Theme.s1 : Theme.s2
-            y: shell.rail ? (findButton.visible ? findButton.y + findButton.height + Theme.s2 : brand.y + brand.height + Theme.s2)
-                : finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
-            width: parent.width - x * 2
-            height: sectionColumn.implicitHeight
-
-            Rectangle {
-                id: light
-                x: 0
-                width: 2
-                height: Theme.control - 18
-                color: Theme.accent
-                opacity: shell.current >= 0 ? 1 : 0
-                y: (shell.current >= 0 ? shell.current : 0) * (Theme.control + 2) + 9
-                property bool moved: false
-                onYChanged: moved = true
-                Behavior on y { enabled: light.moved; SpringAnimation { spring: 3.2; damping: 0.28; mass: 0.9 } }
-                Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-                RectangularShadow { anchors.fill: parent; blur: 8; spread: 0; color: Theme.accent; z: -1 }
-            }
-
-            Column {
-                id: sectionColumn
-                width: parent.width
-                spacing: 2
-                Repeater {
-                    model: shell.sections
-                    delegate: Settle {
-                        id: row
-                        required property var modelData
-                        required property int index
-                        place: index
-                        width: sectionColumn.width
-                        height: Theme.control
-                        readonly property bool current: shell.path === row.modelData.path
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 6
-                            color: row.current ? Theme.surfaceHover : rowMouse.containsMouse ? Theme.surface : "transparent"
-                            Behavior on color { ColorAnimation { duration: Theme.fade } }
-                        }
-                        Row {
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.horizontalCenter: shell.rail ? parent.horizontalCenter : undefined
-                            x: 12
-                            spacing: 12
-                            Item {
-                                width: 10; height: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                WorldGlyph { visible: !!row.modelData.world; world: row.modelData.world || "sol"; size: 10 }
-                                Rectangle {
-                                    visible: !row.modelData.world
-                                    anchors.centerIn: parent
-                                    width: 6; height: 6; radius: 3
-                                    color: row.current ? Theme.textBright : "transparent"
-                                    border.width: 1
-                                    border.color: row.current || rowMouse.containsMouse ? Theme.textBright : Theme.lineStrong
-                                    scale: rowMouse.containsMouse && !row.current ? 1.2 : 1
-                                    Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-                                    Behavior on color { ColorAnimation { duration: Theme.lock } }
-                                    Behavior on border.color { ColorAnimation { duration: Theme.lock } }
-                                }
-                            }
-                            Text {
-                                visible: !shell.rail
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: row.modelData.label
-                                width: Math.min(implicitWidth, sectionColumn.width - 60 - (badge.visible ? 28 : 0))
-                                elide: Text.ElideRight
-                                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                                color: row.current || rowMouse.containsMouse ? Theme.textBright : Theme.textQuiet
-                                transform: Translate { x: rowMouse.containsMouse ? 2 : 0; Behavior on x { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
-                                Behavior on color { ColorAnimation { duration: Theme.fade } }
-                            }
-                        }
-                        Rectangle {
-                            id: badge
-                            visible: !!row.modelData.badge
-                            // At the row's end; on the rail, smaller, over the mark's shoulder.
-                            x: shell.rail ? parent.width / 2 + 3 : parent.width - 12 - width
-                            y: shell.rail ? 2 : (parent.height - height) / 2
-                            width: Math.max(height, badgeText.implicitWidth + (shell.rail ? 6 : 10)); height: shell.rail ? 14 : 18; radius: height / 2
-                            // The world's light, deepened by day, so the number reads on it in both.
-                            color: Theme.textWorld
-                            border.width: shell.rail ? 2 : 0; border.color: row.current ? Theme.surfaceHover : Theme.deep
-                            Text { id: badgeText; anchors.centerIn: parent; text: row.modelData.badge || ""; font.family: Theme.font; font.pixelSize: shell.rail ? 9 : 10; font.weight: Theme.weightLabel; color: Theme.space }
-                            onVisibleChanged: if (visible) pop.restart()
-                            SequentialAnimation { id: pop; NumberAnimation { target: badge; property: "scale"; from: 0.6; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-                        }
-                        MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: shell.go(row.modelData.path) }
-                        // On the rail only the mark shows: the hint names the section too.
-                        Hint { text: [shell.rail ? row.modelData.label + (row.modelData.badge ? " (" + row.modelData.badge + ")" : "") : "", row.modelData.hint, row.index < 9 ? "Ctrl+" + (row.index + 1) : ""].filter(Boolean).join(" · "); when: rowMouse.containsMouse }
-                    }
-                }
-            }
-        }
-
-        // Doors to other apps: after the sections, before the status.
-        Column {
-            id: doorColumn
-            visible: shell.doors.length > 0
-            x: list.x
-            y: list.y + list.height + Theme.s3
-            width: list.width
-            spacing: 2
-            Rectangle { width: parent.width; height: 1; color: Theme.line }
-            Item { width: 1; height: Theme.s2 - 2 }
-            Repeater {
-                model: shell.doors
-                delegate: Settle {
-                    id: door
-                    required property var modelData
-                    required property int index
-                    place: shell.sections.length + door.index
-                    width: doorColumn.width
-                    // Another app: its name, and under it what it is for.
-                    height: shell.rail || !door.modelData.role ? Theme.control : Theme.target
-                    Rectangle { anchors.fill: parent; radius: 6; color: doorMouse.containsMouse ? Theme.surface : "transparent"; Behavior on color { ColorAnimation { duration: Theme.fade } } }
-                    Row {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.horizontalCenter: shell.rail ? parent.horizontalCenter : undefined
-                        x: 12; spacing: 12
-                        WorldGlyph { world: door.modelData.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
-                        Column {
-                            visible: !shell.rail
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 1
-                            Text {
-                                text: door.modelData.label
-                                width: Math.min(implicitWidth, doorColumn.width - 34)
-                                elide: Text.ElideRight
-                                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                                color: doorMouse.containsMouse ? Theme.textBright : Theme.text
-                                Behavior on color { ColorAnimation { duration: Theme.fade } }
-                            }
-                            Text {
-                                visible: !!door.modelData.role
-                                text: door.modelData.role || ""
-                                width: Math.min(implicitWidth, doorColumn.width - 34)
-                                elide: Text.ElideRight
-                                font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightValue
-                                color: Theme.textQuiet
-                            }
-                        }
-                    }
-                    MouseArea { id: doorMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: door.modelData.open() }
-                    Hint { text: [shell.rail ? door.modelData.label + (door.modelData.role ? " · " + door.modelData.role : "") : "", door.modelData.hint || ""].filter(Boolean).join(" · "); when: doorMouse.containsMouse }
-                }
-            }
-        }
-
-        // The bottom: where the app stands with Sol.
-        Column {
-            id: statusSlot
-            // On the rail it stays, as dots (LinkStatus is compact there).
-            x: shell.rail ? Theme.s2 : 20
-            width: parent.width - (shell.rail ? Theme.s2 * 2 : 36)
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.s3
-            spacing: Theme.s2
-            Rectangle { width: statusSlot.width; height: 1; color: Theme.line }
-        }
-    }
+    Sidebar { id: side; frame: shell }
 
     // The pane: the pages, and a footer that is always there.
     Item {
@@ -592,7 +343,7 @@ Item {
         anchors.fill: parent
         z: 3
         active: shell.keys
-        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
+        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: side.finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
     }
 
     Grain { }

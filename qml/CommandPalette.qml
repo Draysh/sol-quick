@@ -53,11 +53,8 @@ Item {
         return all.map(e => ({ e, score: score(e.label, q) + score(e.hint || "", q) * 0.3 })).filter(x => x.score > 0 || x.e.kind === "found").sort((a, b) => b.score - a.score).map(x => x.e).slice(0, 12)
     }
     onEntriesChanged: at = Math.min(at, Math.max(0, entries.length - 1))
-    onAtChanged: {
-        const top = at * 44, bottom = top + 44
-        if (top < rows.contentY) rows.contentY = top
-        else if (bottom > rows.contentY + rows.height) rows.contentY = bottom - rows.height
-    }
+    // The keys' row stays in sight.
+    onAtChanged: Theme.keepInView(rows, at * 44, 44)
     /** The whole text, then its start, then a word's start, then anywhere, then the
         letters in order; the earlier in the text, the better ("sett" finds
         "Go to Settings" before a long title with "Settei" in its middle). */
@@ -107,8 +104,7 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
         Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         MouseArea { anchors.fill: parent }
-        Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: Theme.lineStrong
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.86) } }
+        GlassPanel { anchors.fill: parent; edge: Theme.lineStrong; shade: 0.86 }
 
         Column {
             id: column
@@ -129,7 +125,7 @@ Item {
             Flickable {
                 id: rows
                 width: parent.width
-                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 58 - Theme.s4))
+                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 58 - Theme.s1 - Theme.s4))
                 contentHeight: rowColumn.implicitHeight
                 interactive: contentHeight > height
                 boundsBehavior: Flickable.StopAtBounds
@@ -148,8 +144,9 @@ Item {
                             readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0)
                             width: rowColumn.width
                             height: 44
-                            Rectangle { anchors.fill: parent; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
-                            Rectangle { visible: row.on; width: 2; height: parent.height - 16; y: 8; color: Theme.accent }
+                            // The light on a row, inset from the panel's edges and rounded with it.
+                            Rectangle { anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
+                            Rectangle { visible: row.on; x: Theme.s1; width: 2; height: parent.height - 16; y: 8; radius: 1; color: Theme.accent }
                             Row {
                                 x: Theme.s4
                                 anchors.verticalCenter: parent.verticalCenter
@@ -165,6 +162,8 @@ Item {
             }
             Item { visible: root.entries.length === 0; width: parent.width; height: 44
                 Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; font.capitalization: Font.MixedCase } }
+            // Room under the last row, so its light clears the panel's corners.
+            Item { width: parent.width; height: Theme.s1 }
         }
     }
 }

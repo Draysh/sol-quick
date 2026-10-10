@@ -15,10 +15,21 @@ Item {
 
     implicitWidth: Math.min(row.implicitWidth + 22, 280)
     implicitHeight: 32
+    activeFocusOnTab: true
+    Accessible.role: Accessible.Button
+    Accessible.name: "Back to " + label
+    Accessible.onPressAction: root.go()
+    Keys.onPressed: event => {
+        if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+            event.accepted = true
+            if (!event.isAutoRepeat) root.go()
+        }
+    }
 
     RectangularShadow {
         visible: root.floating
         anchors.fill: face
+        radius: face.radius
         anchors.topMargin: 6
         blur: 24
         color: Theme.tint(Theme.veil, 0.5)
@@ -26,6 +37,7 @@ Item {
     Rectangle {
         id: face
         anchors.fill: parent
+        radius: Theme.radiusM
         color: Theme.space
         border.width: 1
         border.color: mouse.containsMouse ? Theme.lineStrong : root.floating ? Theme.lineStrong : Theme.lineMid
@@ -56,6 +68,7 @@ Item {
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
     }
+    Ticks { on: root.activeFocus; out: 5; radius: face.radius }
     transform: Translate { y: mouse.pressed ? 1 : 0 }
     MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.go() }
     Hint { text: "Back to " + root.label + " (Alt+←)"; when: mouse.containsMouse }

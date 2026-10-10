@@ -16,7 +16,7 @@ use orbit::{
     install::{self, App},
     link::{Config, Handler, Link, Status, Tokens},
     moons,
-    updates::{self, Next, Updates},
+    updates::{self, Updates},
 };
 
 use crate::{commands::Commands, single};
@@ -155,69 +155,6 @@ impl Runtime {
     }
 }
 
-/// Where `remember` keeps what a page last showed: a file per key, named
-/// by a stable hash of it (FNV-1a), under the app's data folder.
-fn seen_file(key: &str) -> PathBuf {
-    let hash = key.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
-        (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
-    });
-    runtime()
-        .data_dir
-        .join("seen")
-        .join(format!("{hash:016x}.json"))
-}
-
-/// Forgets what pages showed that nothing has shown for 30 days (a key per
-/// day, like a diary's page, would otherwise keep every day).
-pub(crate) fn prune_seen() {
-    let Ok(entries) = std::fs::read_dir(runtime().data_dir.join("seen")) else {
-        return;
-    };
-    let month = std::time::Duration::from_secs(30 * 24 * 3600);
-    for entry in entries.flatten() {
-        let old = entry
-            .metadata()
-            .and_then(|m| m.modified())
-            .is_ok_and(|t| t.elapsed().is_ok_and(|age| age > month));
-        if old {
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
-}
-
-/// What a page last showed, if it was kept.
-pub(crate) fn recall(key: &str) -> Option<String> {
-    std::fs::read_to_string(seen_file(key)).ok()
-}
-
-/// Keeps what a page shows; nothing is written when it is what was kept.
-pub(crate) fn remember(key: &str, json: &str) {
-    let path = seen_file(key);
-    if std::fs::read_to_string(&path).is_ok_and(|kept| kept == json) {
-        // Still shown: kept from pruning (its date moved on once a day at most).
-        let day = std::time::Duration::from_secs(24 * 3600);
-        if let Ok(file) = std::fs::File::options().append(true).open(&path)
-            && file
-                .metadata()
-                .and_then(|m| m.modified())
-                .is_ok_and(|t| t.elapsed().is_ok_and(|age| age > day))
-        {
-            let _ = file.set_modified(std::time::SystemTime::now());
-        }
-        return;
-    }
-    let part = path.with_extension("part");
-    let wrote = path
-        .parent()
-        .map(std::fs::create_dir_all)
-        .unwrap_or(Ok(()))
-        .and_then(|()| std::fs::write(&part, json))
-        .and_then(|()| std::fs::rename(&part, &path));
-    if let Err(e) = wrote {
-        tracing::warn!("couldn't keep what {} showed: {e}", path.display());
-    }
-}
-
 /// A page asked for before the window could take it (`--open`, or a knock
 /// while starting); the window opens it once it is up.
 static PENDING_OPEN: Mutex<Option<String>> = Mutex::new(None);
@@ -272,58 +209,12 @@ fn platform() -> Option<String> {
     }
 }
 
-/// Where the desktop starts the app at login: `~/.config/autostart/sol-<world>.desktop`.
-fn autostart_entry(app: &App) -> Option<PathBuf> {
-    Some(
-        dirs::config_dir()?
-            .join("autostart")
-            .join(format!("{}.desktop", app.bin_name())),
-    )
-}
-
-/// The installed binary, which is the one that can start with the computer.
-fn installed_bin(app: &App) -> Option<PathBuf> {
-    match install::here(app) {
-        install::Here::Installed { path, .. } => Some(path),
-        _ => None,
-    }
-}
-
-/// Whether the app starts with the computer; None when this copy can't.
-fn autostart(app: &App) -> Option<bool> {
-    installed_bin(app)?;
-    Some(autostart_entry(app)?.exists())
-}
-
-fn set_autostart(app: &App, on: bool) -> Result<(), String> {
-    use crate::commands::say;
-    let bin = installed_bin(app).ok_or("only the installed copy starts with the computer")?;
-    let path = autostart_entry(app).ok_or("no config folder for autostart")?;
-    if on {
-        std::fs::create_dir_all(path.parent().ok_or("no autostart folder")?).map_err(say)?;
-        std::fs::write(
-            &path,
-            format!(
-                "[Desktop Entry]\nType=Application\nName={}\nExec=\"{}\" --background\nIcon={}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
-                app.name,
-                bin.display(),
-                app.bin_name(),
-            ),
-        )
-        .map_err(say)?;
-    } else if path.exists() {
-        std::fs::remove_file(&path).map_err(say)?;
-    }
-    Ok(())
-}
-
 /// What the app is for, in a word or three: `role` in sol-world.json
 /// ("Habits and diary"). Sol doesn't read it; the app menu and the tray do.
-fn role(manifest_json: &str) -> Option<String> {
-    serde_json::from_str::<serde_json::Value>(manifest_json)
-        .ok()?
-        .get("role")?
-        .as_str()
+fn role(manifest: &WorldManifest) -> Option<String> {
+    manifest
+        .role
+        .as_deref()
         .map(str::trim)
         .filter(|r| !r.is_empty())
         .map(str::to_owned)
@@ -332,7 +223,7 @@ fn role(manifest_json: &str) -> Option<String> {
 fn make_app(world: &World, manifest: &WorldManifest) -> App {
     let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
     // In the app menu with what it is for, so a planet's name needn't be remembered.
-    let name = match role(world.manifest) {
+    let name = match role(manifest) {
         Some(role) => format!("{} · {role}", manifest.name),
         None => manifest.name.clone(),
     };
@@ -380,150 +271,6 @@ fn command_line(app: &App, name: &str, parent: Option<&str>) -> Option<i32> {
     })
 }
 
-/// The commands every world shares: the connection, the manifest, doors,
-/// the app's own updates and installation.
-fn shared(commands: &mut Commands, app: App, parent: Option<String>) {
-    use crate::commands::say;
-
-    #[derive(serde::Deserialize)]
-    struct Server {
-        server: String,
-    }
-    #[derive(serde::Deserialize)]
-    struct Which {
-        world: String,
-        /// A page there: `/title?key=x`.
-        #[serde(default)]
-        path: Option<String>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Auto {
-        auto: bool,
-    }
-    #[derive(serde::Deserialize)]
-    struct On {
-        on: bool,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct Notify {
-        title: String,
-        #[serde(default)]
-        body: String,
-        /// A button, as `[id, label]`; pressing it is a `notified` event.
-        action: Option<(String, String)>,
-    }
-
-    commands
-        .add("notify", |_, a: Notify| async move {
-            crate::desktop::notify(&a.title, &a.body, a.action).await
-        })
-        .add("connect", |link, a: Server| async move {
-            link.connect(&a.server).await.map_err(say)
-        })
-        .add("cancel", |link, _: ()| async move {
-            link.cancel();
-            Ok(())
-        })
-        .add("forget", |link, _: ()| async move {
-            link.forget().await.map_err(say)
-        })
-        .add("settings", |link, _: ()| async move {
-            link.settings().await.map_err(say)
-        })
-        .add("open_in_sol", |link, _: ()| async move {
-            let server = match link.status() {
-                Status::Online { server, .. } | Status::Offline { server, .. } => server,
-                _ => return Err("pair with Sol first".to_string()),
-            };
-            open::that_detached(format!("{server}/worlds/{}", link.world())).map_err(say)
-        })
-        .add(
-            "doors",
-            |_, _: ()| async move { Ok(orbit::doors::installed()) },
-        )
-        .add("open_world", |_, a: Which| async move {
-            let Some(path) = a.path else {
-                return orbit::doors::open(&a.world).map_err(say);
-            };
-            // Running: it opens the page. If not, it starts, and opens it once it answers.
-            let knock = single::Knock::Open(path);
-            let preview = runtime().preview;
-            if single::knock(&a.world, preview, &knock) {
-                return Ok(());
-            }
-            orbit::doors::open(&a.world).map_err(say)?;
-            for _ in 0..40 {
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                if single::knock(&a.world, preview, &knock) {
-                    return Ok(());
-                }
-            }
-            Err(format!("{} started, but didn't open the page", a.world))
-        })
-        .add("check_updates", |_, _: ()| async move {
-            let updates = &runtime().updates;
-            updates.check().await.map_err(say)?;
-            Ok(updates.status())
-        })
-        .add("install_update", |_, _: ()| async move {
-            let updates = &runtime().updates;
-            // On Windows the setup takes over, so the app quits; elsewhere the
-            // new version runs from the next start.
-            if updates.install().await.map_err(say)? == Next::Quit {
-                quit();
-            }
-            Ok(updates.status())
-        })
-        .add("set_auto_update", |_, a: Auto| async move {
-            runtime().updates.set_auto(a.auto).await.map_err(say)
-        });
-
-    // Both start the installed copy, which waits for this one to leave.
-    commands.add("restart", move |_, _: ()| async move {
-        let path = match install::here(&app) {
-            install::Here::Installed { path, .. } | install::Here::Loose { path } => path,
-            _ => return Err::<(), String>("start the app again yourself".to_string()),
-        };
-        install::relaunch(&path).map_err(say)?;
-        quit();
-        Ok(())
-    });
-    // Starting with the computer, in the tray without a window: only the
-    // installed copy can (null otherwise).
-    commands.add(
-        "autostart",
-        move |_, _: ()| async move { Ok(autostart(&app)) },
-    );
-    commands.add("set_autostart", move |_, a: On| async move {
-        set_autostart(&app, a.on)?;
-        Ok(autostart(&app))
-    });
-    commands.add("install_app", move |_, _: ()| async move {
-        let bin = install::install(&app).map_err(say)?;
-        install::relaunch(&bin).map_err(say)?;
-        quit();
-        Ok::<(), String>(())
-    });
-
-    // A moon's place beside its planet: running with it, without a window.
-    if let Some(parent) = parent {
-        let (me, p) = (app, parent.clone());
-        commands.add("with_planet", move |_, _: ()| {
-            let (me, p) = (me, p.clone());
-            async move { Ok(moons::enabled(&me, &p)) }
-        });
-        let (me, p) = (app, parent);
-        commands.add("set_with_planet", move |_, a: On| {
-            let (me, p) = (me, p.clone());
-            async move {
-                moons::set_enabled(&me, &p, a.on).map_err(say)?;
-                Ok(moons::enabled(&me, &p))
-            }
-        });
-    }
-}
-
 /// The app's data folder for `world`: the local copy, the window's state,
 /// anything the world keeps on this device. A throwaway one with
 /// `SOL_PREVIEW`.
@@ -537,6 +284,20 @@ pub fn data_dir(world: &str) -> PathBuf {
     };
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+/// Where `world` keeps what it can fetch again (pictures, covers, spoken
+/// words): `~/.cache/digital.sachi.sol.<world>`. With `SOL_PREVIEW`, the
+/// throwaway copy's own folder (`data_dir`), so a preview's files never mix
+/// with the real ones. Not made here: whoever writes into it makes it.
+pub fn cache_dir(world: &str) -> PathBuf {
+    if std::env::var_os("SOL_PREVIEW").is_some() {
+        data_dir(world)
+    } else {
+        dirs::cache_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join(format!("digital.sachi.sol.{world}"))
+    }
 }
 
 /// Tells the screens something of the world's own: `Sol.event(name, data)`
@@ -669,7 +430,7 @@ pub fn run(world: World) -> ! {
     tokio.spawn(updates.clone().watch());
 
     let mut commands = world.commands;
-    shared(&mut commands, app, parent.clone());
+    crate::shared::add(&mut commands, app, parent.clone());
 
     let rt = Runtime {
         link: link.clone(),
@@ -678,7 +439,7 @@ pub fn run(world: World) -> ! {
         tokio: tokio.handle().clone(),
         manifest_json: world.manifest.to_owned(),
         name: manifest.name.clone(),
-        role: role(world.manifest).unwrap_or_default(),
+        role: role(&manifest).unwrap_or_default(),
         app,
         background,
         preview,
@@ -718,7 +479,7 @@ pub fn run(world: World) -> ! {
     if !preview && !parent_started {
         crate::desktop::start(world.shortcuts);
     }
-    runtime().tokio.spawn_blocking(prune_seen);
+    runtime().tokio.spawn_blocking(crate::seen::prune);
     // Sync; the screens follow through `SolBackend`.
     link.start(world.handler);
 

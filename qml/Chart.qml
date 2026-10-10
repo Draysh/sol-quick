@@ -172,7 +172,7 @@ Item {
                         x: (column.slot - column.barW * root.series.length - 2 * (root.series.length - 1)) / 2 + bar.index * (column.barW + 2)
                         height: bar.v ? plot.height - root.yOf(bar.v) : 0
                         y: plot.height - height
-                        radius: Math.min(3, width / 2)
+                        radius: Math.min(Theme.radiusS, width / 2)
                         color: root.colorOf(bar.index)
                         opacity: root.at < 0 || bar.on ? 0.92 : 0.45
                         Behavior on height { enabled: root.grow === 1; NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
@@ -294,7 +294,7 @@ Item {
         y: plot.y + 4
         width: tipColumn.implicitWidth + 20
         height: tipColumn.implicitHeight + 14
-        radius: 6
+        radius: Theme.radiusM
         color: Theme.raisedTop
         border.width: 1; border.color: Theme.lineMid
         Column {

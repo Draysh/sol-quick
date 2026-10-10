@@ -56,7 +56,7 @@ Item {
     }
     // The pen: a hairline under the words while pointing at them.
     Rectangle { visible: !root.editing; x: 4; anchors.bottom: parent.bottom; width: label.width; height: 1; color: root.activeFocus ? Theme.textBright : Theme.lineStrong; opacity: mouse.containsMouse || root.activeFocus ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.fade } } }
-    Ticks { on: root.activeFocus && !root.editing; out: 2 }
+    Ticks { on: root.activeFocus && !root.editing; out: 2; radius: Theme.radiusS }
     MouseArea { id: mouse; visible: !root.editing; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.IBeamCursor; onClicked: root.open() }
     Hint { text: root.hint; when: mouse.containsMouse && !root.editing }
 
@@ -77,6 +77,5 @@ Item {
         Keys.onEscapePressed: root.drop()
         cursorDelegate: Caret { cursorVisible: input.cursorVisible; at: input.cursorPosition }
     }
-    Rectangle { visible: root.editing; x: 4; anchors.bottom: parent.bottom; width: input.width; height: 1; color: Theme.textBright
-        transform: Scale { origin.x: 0; xScale: root.editing ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } } }
+    Underline { visible: root.editing; x: 4; anchors.bottom: parent.bottom; width: input.width; resting: false; lit: root.editing }
 }

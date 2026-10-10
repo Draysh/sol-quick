@@ -22,7 +22,7 @@ Item {
 
     component Block: Rectangle {
         color: Theme.surface
-        radius: 1
+        radius: Theme.radiusS
         Rectangle { anchors.fill: parent; radius: parent.radius; color: Theme.tint(Theme.ink, 0.03) }
     }
 
@@ -75,7 +75,7 @@ Item {
                 required property int index
                 width: root.cell
                 spacing: Theme.s2
-                Block { width: parent.width; height: parent.width * 1.5 }
+                Block { width: parent.width; height: parent.width * 1.5; radius: Theme.radiusM }
                 Block { width: parent.width * (0.5 + (poster.index % 2) * 0.3); height: 10 }
             }
         }

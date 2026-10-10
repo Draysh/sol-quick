@@ -65,6 +65,30 @@ Item {
         glide.duration = Theme.fade
         glide.start()
     }
+    /** How far one notch of a mouse wheel scrolls: a step that grows with the pane, so a tall window isn't slow. */
+    readonly property real notch: Math.max(110, Math.min(180, flick.height / 7))
+    /**
+        Scrolls the page for a wheel event, also one handed on by something
+        inside it that only scrolls sideways (a Strip): a mouse wheel's notch
+        by `notch`, eased; a touchpad by its own pixels (see `Theme.wheel`).
+    */
+    function wheel(event) {
+        const w = Theme.wheel(event, notch)
+        const step = w.y
+        if (step === 0) return
+        const max = Math.max(0, flick.contentHeight - flick.height)
+        const want = (glide.running ? glide.to : flick.contentY) - step
+        const to = Math.max(0, Math.min(max, want))
+        // At the end already: the page gives a little and comes back, so the end is felt.
+        if ((want < 0 && flick.contentY <= 0) || (want > max && flick.contentY >= max)) {
+            if (!bounce.running) { bounceTo.to = want < 0 ? -24 : max + 24; bounce.restart() }
+            return
+        }
+        bounce.stop()
+        glide.stop(); glide.from = flick.contentY; glide.to = to
+        glide.duration = w.notched ? 240 : 80
+        glide.start()
+    }
     /** How far a page key scrolls: the visible height, less a line to keep your place. */
     readonly property real pageStep: Math.max(48, flick.height - (pinned ? pinned.compact : 0) - 48)
     /** Where `item` will rest in `into`'s coordinates, once the page's arrival is over (the hero lands there). */
@@ -110,23 +134,7 @@ Item {
         // A wheel notch scrolls a measured step, eased, so it reads as motion, not a jump.
         WheelHandler {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => {
-                const step = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * 96
-                const max = Math.max(0, flick.contentHeight - flick.height)
-                const want = (glide.running ? glide.to : flick.contentY) - step
-                const to = Math.max(0, Math.min(max, want))
-                // At the end already: the page gives a little and comes back, so the end is felt.
-                if ((want < 0 && flick.contentY <= 0) || (want > max && flick.contentY >= max)) {
-                    if (!bounce.running) { bounceTo.to = want < 0 ? -24 : max + 24; bounce.restart() }
-                    event.accepted = true
-                    return
-                }
-                bounce.stop()
-                glide.stop(); glide.from = flick.contentY; glide.to = to
-                glide.duration = event.pixelDelta.y !== 0 ? 80 : 260
-                glide.start()
-                event.accepted = true
-            }
+            onWheel: event => { screen.wheel(event); event.accepted = true }
         }
         NumberAnimation { id: glide; target: flick; property: "contentY"; easing.type: Easing.OutCubic }
         SequentialAnimation { id: bounce; NumberAnimation { id: bounceTo; target: flick; property: "contentY"; duration: 90; easing.type: Easing.OutCubic } ScriptAction { script: flick.returnToBounds() } }

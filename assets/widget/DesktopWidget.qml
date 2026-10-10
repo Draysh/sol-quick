@@ -44,7 +44,7 @@ Window {
         x: widget.gap; y: widget.gap
         width: 300
         height: body.y + body.height + 16
-        radius: Theme.radius
+        radius: Theme.radiusL
         // A little see-through: the compositor may frost what is behind it.
         color: Theme.tint(Theme.raised, 0.88)
         border.width: 1

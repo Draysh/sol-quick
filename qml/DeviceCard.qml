@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtCore
 import Sol.Design
 
 /*
@@ -14,7 +13,6 @@ Card {
     title: "On this device"
 
     readonly property var w: Worlds.get(Sol.world)
-    Settings { id: prefs; category: "sol." + Sol.world; property string accent: "" }
     /** The world's own colour, then what its photograph offers. */
     readonly property var choices: [w.color].concat(Theme.picks)
 
@@ -62,7 +60,7 @@ Card {
         label: "Start with the computer"
         checked: root.starts === true
         hint: "In the tray, without a window: its widget and reminders are there from the start."
-        onToggled: on => Sol.call("set_autostart", { on: on }).then(v => { root.starts = v; if (v !== on) autostart.fail() }).catch(why => { autostart.fail(); Notices.failed(Sol.world, "Not changed", why) })
+        onToggled: on => Sol.call("set_autostart", { on: on }).then(v => { root.starts = v; if (v !== on) autostart.fail() }).catch(why => { autostart.fail(); Sol.fail("Not changed", why) })
     }
     /** Whether the app starts with the computer; null when this copy can't (not installed). */
     property var starts: null
@@ -78,7 +76,7 @@ Card {
                 required property var modelData
                 required property int index
                 readonly property bool on: Qt.colorEqual(Theme.world, modelData)
-                function choose() { prefs.accent = swatch.index === 0 ? "" : String(swatch.modelData); Theme.world = swatch.modelData; Sounds.tick() }
+                function choose() { Theme.chosenAccent = swatch.index === 0 ? "" : String(swatch.modelData); Theme.world = swatch.modelData; Sounds.tick() }
                 width: 28; height: 28
                 activeFocusOnTab: true
                 Accessible.role: Accessible.RadioButton
@@ -89,7 +87,7 @@ Card {
                 // A hairline round it, so a pale colour still shows on a pale card.
                 Rectangle { anchors.centerIn: parent; width: swatch.on ? 18 : 14; height: width; radius: width / 2; color: swatch.modelData; border.width: 1; border.color: Theme.line; Behavior on width { SpringAnimation { spring: 4; damping: 0.3 } } }
                 Rectangle { anchors.centerIn: parent; width: 26; height: 26; radius: 13; color: "transparent"; border.width: 1; border.color: swatch.on ? Theme.textBright : swatchMouse.containsMouse || swatch.activeFocus ? Theme.lineStrong : "transparent"; Behavior on border.color { ColorAnimation { duration: Theme.fade } } }
-                Ticks { on: swatch.activeFocus; out: 3 }
+                Ticks { on: swatch.activeFocus; out: 3; radius: width / 2 }
                 MouseArea { id: swatchMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: swatch.choose() }
                 Hint { text: swatch.index === 0 ? root.w.name + "’s own" : "From the photograph"; when: swatchMouse.containsMouse }
             }

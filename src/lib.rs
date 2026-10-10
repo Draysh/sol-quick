@@ -31,11 +31,18 @@
 //! ```
 
 pub mod app;
+mod autostart;
 pub mod bridge;
 pub mod commands;
 pub mod desktop;
+pub mod engine;
+mod seen;
+mod shared;
 mod single;
 mod tray;
 
-pub use app::{Prepare, Sample, World, data_dir, device_name, emit, leave, quit, run, runtime};
+pub use app::{
+    Prepare, Sample, World, cache_dir, data_dir, device_name, emit, leave, quit, run, runtime,
+};
 pub use commands::{Commands, say};
+pub use engine::{Shared, handler};

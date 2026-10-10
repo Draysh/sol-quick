@@ -3,6 +3,8 @@ import QtQuick
 import QtCore
 // For SolBackend (a C++ type of this module, which the folder alone doesn't bring).
 import Sol.Design
+// By name, for Screen: Qt has one of its own.
+import Sol.Design as Design
 
 /*
     Sol · Observatory tokens. Every Sol app uses these and nothing else:
@@ -10,6 +12,8 @@ import Sol.Design
     raised off it), at night or by day, one type family, hairlines, and
     colour that only comes from the worlds themselves: each app's sky is
     tinted a little by its own world. DESIGN.md explains each rule.
+    At the end, the small rules every control shares: when a thing is on
+    screen, a wheel's step, the page around an item, who has the keys.
 */
 QtObject {
     id: theme
@@ -43,8 +47,17 @@ QtObject {
     /** A panel raised off the pane (a card): a step lighter, lit a little from above. */
     readonly property color raised: Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.7) : Qt.rgba(1, 1, 1, 0.035))
     readonly property color raisedTop: Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.9) : Qt.rgba(1, 1, 1, 0.06))
-    /** A panel's corners. */
+    // Corners, on one scale, so a thing inside another rounds with it (an
+    // inner corner is about the outer one less the room between them).
+    // Pills (a round button, a switch, a count) stay pills; hairlines stay square.
+    /** Small marks: a checkbox, a skeleton's line, a chart's bar, the pairing code's box. */
+    readonly property int radiusS: 4
+    /** Controls and pictures in lists: a button, a chip, the way back, a menu row's light, a poster, a cover, a still. */
+    readonly property int radiusM: 6
+    /** A panel's corners: a card, and the glass under a menu, a list, a hint, a notice and the palette. */
     readonly property int radius: 10
+    /** A big surface on its own: the dialog, the shortcuts sheet, the desktop widget. */
+    readonly property int radiusL: 14
     /** The colour light things are drawn in over the sky: white at night, black by day. Overlays use it at a low alpha. */
     readonly property color ink: day ? "#000000" : "#ffffff"
     /** What dims the window under a dialog and tints glass: black at night, the sky by day. */
@@ -71,6 +84,13 @@ QtObject {
 
     /** The current world's colour, set by Shell. Glow and icons only. */
     property color world: "#f2f2f2"
+    /**
+        The accent chosen on this device (Settings → On this device), as a
+        colour, or "" for the world's own: kept per world, in `sol.<world>`.
+        The Shell reads it into `world`.
+    */
+    property alias chosenAccent: devicePrefs.accent
+    property Settings devicePrefs: Settings { id: devicePrefs; category: "sol." + SolBackend.world; property string accent: "" }
     /**
         A world's colour as a small mark on the sky (a glyph, the current
         section's light, the chosen row): as it is at night; by day no
@@ -137,9 +157,10 @@ QtObject {
     readonly property int navHeight: 56
 
     // ---- Motion ------------------------------------------------------------
-    // Four durations: a fade for text and colour, a lock for ticks and
+    // The durations: a fade for text and colour, a lock for ticks and
     // switches, a settle for something taking its place, and a rise for a
-    // body appearing. Things that arrive together arrive a stagger apart.
+    // body appearing. Things that arrive together arrive a stagger apart;
+    // what drifts (clouds, a slow glow) takes a drift.
     readonly property int fade: 240
     readonly property int lock: 120
     readonly property int settle: 420
@@ -175,4 +196,45 @@ QtObject {
         for (const s of changes) s.connect(check)
         return forget
     }
+
+    // ---- Rules the controls share ----------------------------------------------
+    /** The page (a Screen) `item` is on, or null: for something inside a page that hands it a wheel event. */
+    function screenOf(item) {
+        for (let it = item ? item.parent : null; it; it = it.parent) {
+            const s = it as Design.Screen
+            if (s) return s
+        }
+        return null
+    }
+
+    /**
+        What a wheel event moves: `{ notched, x, y }`. A mouse wheel has no
+        scroll phase and turns in notches (`angleDelta`, 120 a notch, finer
+        on a high-resolution wheel): `notched`, and `x`, `y` are `notch`
+        pixels a notch. A touchpad has phases and moves by its own pixels
+        (`pixelDelta`). Qt on Wayland fills `pixelDelta` for a wheel too, a
+        few pixels a notch, so only the phase tells them apart. Positive is
+        up and to the left, as Qt has it: subtract it from `contentY`/`contentX`.
+    */
+    function wheel(event, notch) {
+        const notched = event.phase === Qt.NoScrollPhase || (event.pixelDelta.x === 0 && event.pixelDelta.y === 0)
+        return notched
+            ? { notched: true, x: event.angleDelta.x / 120 * notch, y: event.angleDelta.y / 120 * notch }
+            : { notched: false, x: event.pixelDelta.x, y: event.pixelDelta.y }
+    }
+
+    /** Scrolls `flick` the least that shows the band from `top`, `height` tall (the row the keys are on). */
+    function keepInView(flick, top, height) {
+        if (top < flick.contentY) flick.contentY = top
+        else if (top + height > flick.contentY + flick.height) flick.contentY = top + height - flick.height
+    }
+
+    /** Whether `item` (the one with the keys) is a field taking text: the keys are its, not the page's. A read-only one isn't. */
+    function typing(item) {
+        const input = item as TextInput, edit = item as TextEdit
+        return (!!input && !input.readOnly) || (!!edit && !edit.readOnly)
+    }
+
+    /** Whether a child is a Repeater, which lays nothing out itself: the containers that place their children skip it. */
+    function isRepeater(item) { return !!(item as Repeater) }
 }

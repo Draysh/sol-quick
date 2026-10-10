@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Particles
 
 /*
@@ -109,24 +108,8 @@ Item {
                     width: parent.width
                     height: card.implicitHeight
 
-                    // Real glass: what is behind the card, blurred.
-                    ShaderEffectSource {
-                        id: behind
-                        anchors.fill: parent
-                        sourceItem: scene
-                        sourceRect: Qt.rect(panel.x + parent.parent.x + x - pane.contentX, panel.y + parent.parent.y + parent.y - pane.contentY, width, height)
-                        visible: false
-                        live: true
-                    }
-                    MultiEffect {
-                        anchors.fill: parent
-                        source: behind
-                        blurEnabled: true
-                        blur: 0.8
-                        blurMax: 32
-                        autoPaddingEnabled: false
-                    }
-                    Rectangle { anchors.fill: parent; color: Theme.tint(Theme.veil, 0.72) }
+                    // Real glass: what is behind the card, blurred, rounded with it.
+                    Glass { anchors.fill: parent; from: scene; blur: 0.8; bend: 0; radius: card.radius; tint: Theme.tint(Theme.veil, 0.72) }
 
                     Card {
                         id: card
@@ -153,6 +136,7 @@ Item {
                                     size: 210; tilt: root.w.tilt
                                     Rectangle {
                                         width: digits.implicitWidth + 20; height: digits.implicitHeight + 4
+                                        radius: Theme.radiusS
                                         color: Theme.space
                                         Text {
                                             id: digits

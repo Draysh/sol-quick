@@ -6,8 +6,9 @@ import QtQuick.Effects
     Hairlines and capitals. `primary` is the only filled shape on a screen:
     use it once, for the screen's main action; it carries the world's glow.
     `ghost` otherwise, `quiet` for low-stakes actions, `round` for icon-only
-    controls (give it an `icon`). Focus locks two corner ticks on; a press
-    gives a little; while busy, a hairline sweeps along the bottom.
+    controls (give it an `icon`). Its corners are `Theme.radiusM` (a round
+    one is a circle). Focus locks two corner ticks on; a press gives a
+    little; while busy, a hairline sweeps along the bottom.
 
         Button { text: "Log it"; variant: "primary"; busy: saving; onClicked: save() }
 */
@@ -84,6 +85,7 @@ Item {
         NumberAnimation { target: root; property: "breath"; to: 0; duration: 2600; easing.type: Easing.InOutSine } }
     RectangularShadow {
         anchors.fill: face
+        radius: face.radius
         visible: root.primary && root.enabled
         blur: (root.hovered ? 56 : 40) + root.breath * 8
         spread: 0
@@ -95,7 +97,7 @@ Item {
     Rectangle {
         id: face
         anchors.fill: parent
-        radius: root.round ? height / 2 : 0
+        radius: root.round ? height / 2 : Theme.radiusM
         // The main action keeps its fill while it works, a little dimmed.
         color: root.primary && root.busy && root.enabled ? Theme.tint(Theme.text, 0.55)
             : !root.live ? "transparent"
@@ -143,10 +145,13 @@ Item {
         }
     }
 
-    // Busy: a hairline sweeps along the bottom edge until the work is done.
+    // Busy: a hairline sweeps along the bottom edge until the work is done,
+    // between the corners.
     Item {
         anchors.left: parent.left
         anchors.right: parent.right
+        anchors.leftMargin: face.radius
+        anchors.rightMargin: face.radius
         anchors.bottom: parent.bottom
         anchors.bottomMargin: -1
         height: 1
@@ -161,7 +166,7 @@ Item {
                 running: root.busy && root.visible && Theme.alive
                 loops: Animation.Infinite
                 from: -sweep.width
-                to: root.width
+                to: sweep.parent.width
                 duration: 1100
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: Theme.ease
@@ -170,7 +175,7 @@ Item {
     }
 
     // Focus: two ticks lock onto the control, like a reticle finding its target.
-    Ticks { on: root.activeFocus }
+    Ticks { on: root.activeFocus; radius: face.radius }
 
     MouseArea {
         id: mouse

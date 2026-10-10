@@ -314,14 +314,14 @@ impl qobject::SolBackend {
     }
 
     pub fn recall(&self, key: &QString) -> QString {
-        QString::from(&app::recall(&key.to_string()).unwrap_or_default())
+        QString::from(&crate::seen::recall(&key.to_string()).unwrap_or_default())
     }
 
     pub fn remember(&self, key: &QString, json: &QString) {
         let (key, json) = (key.to_string(), json.to_string());
         app::runtime()
             .tokio
-            .spawn_blocking(move || app::remember(&key, &json));
+            .spawn_blocking(move || crate::seen::remember(&key, &json));
     }
 
     pub fn set_badge(&self, count: i32, what: &QString) {

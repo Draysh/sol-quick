@@ -22,6 +22,8 @@ Item {
     default property alias content: body.data
     /** Entries for a right-click (a list, or a function returning one): `{ label, run }`. */
     property var menu: null
+    /** Its corners: `Theme.radius`, or `Theme.radiusL` for the dialog. */
+    property real radius: Theme.radius
 
     implicitHeight: body.y + body.implicitHeight + 20
 
@@ -67,7 +69,7 @@ Item {
     // The panel: a step lighter than the pane, lit a little from above.
     Rectangle {
         anchors.fill: parent
-        radius: Theme.radius
+        radius: root.radius
         gradient: Gradient {
             GradientStop { position: 0; color: Theme.raisedTop }
             GradientStop { position: 1; color: Theme.raised }
@@ -95,10 +97,8 @@ Item {
             anchors.fill: parent
             opacity: over.hovered ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            Rectangle { x: -1 - ticks.off; y: -1 - ticks.off; width: 14; height: 1; color: Theme.textWorld }
-            Rectangle { x: -1 - ticks.off; y: -1 - ticks.off; width: 1; height: 14; color: Theme.textWorld }
-            Rectangle { x: parent.width - 13 + ticks.off; y: parent.height + ticks.off; width: 14; height: 1; color: Theme.textWorld }
-            Rectangle { x: parent.width + ticks.off; y: parent.height - 13 + ticks.off; width: 1; height: 14; color: Theme.textWorld }
+            // Rounded with the panel, where they rest under the pointer.
+            Ticks { on: true; out: 1 + ticks.off; round: root.radius + 6; arm: 14; color: Theme.textWorld }
         }
     }
 
@@ -128,7 +128,7 @@ Item {
             Accessible.name: "Open " + root.title
             Accessible.onPressAction: root.opened()
             Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { event.accepted = true; if (!event.isAutoRepeat) root.opened() } }
-            Item { anchors.centerIn: parent; width: open.width + 8; height: open.height + 8; Ticks { on: openLink.activeFocus; out: 2 } }
+            Item { anchors.centerIn: parent; width: open.width + 8; height: open.height + 8; Ticks { on: openLink.activeFocus; out: 2; radius: Theme.radiusS } }
             anchors.right: parent.right
             anchors.rightMargin: -8
             anchors.verticalCenter: parent.verticalCenter

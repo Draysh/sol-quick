@@ -48,7 +48,7 @@ Item {
         Rectangle {
             id: sheet
             anchors.fill: parent
-            radius: Theme.radius
+            radius: Theme.radiusL
             gradient: Gradient {
                 GradientStop { position: 0; color: Theme.raisedTop }
                 GradientStop { position: 1; color: Theme.raised }

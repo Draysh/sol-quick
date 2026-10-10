@@ -1,10 +1,12 @@
 import QtQuick
 
 /*
-    A world, lit from one side, drawn on the GPU: the photograph clipped to
-    a disc, a soft terminator opposite the light, and the limb glowing in
-    the world's colour on the lit side. `disc` is the disc's diameter; the
-    item is wider than that (the glow needs room) and centred on it.
+    A world, lit from one side, drawn on the GPU: the photograph on a
+    sphere lit by a distant sun, a terminator opposite the light (soft where
+    there is air), a night side nearly black (see-through by day), and, for
+    a world with an atmosphere, a thin rim of it lit on the sunny limb.
+    `disc` is the disc's diameter; the item is wider than that (the glow
+    needs room) and centred on it.
 
         Body { world: "terra"; disc: 300; x: cx - disc / 2; y: cy - disc / 2 }
 */
@@ -14,9 +16,9 @@ Item {
     property string world: "terra"
     property real disc: 200
     /** Where the light comes from, degrees clockwise from the top: the real sky's for the worlds that follow it, else the world's own. */
-    property real light: sky ? sky.light : w.hero.light
+    property real light: sky ? sky.light : w.icon.light
     /** 0 is new, 1 is full; as `light`. */
-    property real phase: sky ? sky.phase : w.hero.phase
+    property real phase: sky ? sky.phase : w.icon.phase
     readonly property var sky: Worlds.skyOf(world)
     property bool animated: true
 
@@ -45,11 +47,17 @@ Item {
         fragmentShader: "../shaders/body.frag.qsb"
         property variant source: photo
         property vector2d away: Qt.vector2d(root.away_x, root.away_y)
-        property real phase: Math.min(1, Math.max(0, root.phase))
+        // Small (the sidebar, the bar), a body keeps at least a crescent, so a new moon still shows.
+        property real phase: Math.min(1, Math.max(root.disc < 48 ? 0.2 : 0, root.phase))
         Behavior on phase { NumberAnimation { duration: Theme.rise; easing.type: Easing.InOutSine } }
         property color world: root.w.color
         property int mode: root.w.render === "star" ? 1 : root.w.render === "photo" ? 2 : 0
-        property int effect: root.w.effect === "haze" ? 1 : root.w.effect === "split-rim" ? 2 : 0
+        property int effect: root.w.effect === "haze" ? 1 : 0
+        // Where the disc is in the photograph, and the turn that brings the photograph's own
+        // light (`fit.lit`, for a photograph that shows a terminator) round to this one.
+        readonly property var fitted: root.w.fit || ({ x: 0.5, y: 0.5, r: 0.5 })
+        property vector4d fit: Qt.vector4d(fitted.x, fitted.y, fitted.r, fitted.lit === undefined ? 0 : (root.light - fitted.lit) * Math.PI / 180)
+        property real air: root.w.air || 0
         property real aspect: photo.status === Image.Ready && photo.implicitWidth > 0 ? photo.implicitHeight / photo.implicitWidth : 0.484
         property real time: 0
         property int live: root.w.live === "clouds" ? 1 : root.w.live === "corona" ? 2 : 0

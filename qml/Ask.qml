@@ -71,6 +71,7 @@ Item {
         Card {
             id: card
             width: parent.width
+            radius: Theme.radiusL
             title: ask.shown ? ask.shown.title : ""
             gap: Theme.s4
             Field { id: field; visible: !!ask.shown && ask.shown.kind === "name"; width: parent.width; label: ask.shown ? ask.shown.label || "" : ""; maxLength: 200; onAccepted: ask.finish(true) }

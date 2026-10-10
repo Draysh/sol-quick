@@ -135,9 +135,10 @@ Item {
         width: parent.width
         height: entry.separator ? Theme.s2 + 1 : menu.rowHeight
         Rectangle { visible: !!row.entry.separator; y: Theme.s1; width: parent.width; height: 1; color: Theme.line }
-        Rectangle { visible: !row.entry.separator; anchors.fill: parent; color: row.lit ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
+        // The light on a row, inset from the panel's edges and rounded with it.
+        Rectangle { visible: !row.entry.separator; anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: row.lit ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
         // The keys' row, marked as the palette and the lists mark theirs.
-        Rectangle { visible: row.keyed; width: 2; height: parent.height - 14; y: 7; color: Theme.accent }
+        Rectangle { visible: row.keyed; x: Theme.s1; width: 2; height: parent.height - 14; y: 7; radius: 1; color: Theme.accent }
         Text {
             visible: !row.entry.separator
             x: Theme.s3; width: parent.width - Theme.s3 * 2 - (row.entry.items ? 14 : 0)
@@ -164,16 +165,14 @@ Item {
         }
     }
 
-    Rectangle {
+    GlassPanel {
         id: panel
         x: Math.max(8, Math.min(menu.atX, menu.width - width - 8))
         y: Math.max(8, Math.min(menu.atY, menu.height - height - 8))
         width: Math.min(220, menu.width - 16)
         height: list.implicitHeight + Theme.s1 * 2
-        color: "transparent"
-        border.width: 1; border.color: Theme.lineStrong
+        edge: Theme.lineStrong
         focus: true
-        Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.82) }
         transformOrigin: Item.TopLeft
         scale: menu.open ? 1 : 0.96
         opacity: menu.open ? 1 : 0
@@ -189,23 +188,22 @@ Item {
 
         // The list beside an entry with items: to the right, else to the left,
         // else (a narrow window) over the menu, a row down, so its entry still shows.
-        Rectangle {
+        GlassPanel {
             id: subPanel
             readonly property bool toRight: panel.x + panel.width + width + 8 <= menu.width
             readonly property bool toLeft: panel.x - width - 8 >= 0
             readonly property bool over: !toRight && !toLeft
             visible: menu.subIndex >= 0
-            x: toRight ? panel.width - 1 : toLeft ? -width + 1 : menu.width - 8 - width - panel.x
+            x: toRight ? panel.width + 2 : toLeft ? -width - 2 : menu.width - 8 - width - panel.x
             // Level with its entry, kept inside the window.
             y: Math.max(-panel.y + 8, Math.min(menu.subAt + (over ? menu.rowHeight : 0), menu.height - panel.y - height - 8))
             width: Math.min(220, menu.width - 16)
             height: Math.min(menu.height * 0.6, subList.implicitHeight + Theme.s1 * 2)
-            color: "transparent"
-            border.width: 1; border.color: Theme.lineStrong
+            edge: Theme.lineStrong
+            shade: subPanel.over ? 0.9 : 0.82
             clip: true
             opacity: visible ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Theme.lock } }
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, subPanel.over ? 0.9 : 0.82) }
             MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onPressed: mouse => mouse.accepted = true }
             Flickable {
                 id: subFlick
@@ -225,9 +223,5 @@ Item {
         }
     }
     // The keys' row in the open list stays in sight.
-    onSubKeyChanged: if (subKey >= 0) {
-        const top = rowY(subEntries || [], subKey), bottom = top + rowHeight
-        if (top < subFlick.contentY) subFlick.contentY = top
-        else if (bottom > subFlick.contentY + subFlick.height) subFlick.contentY = bottom - subFlick.height
-    }
+    onSubKeyChanged: if (subKey >= 0) Theme.keepInView(subFlick, rowY(subEntries || [], subKey), rowHeight)
 }

@@ -39,6 +39,9 @@ Item {
     // the moons in lines of their own).
     readonly property real bandH: Math.max(portrait ? Math.max(240, Math.min(360, u * 340)) : Math.max(260, Math.min(400, u * 470)),
                                            center.implicitHeight + Theme.s4 * 2)
+    /** The frame's unit for heights and sizes: as `u`, until the band stops growing; then the
+        bodies stop growing too, so the band always shows the frame's middle 470 (340 in portrait). */
+    readonly property real v: Math.min(u, bandH / (portrait ? 340 : 470))
     /** How far the name rises from the band's middle so what sits under it stays in the band. */
     readonly property real lift: Math.max(0, bandH / 2 - reticle / 2 + center.implicitHeight - (bandH - Theme.s4))
     readonly property real reticle: portrait ? 140 : Math.max(140, Math.min(210, u * 200))
@@ -71,11 +74,12 @@ Item {
 
         Rectangle { anchors.fill: parent; color: Theme.deep }
 
-        // The frame keeps its shape (16:9, or the phone's); the band shows its middle.
+        // The frame (16:9, or the phone's) spans the band's width, and the band shows its middle;
+        // past the width where the band stops growing, the frame widens instead (`v`).
         Item {
             id: frame
             width: parent.width
-            height: root.u * root.frameH
+            height: root.v * root.frameH
             y: band.height / 2 - height / 2 - root.drift * 0.18 - root.lift
             opacity: 1 - root.collapse
             // Shrunk to the bar, the bodies are gone: nothing of them draws or moves.
@@ -89,9 +93,9 @@ Item {
             component Placed: Body {
                 id: placed
                 property var at
-                disc: root.u * placed.at.r * 2
-                x: root.u * (placed.at.cx - placed.at.r)
-                y: root.u * (placed.at.cy - placed.at.r)
+                disc: root.v * placed.at.r * 2
+                x: root.u * placed.at.cx - root.v * placed.at.r
+                y: root.v * (placed.at.cy - placed.at.r)
                 // The real sky where the world follows it, else where the sheet sets it.
                 light: placed.sky ? placed.sky.light : placed.at.light
                 phase: placed.sky ? placed.sky.phase : placed.at.phase
@@ -204,12 +208,11 @@ Item {
         Item {
             id: calloutBox
             visible: !root.portrait && root.callout.length > 0 && root.collapse < 0.5
-            // Where the world puts it, kept inside the band: on a wide pane the band shows less
-            // of the frame (it stops growing at 400 px), and a callout placed in the frame's top
-            // or bottom would leave it.
+            // Where the world puts it, kept inside the band (a narrow pane leaves less room
+            // beside the name than the frame does).
             readonly property real edge: Theme.margin(root.width)
             x: Math.max(edge, Math.min(band.width - width - edge, root.u * root.w.callout.x - (root.w.callout.flip ? width : 0)))
-            y: Math.max(Theme.s3, Math.min(band.height - height - Theme.s3, frame.y + root.u * root.w.callout.y))
+            y: Math.max(Theme.s3, Math.min(band.height - height - Theme.s3, frame.y + root.v * root.w.callout.y))
             width: calloutView.implicitWidth
             height: calloutView.implicitHeight
             opacity: 0

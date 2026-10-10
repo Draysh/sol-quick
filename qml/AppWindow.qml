@@ -77,6 +77,7 @@ Window {
         if (saved.width >= minimumWidth && saved.height >= minimumHeight) { width = saved.width; height = saved.height }
         if (saved.maximized) showMaximized()
         restored = true
+        Qt.callLater(win.begin)
     }
     function remember() {
         const maximized = visibility === Window.Maximized
@@ -98,6 +99,25 @@ Window {
         // Hidden, not closed: the tray brings it back, or the planet keeps the moon working.
         if (!quitting && (SolBackend.tray || SolBackend.background)) { close.accepted = false; win.hide() }
     }
+
+    /**
+        The moment to start the app's own work (read its setup, load what
+        the sidebar counts): once it is paired, at once in preview. Comes
+        once a run, and again only after an unpair and a new pairing, never
+        when the app merely goes offline and back. After the window's own
+        `Component.onCompleted`, so what that sets up is there.
+
+            onStarted: Saturn.start()
+    */
+    signal started()
+    /** Whether `started` has come for this pairing. */
+    property bool begun: false
+    function begin() {
+        const ready = Sol.paired || Sol.preview
+        if (ready && !begun) { begun = true; started() }
+        else if (!ready && !!Sol.status && Sol.status.state === "unpaired") begun = false
+    }
+    Connections { target: Sol; function onStatusChanged() { win.begin() } }
 
     // Awake: visible and in front. Everything that breathes, drifts or polls stops otherwise.
     readonly property bool awake: visible && active
@@ -154,9 +174,13 @@ Window {
 
     // SOL_DRIVE=<file.qml>: a script from outside the app that drives the window
     // through real input events, to check it end to end. Handed the window.
+    // A script that doesn't load says so in the journal and leaves the rest
+    // (a screenshot, the window) alone.
     Loader {
         active: SolBackend.drive !== ""
-        Component.onCompleted: if (active) setSource("file://" + SolBackend.drive, { win: win })
+        source: active ? "file://" + SolBackend.drive : ""
+        onLoaded: item.win = win
+        onStatusChanged: if (status === Loader.Error) console.warn("SOL_DRIVE: the script didn't load:", SolBackend.drive)
     }
 
     // A picture of the window for review: SOL_SHOT=<file.png> [SOL_SHOT_AFTER=<ms>].
@@ -224,7 +248,6 @@ Window {
             shortcuts: win.shortcuts
             status: LinkStatus { width: parent.width; compact: theShell.rail; online: Sol.online; unsent: Sol.unsent; busy: win.busy; warn: win.warn }
             footer: Loader { width: parent.width; sourceComponent: win.footer }
-            commandPalette: paletteBox
             // `_scroll=N` in the shot path: scrolls the page once its data is there.
             property real shotScroll: 0
             Timer { id: scrollLater; interval: 1800; onTriggered: { const p = theShell.page as Design.Screen; if (p) p.contentY = theShell.shotScroll } }

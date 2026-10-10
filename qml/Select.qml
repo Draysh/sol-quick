@@ -45,21 +45,17 @@ FocusScope {
     function place() {
         const area = drop.parent
         const p = line.mapToItem(area, 0, 0)
-        const full = options.length * Theme.control + 2
+        const full = options.length * Theme.control + 2 + Theme.s1 * 2
         const below = area.height - (p.y + line.height + 2) - Theme.s2
         const above = p.y - 2 - Theme.s2
         const down = full <= below || below >= above
-        drop.height = Math.max(Math.min(full, Theme.control + 2), Math.min(full, down ? below : above))
+        drop.height = Math.max(Math.min(full, Theme.control + 2 + Theme.s1 * 2), Math.min(full, down ? below : above))
         drop.y = down ? p.y + line.height + 2 : p.y - 2 - drop.height
         drop.x = Math.max(Theme.s2, Math.min(area.width - drop.width - Theme.s2, p.x))
         drop.up = !down
     }
     /** The row the keys are on stays in sight. */
-    function keepInView() {
-        const top = at * Theme.control, bottom = top + Theme.control
-        if (top < rows.contentY) rows.contentY = top
-        else if (bottom > rows.contentY + rows.height) rows.contentY = bottom - rows.height
-    }
+    function keepInView() { Theme.keepInView(rows, Theme.s1 + at * Theme.control, Theme.control) }
     onAtChanged: if (open) keepInView()
     function pick(i) {
         const o = options[i]
@@ -112,18 +108,7 @@ FocusScope {
                 rotation: root.open ? 180 : 0
                 Behavior on rotation { SpringAnimation { spring: 3; damping: 0.25 } }
             }
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: !root.enabled ? Theme.lineMid : mouse.containsMouse ? Theme.tint(Theme.ink, 0.7) : Theme.lineStrong
-                Behavior on color { ColorAnimation { duration: Theme.fade } }
-            }
-            Rectangle {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-                height: 1
-                color: Theme.textBright
-                transform: Scale { origin.x: 0; xScale: root.activeFocus || root.open ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
-            }
+            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: root.activeFocus || root.open; hovered: mouse.containsMouse }
             MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; enabled: root.enabled; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); if (root.open) root.open = false; else root.show() } }
         }
 
@@ -137,7 +122,7 @@ FocusScope {
         visible: root.open || panel.opacity > 0
         z: 900
         width: Math.min(line.width, parent ? parent.width - Theme.s2 * 2 : line.width)
-        height: list.implicitHeight + 2
+        height: list.implicitHeight + 2 + Theme.s1 * 2
         /** Opened over the line, for want of room under it. */
         property bool up: false
 
@@ -145,29 +130,28 @@ FocusScope {
         // instead of reaching the page.
         MouseArea { parent: drop.parent; anchors.fill: parent; z: 899; enabled: root.open; onClicked: root.open = false; onWheel: root.open = false }
 
-        Rectangle {
+        GlassPanel {
             id: panel
             anchors.fill: parent
-            color: "transparent"
-            border.width: 1; border.color: Theme.lineMid
+            shade: 0.8
             opacity: root.open ? 1 : 0
             transformOrigin: drop.up ? Item.Bottom : Item.Top
             scale: root.open ? 1 : 0.97
             transform: Translate { y: root.open ? 0 : drop.up ? 6 : -6; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
             Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-            Glass { anchors.fill: parent; anchors.margins: 1; tint: Theme.tint(Theme.veil, 0.8) }
             Flickable {
                 id: rows
                 x: 1; y: 1
                 width: parent.width - 2
                 height: parent.height - 2
-                contentHeight: list.implicitHeight
+                contentHeight: list.implicitHeight + Theme.s1 * 2
                 interactive: contentHeight > height
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
                 Column {
                     id: list
+                    y: Theme.s1
                     width: rows.width
                     Repeater {
                         model: root.options
@@ -178,8 +162,9 @@ FocusScope {
                             readonly property bool chosen: modelData.value === root.value
                             width: list.width
                             height: Theme.control
-                            Rectangle { anchors.fill: parent; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
-                            Rectangle { visible: option.index === root.at; width: 2; height: parent.height - 16; y: 8; color: Theme.accent }
+                            // The light on a row, inset from the panel's edges and rounded with it.
+                            Rectangle { anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
+                            Rectangle { visible: option.index === root.at; x: Theme.s1; width: 2; height: parent.height - 16; y: 8; radius: 1; color: Theme.accent }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter; x: 12
                                 width: parent.width - 24
@@ -197,9 +182,9 @@ FocusScope {
             Rectangle {
                 visible: rows.interactive
                 anchors.right: parent.right; anchors.rightMargin: 3
-                y: 1 + (rows.height - height) * (rows.contentY / Math.max(1, rows.contentHeight - rows.height))
+                y: 1 + Theme.s2 + (rows.height - Theme.s2 * 2 - height) * (rows.contentY / Math.max(1, rows.contentHeight - rows.height))
                 width: 2; radius: 1
-                height: Math.max(16, rows.height * rows.height / Math.max(1, rows.contentHeight))
+                height: Math.max(16, (rows.height - Theme.s2 * 2) * rows.height / Math.max(1, rows.contentHeight))
                 color: Theme.lineStrong
             }
         }

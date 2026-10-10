@@ -1,7 +1,7 @@
 [package]
 name = "sol-quick"
 description = "The Sol design language as a Qt Quick module, and the Rust side every world app shares"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -14,7 +14,8 @@ links = "sol_quick"
 [workspace]
 
 [dependencies]
-orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v0.7.0", features = ["app"] }
+orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v0.8.0", features = ["app"] }
+anyhow = "1"
 cxx = "1"
 cxx-qt = "0.10"
 cxx-qt-lib = { version = "0.10", features = ["qt_full"] }

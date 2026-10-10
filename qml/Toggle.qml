@@ -61,7 +61,7 @@ Item {
                         border.color: !root.enabled ? Theme.lineMid : root.activeFocus ? Theme.textBright : root.shown || mouse.containsMouse ? Theme.text : Theme.lineStrong
                         Behavior on border.color { ColorAnimation { duration: Theme.lock } }
                     }
-                    Ticks { on: root.activeFocus; out: 5 }
+                    Ticks { on: root.activeFocus; out: 5; radius: height / 2 }
                     RectangularShadow {
                         anchors.fill: disc
                         radius: disc.radius
