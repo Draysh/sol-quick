@@ -14,6 +14,8 @@ Item {
     required property string title
     required property string body
     required property string tone
+    /** A button's label (it runs what the notice was posted with), or "". */
+    required property string action
     readonly property bool error: tone === "error"
 
     implicitHeight: content.implicitHeight + 28
@@ -40,6 +42,8 @@ Item {
             spacing: 2
             Label { text: root.title; width: parent.width }
             Words { visible: root.body !== ""; text: root.body; width: parent.width; small: true }
+            Item { visible: root.action !== ""; width: 1; height: Theme.s2 }
+            Button { visible: root.action !== ""; variant: "quiet"; text: root.action; onClicked: Notices.act(root.key) }
         }
     }
     Button {
@@ -60,8 +64,9 @@ Item {
         // The line is the time: when it has run out, the notice goes.
         NumberAnimation {
             target: left; property: "xScale"; from: 1; to: 0
-            duration: Notices.linger
             running: true
+            // One with a button stays twice as long, and waits under the pointer.
+            duration: root.action !== "" ? Notices.linger * 2 : Notices.linger
             paused: hover.hovered
             onFinished: Notices.dismiss(root.key)
         }

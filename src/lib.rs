@@ -36,6 +36,9 @@ pub mod bridge;
 pub mod commands;
 pub mod desktop;
 pub mod engine;
+pub mod exchange;
+#[cfg(feature = "fake-navidrome")]
+pub mod navidrome;
 mod seen;
 mod shared;
 mod single;

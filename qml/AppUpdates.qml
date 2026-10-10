@@ -15,7 +15,7 @@ Card {
 
     title: "Updates"
 
-    readonly property var how: ({ dev: "a development build", loose: "not installed", portable: "by itself, for you", setup: "with its setup", deb: "as a .deb package", rpm: "as an .rpm package", unsupported: "by hand" })
+    readonly property var how: ({ dev: "a development build", loose: "not installed", portable: "by itself, for you", unsupported: "by hand" })
     readonly property string installed: status ? (status.here.state === "installed" ? how[status.here.kind] : how[status.here.state]) : ""
     readonly property bool updates: !!status && (status.here.state === "loose" || status.here.state === "installed")
     readonly property bool quiet: !!status && (status.here.state === "loose" || (status.here.state === "installed" && status.here.kind === "portable"))
@@ -31,6 +31,8 @@ Card {
 
     DataRows { width: parent.width; rows: root.status ? [{ label: "Version", value: root.status.current }, { label: "Installed", value: root.installed }] : [] }
 
+    Words { visible: !!root.status && !!root.status.rolled_back; width: parent.width; small: true; color: Theme.dangerText
+        text: root.status && root.status.rolled_back ? "Version " + root.status.rolled_back.version + " didn’t start on this computer, so " + root.name + " went back to " + root.status.rolled_back.back_to + ". It won’t install that version by itself again." : "" }
     Words { visible: !!root.status && root.status.state === "checking"; small: true; quiet: true; text: "Asking Sol…" }
     Words { visible: !!root.status && root.status.state === "current"; width: parent.width; small: true; quiet: true
         text: root.status && root.status.state === "current" ? (root.status.message || "Up to date.") + "  Checked " + Sol.clock(root.status.checked_at) + "." : "" }

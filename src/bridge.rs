@@ -23,6 +23,12 @@ pub mod qobject {
         #[qproperty(i32, unsent)]
         /// `orbit::updates::Status`, as JSON.
         #[qproperty(QString, app)]
+        /// `orbit::link::Kept`, as JSON: how many writes are kept aside
+        /// (conflicts, rejected, from an earlier pairing).
+        #[qproperty(QString, kept)]
+        /// Why the local copy didn't open (`{ problem, path, detail }`), as
+        /// JSON; "" when it did.
+        #[qproperty(QString, problem)]
         /// Bumped whenever documents change, here or on another device.
         #[qproperty(i32, changes)]
         /// Bumped when the world's settings change in Sol.
@@ -143,6 +149,8 @@ pub struct Backend {
     status: QString,
     unsent: i32,
     app: QString,
+    kept: QString,
+    problem: QString,
     changes: i32,
     settings_version: i32,
     background: bool,
@@ -165,6 +173,8 @@ impl Default for Backend {
             status: json(&rt.link.status()),
             unsent: 0,
             app: json(&rt.updates.status()),
+            kept: json(&orbit::link::Kept::default()),
+            problem: QString::from(rt.problem.as_deref().unwrap_or_default()),
             changes: 0,
             settings_version: 0,
             background: rt.background,
@@ -215,8 +225,10 @@ impl cxx_qt::Initialize for qobject::SolBackend {
             let link = &rt.link;
             let status = link.status();
             let app_status = rt.updates.status();
+            let kept = link.kept().await.unwrap_or_default();
             let _ = qt.queue(move |mut me| {
                 me.as_mut().set_status(json(&status));
+                me.as_mut().set_kept(json(&kept));
                 me.set_app(json(&app_status));
             });
             loop {
@@ -266,6 +278,7 @@ impl qobject::SolBackend {
                 let n = *self.settings_version() + 1;
                 self.set_settings_version(n);
             }
+            Update::Kept(kept) => self.set_kept(json(&kept)),
             Update::App(status) => {
                 self.as_mut().set_app(json(&status));
                 // Once per version: a newer one is out, or one was put in place quietly.

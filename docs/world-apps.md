@@ -60,8 +60,8 @@ update.pub        the key release files are signed with
   imports `Sol.<World>`. The first page starts with a `Sheet` in its
   `header`, other pages with a `PageHead`; everything else is `Card`s in a
   `Grid`. One `primary` button per screen. The Settings page has
-  `SolCard`, `DeviceCard`, `SettingsCard` and `AppUpdates` (and
-  `WithPlanet` for a moon).
+  `SolCard`, `DeviceCard`, `SettingsCard`, `ExportCard` and `AppUpdates`
+  (and `WithPlanet` for a moon).
 
 ## Data goes through the Link
 
@@ -70,10 +70,15 @@ The screens never talk to Sol; they call the app's commands
 `orbit::link::Link`:
 
 - Documents: `list_as::<T>(collection)` (rows of another shape are
-  skipped), `list_with_ids`, `get_as::<T>(collection, id)`, `put_as(collection,
-  id, &value)` (keeps an `f32` as written), and the raw `list`, `get`,
-  `put`, `delete`. `orbit::doc::value_of(&v)` is the f32-safe `to_value`,
-  for event data too.
+  skipped, and how many is logged when it changes), `list_with_ids`,
+  `list_counted` (the rows and that count, for a page that says "2 couldn't
+  be read"), `get_as::<T>(collection, id)`, `put_as(collection, id, &value)`
+  (keeps an `f32` as written), and the raw `list`, `get`, `put`,
+  `overwrite` (last write wins: only for state like where playback stands or
+  the last page open, never for what the person made), `delete`.
+  `orbit::doc::value_of(&v)` is the f32-safe `to_value`, for event data too.
+  A stored shape that has changed, or may, carries `v` (its schema version,
+  `#[serde(default = …)]` 1 for rows written before it).
 - Events and widgets: `emit` (an event other worlds' connections hear),
   `push_widget`, `remove_widget`.
 - Settings: `settings()` reads the world's settings as set in Sol;
@@ -83,7 +88,9 @@ The screens never talk to Sol; they call the app's commands
   on the runtime handle `prepare` is given: `tokio.spawn(link.on_settings(…))`.
 - Time: the person's zone is `link.time_zone()`, never the machine's.
   "Today" for a world with a `day_starts` setting (Terra, Luna, Mercury)
-  is `orbit::clock::Clock::of(&link).await.today()` (or `Clock::with`
+  is `orbit::clock::Clock::of(&link).await.today()` (04:00 until the
+  person sets it, `DEFAULT_DAY_STARTS`, which is what every manifest's
+  default must say) (or `Clock::with`
   when the settings are already read; `day_of`, `at`, `start_of`,
   `parse_time`, `time_setting` are there too). A world without one
   (Saturn, Titan, Neptune, Triton) uses the zone alone.
@@ -156,12 +163,50 @@ The screens never talk to Sol; they call the app's commands
 
 A moon (Luna, Titan, Triton) names its planet in `sol-world.json`
 (`parent`) and runs whenever its planet does, without a window: the
-planet's `sol_quick::run` starts the installed moons (`orbit::moons`) and
-the moon leaves a little after the planet closes. The moon's Settings page
+planet's `sol_quick::run` starts the installed moons (`orbit::moons`,
+with `--background`) and the moon leaves about five seconds after the
+planet closes (or crashes). A moon started at login (`--login`) stays. The moon's Settings page
 has `WithPlanet` (the shared `with_planet` / `set_with_planet`). Each
 lists the connections to and from its planet in its manifest. In the
 sidebar, the doors (`Sol.doors`) lead to Sol and to the kin installed
 here; a Sheet's moon links come from `Sol.moons`.
+
+## Writes, conflicts and what is kept
+
+- `link.put` (and `put_as`) sends the version of Sol's copy the write was
+  made on: when another device changed the document first, Sol's copy
+  stays and this one is kept aside as a conflict, shown by the kit
+  ("Changed on another device too", `KeptAside`), and the person picks.
+  Use `link.overwrite` only for state that matters as it is now (where
+  playback stands, the page last open), never for what the person made.
+- Writes Sol turns down and writes from before an unpairing are kept the
+  same way (`link.kept()`, `kept_writes`, `keep_mine`, `drop_kept`,
+  `export_kept`); a world needs nothing for any of it, but can show a
+  conflict on its own screens from `Sol.kept` / the `kept` command.
+- A world's own SQLite files (caches) open with `orbit::db::open_with_backup`
+  when they hold what can't be made again; a cache that won't open is set
+  aside and made again (Titan's vectors), never an `expect`.
+
+## Export and import
+
+Every world exports and imports the same way, with nothing of its own to
+write: the kit's shared commands `export_world` and `import_world` and the
+`ExportCard` on the Settings page. The file is the world's own collections
+(the ones `sol-world.json` lists, so a collection the manifest leaves out
+is neither exported nor imported):
+
+```json
+{ "world": "terra", "version": 1, "exported_at": "2026-10-10T20:14:00Z",
+  "collections": { "habits": [{ "id": "walk", "data": { "name": "Walk" } }] } }
+```
+
+It goes to `~/Downloads/sol-<world>-<stamp>.json`. An import reads the
+file first and the card says what it adds and replaces before anything is
+written; then every document goes in through `link.put` (so it syncs, and
+a document another device changed meanwhile is kept aside as a conflict),
+merged by id: missing ones are added, different ones replaced, nothing is
+deleted. A file from another world or a newer `version` is refused. A
+world may offer more beside it inside the card (Terra's diary as Markdown).
 
 ## The manifest must match the code
 
@@ -181,37 +226,53 @@ the tray, and matches the world's entry in the kit's `Worlds.qml`.
   use-local` points every repository at the local kit for working on both,
   and `use-tags <orbit> <design> <quick>` back before committing.
 - Release files are named `sol-<world>-<version>-linux-x86_64.tar.gz`
-  (one file, `sol-<world>`, an AppImage), with `<file>.sig` beside it and
-  `sol-world.json`; Sol offers an update only for that name shape with a
-  signature (`../../kit/orbit/docs/protocol.md`, "Versions and updates").
-  `../../hub/scripts/build-linux.sh <world>` builds it into `out/`; signing
-  and uploading are the person's (`hub/CLAUDE.md`). The names in
-  `.github/workflows/release.yml` must stay as they are.
+  (one file, `sol-<world>`, the binary linked against the system's Qt), with
+  `<file>.sig` beside it, `sol-world.json` and `SHA256SUMS`; Sol offers an
+  update only for that name shape with a signature
+  (`../../kit/orbit/docs/protocol.md`, "Versions and updates"). Releases are
+  made on the person's computer, never in CI (a world's
+  `.github/workflows/ci.yml` only checks): `../../hub/scripts/build-linux.sh
+  <world>` builds it into `out/` (refusing `use-local`, a dirty tree or an
+  unpushed tag; `--allow-local` for a build to install here only); signing
+  and uploading are the person's (`hub/CLAUDE.md`).
 - Installing and updating are orbit's (`install`, `updates`) and the
-  `AppUpdates` card; `--install`, `--uninstall`, `--version`,
-  `--background` and `--open /page?key=v` are the app's flags.
+  `AppUpdates` card; `--install`, `--uninstall`, `--version` (which also
+  says the Qt it was built with: an update is started with it before it
+  goes in), `--background` (a moon its planet started), `--login` (started
+  with the computer: the tray, no window) and `--open /page?key=v` are the
+  app's flags. `update.pub` may hold several keys, one per line.
 - No commits, tags or releases unless the person asks.
 
 ## Preview, screenshots, the journal
 
+- Every run below goes through `../../kit/quick/scripts/hidden.sh --
+  <command>`: a hidden display of its own (headless KWin, its own bus and
+  runtime folder). Never open a window on the person's desktop.
 - `SOL_PREVIEW=1 cargo run`: the app with sample data on a throwaway copy
   (`/tmp/sol-preview-<world>`, filled the first time by `World::sample`;
   delete the folder for fresh data). Keep the sample current when a
-  command changes. To see the person's real library, copy
+  command changes. A world whose data lives in a service has a stand-in for
+  the preview where it can: Neptune and Triton play the kit's Navidrome
+  (`sol_quick::navidrome`, the `fake-navidrome` feature). To see the person's real library, copy
   `~/.local/share/digital.sachi.sol.<world>` into the preview folder and
   `touch sampled` there (never write to the real one).
-- A picture: `SOL_PREVIEW=1 SOL_SHOT=<png> SOL_SHOT_AFTER=6000
-  SOL_SHOT_PATH='/page?key=v' ./target/debug/<bin>`; `_palette=1`,
-  `_notice=1`, `_ask=1`, `_notify=1`, `_scroll=N` stage it;
-  `QT_SCALE_FACTOR=3` shows the narrow layout. It opens a real window for
-  a few seconds: run them one after another. Read the picture.
+- A picture: `hidden.sh -- env SOL_PREVIEW=1 SOL_SHOT=<png> SOL_SHOT_AFTER=6000
+  SOL_SHOT_PATH='/page?key=v' timeout 40 ./target/debug/<bin>`; `_palette=1`,
+  `_notice=1`, `_ask=1`, `_notify=1`, `_kept=1`, `_scroll=N` stage it (the
+  time counts from when the Shell is up, so a fresh preview folder works);
+  `QT_SCALE_FACTOR=3` shows the narrow layout. Run them one after
+  another. Read the picture.
 - QML errors go to the journal: `journalctl --user -S "<start>" |
   grep '<bin>\['` must show no TypeError, ReferenceError, "Cannot assign",
   "Unable to assign" or binding loop from your code.
 - `SOL_DRIVE=<file.qml>` loads a script handed the window (`property var
   win`), to drive it end to end; it takes its own pictures and must end
-  with `Qt.quit()` (`SOL_SHOT` doesn't fire alongside it). `SOL_FPS=1`
-  counts the frames painted.
+  with `Qt.quit()`. A `SOL_SHOT` beside it is taken on its own timer and
+  doesn't quit (the drive does; one that quits sooner leaves no picture).
+  `SOL_FPS=1` counts the frames painted.
+- The app's own log (Rust's `tracing`, panics included) is
+  `~/.local/state/digital.sachi.sol.<world>/<world>.log`, or `<world>.log`
+  in the preview folder; QML errors stay in the journal.
 
 ## Checks
 

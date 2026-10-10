@@ -171,6 +171,10 @@ Item {
                                 Component.onCompleted: input.forceActiveFocus()
                             }
                             Button { variant: "primary"; text: "Connect"; busy: root.busy; enabled: root.server.trim() !== ""; onClicked: root.connect() }
+                            Words { visible: Sol.kept.earlier > 0; width: parent.width; small: true; quiet: true
+                                text: (Sol.kept.earlier === 1 ? "A change made here wasn’t sent before this device was unpaired. It is kept, and goes"
+                                    : Sol.kept.earlier + " changes made here weren’t sent before this device was unpaired. They are kept, and go")
+                                    + " to Sol once you connect again as the same person." }
                         }
 
                         Item { width: 1; height: 10 }

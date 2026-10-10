@@ -1,7 +1,7 @@
 //! The desktop around the window: notifications that work with the window
-//! hidden, and global shortcuts through the portal (the tray is `tray`).
-//! Linux only for now: elsewhere there is no shortcut, and `notify` says it
-//! can't. Both reach the screens as world events (`Sol.event`): `shortcut`
+//! hidden, global shortcuts and the file picker through the portal (the
+//! tray is `tray`). Linux only for now: elsewhere there is no shortcut, and
+//! `notify` and `pick_file` say they can't. Both reach the screens as world events (`Sol.event`): `shortcut`
 //! carries the id that was pressed, `notified` the action taken on a
 //! notification.
 
@@ -56,6 +56,53 @@ pub async fn notify(
     {
         let _ = (title, body, action);
         Err("notifications are Linux only for now".into())
+    }
+}
+
+/// Asks the desktop's own file picker (the FileChooser portal) for one
+/// file to open, starting in `folder`, showing the files `filter` names
+/// (its label and patterns, `*.json`) or every file: its path, or `None` when the person
+/// closed the picker. An error means there is no portal to ask; the
+/// screens then use Qt's own dialog.
+pub async fn pick_file(
+    title: &str,
+    folder: Option<&std::path::Path>,
+    filter: Option<(&str, &[String])>,
+) -> Result<Option<String>, String> {
+    #[cfg(target_os = "linux")]
+    {
+        use ashpd::desktop::{
+            ResponseError,
+            file_chooser::{FileFilter, SelectedFiles},
+        };
+        let mut request = SelectedFiles::open_file()
+            .title(title)
+            .modal(true)
+            .multiple(false);
+        if let Some((label, globs)) = filter {
+            let kind = globs
+                .iter()
+                .fold(FileFilter::new(label), |f, glob| f.glob(glob));
+            request = request.filter(kind);
+        }
+        if let Some(folder) = folder.filter(|f| f.is_dir()) {
+            request = request.current_folder(folder).map_err(|e| e.to_string())?;
+        }
+        let sent = request.send().await.map_err(|e| e.to_string())?;
+        match sent.response() {
+            Ok(files) => Ok(files
+                .uris()
+                .first()
+                .and_then(|uri| uri.to_file_path().ok())
+                .map(|path| path.display().to_string())),
+            Err(ashpd::Error::Response(ResponseError::Cancelled)) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (title, folder, filter);
+        Err("the desktop's file picker is Linux only for now".into())
     }
 }
 

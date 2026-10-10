@@ -1831,8 +1831,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orbit"
-version = "0.8.0"
-source = "git+https://github.com/Draysh/sol-orbit?tag=v0.8.0#f091375174a9c740c2cc37d59034b36fd51e6518"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -2619,10 +2618,11 @@ dependencies = [
 
 [[package]]
 name = "sol-quick"
-version = "0.4.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "ashpd",
+ "chrono",
  "cxx",
  "cxx-qt",
  "cxx-qt-build",

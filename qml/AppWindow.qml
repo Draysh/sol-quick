@@ -43,6 +43,15 @@ Window {
     /** One right-click menu and one dialog for the whole app. */
     readonly property alias menu: contextMenu
     readonly property alias ask: askBox
+    /** The writes kept aside instead of sent (conflicts and the like): `keptAside.open()`. */
+    readonly property alias keptAside: keptBox
+    /** Why this device's copy didn't open, or null: the window asks what to do instead of showing the app. */
+    readonly property var problem: Sol.problem || stagedProblem
+    // `_problem=newer|damaged` in the shot path: the same, staged for a picture (from the start, so the Shell never loads).
+    readonly property var stagedProblem: {
+        const m = SolBackend.shotPath.match(/[?&]_problem=(\w+)/)
+        return m ? { problem: m[1], path: "/home/you/.local/share/digital.sachi.sol." + world + "/" + world + ".db", detail: "file is not a database" } : null
+    }
     /** What glass panels (menus, notices, hints) blur: the frame the pages live in. */
     readonly property Item backdrop: frame
     /** The command palette's own entries: `{ label, hint, keys, run }`. */
@@ -119,6 +128,27 @@ Window {
     }
     Connections { target: Sol; function onStatusChanged() { win.begin() } }
 
+    // Writes kept aside: a notice when there are more than before, with a
+    // way to see them. While unpaired the Connect screen says it instead.
+    property var keptBefore: ({ conflicts: 0, rejected: 0, earlier: 0 })
+    Connections { target: Sol; function onKeptChanged() { win.tellKept() } }
+    function tellKept() {
+        const k = Sol.kept, b = keptBefore
+        keptBefore = k
+        if (!Sol.paired) return
+        const see = () => keptBox.open()
+        const n = (count, one, many) => count === 1 ? one : count + " " + many
+        if (k.conflicts > b.conflicts)
+            Notices.show({ world: win.world, title: "Changed on another device too", action: "See both", run: see,
+                body: n(k.conflicts, "Both copies are kept; you choose which stays.", "things changed on two devices; both copies of each are kept.") })
+        if (k.rejected > b.rejected)
+            Notices.show({ world: win.world, title: "Sol couldn’t take a change", tone: "error", action: "See it", run: see,
+                body: "It is kept on this device, so nothing is lost." })
+        if (k.earlier > b.earlier)
+            Notices.show({ world: win.world, title: "Changes from before", action: "See them", run: see,
+                body: n(k.earlier, "A change made before this device was paired again is kept here.", "changes made before this device was paired again are kept here.") })
+    }
+
     // Awake: visible and in front. Everything that breathes, drifts or polls stops otherwise.
     readonly property bool awake: visible && active
     Binding { target: Theme; property: "alive"; value: win.awake }
@@ -183,11 +213,18 @@ Window {
         onStatusChanged: if (status === Loader.Error) console.warn("SOL_DRIVE: the script didn't load:", SolBackend.drive)
     }
 
-    // A picture of the window for review: SOL_SHOT=<file.png> [SOL_SHOT_AFTER=<ms>].
+    // A picture of the window for review: SOL_SHOT=<file.png> [SOL_SHOT_AFTER=<ms>],
+    // counted from when the window shows what it is for (the Shell, Connect),
+    // not from when it opened, so a first run that fills its sample data
+    // shoots the same page. Beside a SOL_DRIVE script it doesn't quit: the
+    // script ends the run (one that quits sooner leaves no picture).
     Timer {
+        id: shot
         interval: SolBackend.shotAfter
-        running: SolBackend.shot !== ""
-        onTriggered: win.contentItem.grabToImage(result => { result.saveToFile(SolBackend.shot); win.quit() })
+        onTriggered: win.contentItem.grabToImage(result => {
+            result.saveToFile(SolBackend.shot)
+            if (SolBackend.drive === "") win.quit()
+        })
     }
 
     Loader {
@@ -195,9 +232,12 @@ Window {
         anchors.fill: parent
         // The Shell's keys work from the start, not only after the first click.
         focus: true
-        sourceComponent: !Sol.status ? waiting : Sol.paired || Sol.preview ? shellView : connectView
+        sourceComponent: win.problem ? problemView : !Sol.status ? waiting : Sol.paired || Sol.preview ? shellView : connectView
         // A new frame (the Shell after pairing) comes up out of the dark.
-        onLoaded: { opacity = 0; frameIn.restart() }
+        onLoaded: {
+            opacity = 0; frameIn.restart()
+            if (SolBackend.shot !== "" && sourceComponent !== waiting && !shot.running) shot.start()
+        }
         NumberAnimation { id: frameIn; target: frame; property: "opacity"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
     }
     // Notices drop in at the top of the pages: over the frame, not in it,
@@ -225,6 +265,7 @@ Window {
         displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
     }
     ContextMenu { id: contextMenu }
+    KeptAside { id: keptBox }
     Ask { id: askBox }
     CommandPalette { id: paletteBox; sections: win.sections; commands: win.commands; find: win.find; go: path => win.shell && win.shell.go(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
 
@@ -235,6 +276,37 @@ Window {
     Component {
         id: connectView
         Connect { world: win.world }
+    }
+    // This device's copy didn't open: start again from Sol's (the old file
+    // stays), or quit and leave everything as it is.
+    Component {
+        id: problemView
+        Item {
+            Rectangle { anchors.fill: parent; color: Theme.space }
+            Grain { }
+            Card {
+                anchors.centerIn: parent
+                width: Math.min(460, parent.width - 32)
+                radius: Theme.radiusL
+                title: win.problem && win.problem.problem === "newer" ? "Written by a newer " + win.w.name
+                    : win.problem && win.problem.problem === "damaged" ? "This device’s copy is damaged" : "This device’s copy won’t open"
+                gap: Theme.s4
+                Words { width: parent.width
+                    text: !win.problem ? "" : win.problem.problem === "newer"
+                        ? "A newer version of " + win.w.name + " ran here and changed its copy of your data in a way this version can’t read. Your data is safe in Sol."
+                        : win.problem.problem === "damaged"
+                        ? win.w.name + "’s copy of your data on this device can’t be read any more. Your data is safe in Sol."
+                        : win.w.name + " couldn’t open its copy of your data on this device." }
+                Words { width: parent.width; small: true; quiet: true
+                    text: !win.problem ? "" : win.problem.problem === "other"
+                        ? win.problem.detail
+                        : "Start fresh sets this copy aside (it stays in " + win.problem.path.replace(/\/[^/]*$/, "") + ") and fetches everything from Sol again; changes not yet sent stay in the old copy. Or quit, and install the newer version again." }
+                Row { spacing: Theme.s2
+                    Button { visible: !!win.problem && win.problem.problem !== "other"; variant: "primary"; text: "Start fresh"
+                        onClicked: Sol.call("start_fresh").catch(why => Sol.fail("Not started fresh", why)) }
+                    Button { variant: "quiet"; text: "Quit"; onClicked: win.quit() } }
+            }
+        }
     }
     Component {
         id: shellView
@@ -258,10 +330,15 @@ Window {
                 if (SolBackend.shotPath === "") return
                 // `/title?key=x` opens the page with its params; `_`-keys stage the picture.
                 const stage = win.goTo(SolBackend.shotPath, theShell)
-                if (stage._notice) Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." })
+                if (stage._notice === "button") Notices.show({ world: win.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } })
+                else if (stage._notice) Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." })
                 if (stage._ask) win.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove")
                 if (stage._notify) Sol.call("notify", { title: "A notification", body: "From " + win.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why))
                 if (stage._palette) paletteBox.show()
+                if (stage._kept) keptBox.open([
+                    { seq: 1, why: "conflict", kind: "put", collection: "habits", id: "walk", data: { name: "Walk outside, 30 min" }, theirs: { version: 9, deleted: false, data: { name: "Walk outside" } } },
+                    { seq: 2, why: "rejected", kind: "put", collection: "entries", id: "2026-10-10", data: { text: "A very long diary entry" }, message: "a document is at most 1 MiB" },
+                    { seq: 3, why: "earlier", kind: "event", data: { summary: "Did “Read”, 4 days in a row" } }])
                 if (stage._scroll) { theShell.shotScroll = Number(stage._scroll); scrollLater.restart() }
             }
         }

@@ -6,9 +6,14 @@
 #   scripts/gallery-shots.sh <folder> [name…]
 #
 # With names (e.g. `night-controls day-panels`), only the pictures whose
-# names start with one of them. A real window opens for a few seconds per
-# picture; they are taken one after another.
+# names start with one of them. Every picture is taken on a hidden display
+# (scripts/hidden.sh, one for the whole batch), one after another: no window
+# ever opens on the person's desktop.
 set -euo pipefail
+
+if [[ ${WAYLAND_DISPLAY:-} != hidden ]]; then
+    exec "$(dirname "$0")/hidden.sh" -- "$0" "$@"
+fi
 
 out=${1:?usage: scripts/gallery-shots.sh <folder> [name…]}
 shift
@@ -66,6 +71,11 @@ shoot "night-controls-select" night "/controls?_focus=select"
 shoot "night-overlays-palette" night "/overlays?_palette=1"
 shoot "night-overlays-ask" night "/overlays?_ask=1"
 shoot "night-overlays-notice" night "/overlays?_notice=1"
+shoot "night-overlays-notice-button" night "/overlays?_notice=button"
+shoot "night-overlays-kept" night "/overlays?_kept=1"
+shoot "day-overlays-kept" day "/overlays?_kept=1"
+shoot "night-problem-newer" night "/?_problem=newer"
+shoot "day-problem-damaged" day "/?_problem=damaged"
 # Narrow: the sidebar as a rail, one column.
 shoot "narrow-worlds" night "/?_world=saturn" QT_SCALE_FACTOR=3
 shoot "narrow-controls" night "/controls" QT_SCALE_FACTOR=3

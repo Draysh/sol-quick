@@ -23,6 +23,16 @@ QtObject {
     readonly property int unsent: SolBackend.unsent
     /** Mirrors `orbit::updates::Status`. */
     readonly property var app: SolBackend.app ? JSON.parse(SolBackend.app) : null
+    /**
+        Writes kept aside instead of sent, by why (`orbit::link::Kept`):
+        `{ conflicts, rejected, earlier }`. The window tells the person and
+        `KeptAside` lets them choose; `Sol.call("kept")` lists them.
+    */
+    readonly property var kept: SolBackend.kept ? JSON.parse(SolBackend.kept) : ({ conflicts: 0, rejected: 0, earlier: 0 })
+    /** How many writes are kept aside in all. */
+    readonly property int keptCount: kept.conflicts + kept.rejected + kept.earlier
+    /** Why this device's copy didn't open (`{ problem: "newer" | "damaged" | "other", path, detail }`), or null. */
+    readonly property var problem: SolBackend.problem ? JSON.parse(SolBackend.problem) : null
     /** Bumped whenever documents change, here or on another device: bind to it to read again. */
     readonly property int changes: SolBackend.changes
     /** Bumped when the world's settings change in Sol. */

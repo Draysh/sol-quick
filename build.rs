@@ -2,7 +2,9 @@
 //! that starts with `pragma Singleton` is registered as one), the assets
 //! (fonts, the worlds' photographs, grain) and the compiled shaders, plus
 //! the Rust QObjects in `src/bridge.rs`. `export()` hands the module to the
-//! app that depends on this crate.
+//! app that depends on this crate. The Qt version it was built against goes
+//! into the binary as `SOL_QT_VERSION` (`--version` says it, and updates
+//! for another Qt are refused).
 
 use std::{fs, path::Path};
 
@@ -53,6 +55,8 @@ fn main() {
     for file in &resources {
         println!("cargo::rerun-if-changed={file}");
     }
+    println!("cargo::rerun-if-env-changed=QMAKE");
+    println!("cargo::rustc-env=SOL_QT_VERSION={}", qt_version());
     CxxQtBuilder::new_qml_module(module)
         .qt_module("Network")
         .qt_module("Quick")
@@ -61,4 +65,26 @@ fn main() {
         .qrc_resources(resources)
         .build()
         .export();
+}
+
+/// The Qt this build links: `qmake6 -query QT_VERSION` (or `$QMAKE`'s), the
+/// same qmake cxx-qt-build finds.
+fn qt_version() -> String {
+    let qmakes = std::env::var("QMAKE")
+        .ok()
+        .into_iter()
+        .chain(["qmake6".to_owned(), "qmake".to_owned()]);
+    for qmake in qmakes {
+        if let Ok(out) = std::process::Command::new(&qmake)
+            .args(["-query", "QT_VERSION"])
+            .output()
+            && out.status.success()
+        {
+            let version = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+            if !version.is_empty() {
+                return version;
+            }
+        }
+    }
+    "unknown".to_owned()
 }

@@ -4,10 +4,10 @@ import Sol.Design
 
 /*
     The panels and what goes in them: Card in its ways (plain, titled,
-    with a world, openable, with a menu), Grid at a few widths, DataRows,
-    Display, Progress, Callout, every kind of Skeleton and Chart, a
-    Settle list, a Strip, and Picture and Poster loaded, missing, dimmed
-    and lifted. The pictures are the kit's own photographs.
+    with a world, openable, with a menu), the ExportCard, Grid at a few
+    widths, DataRows, Display, Progress, Callout, every kind of Skeleton
+    and Chart, a Settle list, a Strip, and Picture and Poster loaded,
+    missing, dimmed and lifted. The pictures are the kit's own photographs.
 */
 Screen {
     id: page
@@ -65,6 +65,7 @@ Screen {
             Progress { width: parent.width; value: page.round % 2 ? 0.8 : 0.42; start: "1:12"; end: "2:46" }
             Progress { width: parent.width; value: 1 }
         }
+        ExportCard { }
         Card {
             title: "Callout"
             Callout { lines: ["Walk = done", "Read = 20 min", "Water = 6 / 8"] }

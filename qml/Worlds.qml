@@ -25,6 +25,10 @@ import QtQuick
     `air` is how much atmosphere it has (0 none, 1 Titan's haze): the
     terminator's softness and the rim of light around the limb. `icon` is
     the light where the body is small (the sidebar, the sheet's bar).
+
+    The web kit (`kit/design`, Sol's web app) reads `rising`, `lit` and
+    `table` from this file (`scripts/worlds-from-qml.mjs` there): keep them
+    plain object literals.
 */
 QtObject {
     id: worlds
