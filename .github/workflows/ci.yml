@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v7
       # The kit is a Qt Quick module (Sol.Design); the build compiles its QML
       # and the gallery's, so a mistake in a .qml file fails here.
-      - uses: jurplel/install-qt-action@v5
+      - uses: jurplel/install-qt-action@v4
         with:
           version: "6.12.*"
           modules: qtmultimedia qtshadertools
