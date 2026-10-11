@@ -14,7 +14,7 @@ links = "sol_quick"
 [workspace]
 
 [dependencies]
-orbit = { path = "../orbit", features = ["app"] }
+orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v1.0.0", features = ["app"] }
 anyhow = "1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 cxx = "1"
