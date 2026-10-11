@@ -73,7 +73,11 @@ The screens never talk to Sol; they call the app's commands
 (`Sol.call("name", args)`, a promise), and the commands use
 `orbit::link::Link`:
 
-- Documents: `list_as::<T>(collection)` (rows of another shape are
+- Documents: `list_prefix(collection, prefix)` and `list_prefix_as::<T>`
+  (the documents whose ids start so, by the local copy's index: one
+  title's episodes, `<key>_`) and `count(collection, prefix)` (`""` for
+  all), for a page that needs one part of a collection that grows;
+  `list_as::<T>(collection)` (rows of another shape are
   skipped, and how many is logged when it changes), `list_with_ids`,
   `list_counted` (the rows and that count, for a page that says "2 couldn't
   be read"), `get_as::<T>(collection, id)`, `put_as(collection, id, &value)`
@@ -98,8 +102,10 @@ The screens never talk to Sol; they call the app's commands
   settings are already read; `day_of`, `at`, `start_of`, `parse_time`,
   `time_setting` are there too. A world without one (Saturn, Titan,
   Neptune, Triton) uses `Clock::calendar`: midnight in the person's zone.
-- The screens learn of changes through `Sol.changes` (documents, here or
-  on another device) and `Sol.settingsVersion`; a world's own news to its
+- The screens learn of changes with a `Watch` on the collections a page
+  reads (`Watch { collections: ["habits", "checks"]; onChanged:
+  page.load() }`, documents here or on another device; `settings: true`
+  for the world's settings too), never by reloading on every change; a world's own news to its
   screens goes out with `sol_quick::emit(name, &data)` and arrives as
   `Sol.onEvent(name, data)`.
 - Errors: the world's code returns `anyhow::Result` (never `Result<_,
@@ -197,7 +203,9 @@ engine keeps the link), and one with state beside the link takes both
 - Corners come from `Theme.radiusS` / `radiusM` / `radius` / `radiusL`,
   never a literal (the scale and where each goes are in the kit's README).
 - `Strip` for anything that scrolls sideways; `Settle` for anything that
-  arrives in a list; `Skeleton` for a page's shape while it loads;
+  arrives in a list; `LongGrid` / `LongList` with a `Sift` for a list that
+  grows with the library (only what is in sight is made; a Repeater makes
+  everything, so keep it for short lists); `Skeleton` for a page's shape while it loads;
   `Chart`, `DataRows`, `Display` for figures.
 
 ## The desktop around the app

@@ -40,7 +40,7 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 | File | What it does |
 | --- | --- |
 | `lib.rs` | Re-exports: `run`, `World`, `Prepare`, `Sample`, `Commands`, `say`, `data_dir`, `cache_dir`, `device_name`, `emit`, `open`, `quit`, `leave`, `runtime`, `Shared`, `handler` |
-| `app.rs` | `run` (command line, the log, one copy at a time, an update on trial, SIGTERM/SIGINT, the tokio runtime, the `Link`, moons, the tray, then the window), `World`, `Runtime`, `data_dir`, `cache_dir`, `emit`, `quit`, `leave` |
+| `app/` | `World`, `Runtime`, `data_dir`, `cache_dir`, `emit`, `quit`, `leave` (`mod.rs`); `run` in `start.rs`, a function for each step (command line, the log, one copy at a time, an update on trial, SIGTERM/SIGINT, the tokio runtime, the `Link`, moons, the tray, then the window) |
 | `live.rs` (+ `cpp/live.h`) | `SOL_QML_LIVE`: a preview reads the QML modules from their checkouts (a URL interceptor on the engine) |
 | `shared.rs` | The commands every world's screens can call besides their own (below) |
 | `exchange.rs` | Export and import of a world's own collections (those in its manifest) as one JSON file: `export`, `write`, `read`, `plan`, `import`; an import goes through the `Link`, merges by id and deletes nothing |
@@ -116,7 +116,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Theme`: every token (the sky in three depths, night and day, type,
   spacing, corners, durations, eases) and the rules the controls share:
   `calm` (less motion, per device: Settings → On this device, or `SOL_CALM`),
-  `whenSeen(item, arrival)`, `wheel(event, notch)`, `screenOf(item)`,
+  `whenSeen(item, arrival)`, `flickableOf(item)`, `scrollWith(item, view)`
+  (what LongGrid is built on), `wheel(event, notch)`, `screenOf(item)`,
   `keepInView(flick, top, height)`, `typing(item)`, `isRepeater(item)`,
   `chosenAccent` (this device's accent, `sol.<world>`), `mark(c)`, `tint(c, a)`.
 - `Sol`: the connection as the screens see it (`status`, `paired`,
@@ -128,7 +129,10 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `clock`, `undoable(command, args, { title, body, undo?, undone? })` (a
   write with Undo in its notice: the documents the world's Rust says it
   touches are kept and put back, or a way back of its own), and the
-  `event(name, data)` signal.
+  signals `event(name, data)` and `changedIn(collections)` (what `Watch`
+  listens to). `callSeen` reads and keeps what a page showed on the Rust
+  side, off the window's thread, and hands `use` a third argument, `same`,
+  when the fresh reply is what was shown (`fill` then leaves it be).
 - `Format`: counts, days, times and durations as words (`plural`, `dayOf`,
   `toDate`, `addDays`, `weekday`, `dayNumber`, `short`, `long`, `month`,
   `date`, `when`, `ago`, `until`, `hours`, `hm`, `length`, `duration`,
@@ -173,6 +177,18 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Card` (a raised panel with a title; `menu` on right-click), `Grid`
   (cards in auto-fit columns), `Callout` (a dotted leader and a short
   list, in a Sheet).
+- Lists as long as a library, where only what is in sight is made and the
+  page scrolls them like anything else: `LongGrid` (tiles of at least
+  `min` across, `tileHeight` tall, on a GridView that uses its tiles again;
+  `rows` for whole rows only) and `LongList` (rows each as tall as they
+  are). Their delegates are Settles with `animated: list.arrives(index)`,
+  so the first screenful settles in. `Sift` sorts and filters the rows for
+  them once per change (`rows`, `order`, `text`, `keep`, `words`; the
+  typing filtered once it rests), and `shown` is the result.
+- `Watch { collections: ["titles", "watched"]; onChanged: page.load() }`:
+  a page reads again when documents change in its own collections, here
+  or on another device (once a burst; also when every collection may have
+  changed; with `settings`, when the settings change in Sol).
 - The Settings cards every world has: `SolCard` (with what is kept
   aside), `SettingsCard`, `DeviceCard`, `AppUpdates` (with an update that
   was rolled back), `ExportCard` (export everything to Downloads, import

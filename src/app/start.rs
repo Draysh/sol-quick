@@ -1,0 +1,537 @@
+//! The start-up, in the order `run` takes it: the command line, one copy
+//! at a time, an update's first start, the local copy and its link to Sol,
+//! the app's place on the computer (menu entry, doors, moons), the shared
+//! runtime, the tray and shortcuts, and at last the window.
+
+use std::{
+    path::{Path, PathBuf},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
+
+use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
+use orbit::{
+    WorldManifest,
+    install::{self, App},
+    link::{Config, Link, LocalCopyError, Status, Tokens},
+    moons,
+    updates::Updates,
+};
+
+use super::{
+    BUILT_QT, RUNTIME, Runtime, STAND_IN, Sample, TRYING, ToWindow, World, data_dir, device_name,
+    leave, open_page, quit, runtime,
+};
+use crate::single;
+
+/// Runs the app. Never returns.
+pub fn run(world: World) -> ! {
+    let manifest: WorldManifest =
+        serde_json::from_str(world.manifest).expect("sol-world.json is a world manifest");
+    let mut app = make_app(&world, &manifest);
+    let parent = manifest.parent.clone();
+    // First, and before anything is written: `--version` is how an update
+    // is tried before it goes in.
+    if let Some(code) = command_line(&app, &manifest.name, parent.as_deref()) {
+        std::process::exit(code);
+    }
+    app.qt = Some(running_qt());
+    let preview = std::env::var_os("SOL_PREVIEW").is_some();
+    orbit::telemetry::init_app(&log_file(&manifest.id, preview));
+    let data_dir = data_dir(&manifest.id);
+    // Started by its planet (a moon) or at login: no window, just the work.
+    let by_planet = parent.is_some() && moons::in_background();
+    let background = moons::in_background() || crate::autostart::at_login();
+    one_copy_at_a_time(&manifest.id, preview, background);
+    count_the_start(&app, &manifest.id, &data_dir);
+
+    let tokio = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("sol-tokio")
+        .build()
+        .expect("a tokio runtime");
+    // The main thread works inside the runtime from here on: the link spawns
+    // its sync and inbox tasks when it starts paired (and Qt's thread later
+    // spawns through `rt.tokio`).
+    let _inside = tokio.enter();
+    std::fs::create_dir_all(&data_dir).expect("the app's data folder");
+    quit_on_signals(tokio.handle());
+
+    let (link, problem) = open_link(&tokio, &manifest.id, world.version, &data_dir, preview);
+    let running = settle_on_the_computer(&app, parent.as_deref(), preview || problem.is_some());
+    if let Some(prepare) = world.prepare {
+        prepare(&link, tokio.handle());
+    }
+    if preview && problem.is_none() {
+        fill_with_samples(&tokio, &link, world.sample.as_ref(), &data_dir);
+    }
+    let updates = tokio.block_on(Updates::new(link.clone(), app));
+    tokio.spawn(updates.clone().watch());
+
+    let mut commands = world.commands;
+    crate::shared::add(
+        &mut commands,
+        app,
+        parent.clone(),
+        manifest.collections.clone(),
+    );
+
+    let rt = Runtime {
+        link: link.clone(),
+        updates,
+        commands,
+        tokio: tokio.handle().clone(),
+        manifest_json: world.manifest.to_owned(),
+        name: manifest.name.clone(),
+        role: role(&manifest).unwrap_or_default(),
+        app,
+        background,
+        problem,
+        preview,
+        tray: AtomicBool::new(false),
+        data_dir,
+        window: Mutex::new(None),
+        told: Mutex::new(None),
+        _moons: running,
+    };
+    if RUNTIME.set(rt).is_err() {
+        panic!("sol_quick::run twice");
+    }
+    // What the desktop around the app shows of it (the bar, the terminal).
+    crate::status::start(runtime());
+
+    if let Some(parent) = parent.filter(|_| by_planet) {
+        follow_the_planet(&tokio, &link, parent);
+    }
+    // The Sol tray, for every app here but a preview (a moon its planet
+    // started is there too, to be opened); global shortcuts beside a window.
+    if !preview {
+        crate::tray::start(world.tray);
+    }
+    // Shortcuts for every window there may be: a planet that started hidden
+    // (with the computer) too, not a moon its planet started.
+    if !preview && !by_planet {
+        crate::desktop::start(world.shortcuts);
+    }
+    runtime().tokio.spawn_blocking(crate::seen::prune);
+    // Sync; the screens follow through `SolBackend`.
+    link.start(world.handler);
+
+    show_the_window(&manifest, world.version, world.main, world.source)
+}
+
+/// One copy at a time: a later one brings this one's window up and leaves.
+/// `--open /title?key=x`: at that page (here, or in the copy already running).
+fn one_copy_at_a_time(world: &str, preview: bool, background: bool) {
+    let open_at = std::env::args()
+        .skip_while(|a| a != "--open")
+        .nth(1)
+        .filter(|p| p.starts_with('/'));
+    let knock = if background {
+        None
+    } else {
+        Some(
+            open_at
+                .clone()
+                .map_or(single::Knock::Show, single::Knock::Open),
+        )
+    };
+    let first = single::claim(world, preview, knock, |knock| match knock {
+        single::Knock::Show => {
+            if let Some(rt) = RUNTIME.get() {
+                rt.activate_window();
+            }
+            None
+        }
+        single::Knock::Open(path) => {
+            open_page(path);
+            None
+        }
+        // The desktop asks for something done or found, or another world
+        // asks a question: only these three of the world's commands are
+        // reachable this way.
+        // Quick capture's key: this app opens the line over the desktop.
+        single::Knock::Ask(command, _) if command == "capture" => Some(match RUNTIME.get() {
+            Some(rt) if rt.tell(ToWindow::Capture) => Ok("\"open\"".into()),
+            _ => Err("the app is still starting; try again in a moment".into()),
+        }),
+        single::Knock::Ask(command, args) => Some(match RUNTIME.get() {
+            Some(rt) if matches!(command.as_str(), "do" | "find" | "ask") => rt
+                .tokio
+                .block_on(rt.commands.call(rt.link.clone(), &command, args)),
+            Some(_) => Err(format!("nothing answers {command:?} from the desktop")),
+            None => Err("the app is still starting; try again in a moment".into()),
+        }),
+    });
+    if let Some(path) = open_at {
+        open_page(path);
+    }
+    if !first {
+        std::process::exit(0);
+    }
+}
+
+/// A version just put in place by an update: this start counts, and one
+/// that started before and never came up goes back to the one before.
+/// (After the door: a second copy knocking isn't a start.)
+fn count_the_start(app: &App, world: &str, data_dir: &Path) {
+    match install::on_start(app) {
+        install::Start::Normal => {}
+        install::Start::Trying => TRYING.store(true, Ordering::Relaxed),
+        install::Start::RolledBack(trial) => after_roll_back(&trial, world, data_dir),
+    }
+}
+
+/// The local copy, and why it didn't open when it didn't (the `problem`
+/// JSON the window shows).
+fn open_link(
+    tokio: &tokio::runtime::Runtime,
+    world: &str,
+    version: &str,
+    data_dir: &Path,
+    preview: bool,
+) -> (Link, Option<String>) {
+    let config = |dir: PathBuf, tokens| Config {
+        world: world.to_owned(),
+        dir,
+        device: device_name(),
+        platform: platform(),
+        version: version.into(),
+        tokens,
+    };
+    let tokens = if preview {
+        Tokens::File
+    } else {
+        Tokens::Keyring
+    };
+    match tokio.block_on(Link::open(config(data_dir.to_owned(), tokens))) {
+        Ok(link) => (link, None),
+        // The local copy won't open (a newer version wrote it, or it's
+        // damaged): the window asks what to do, on an empty stand-in.
+        Err(err) => {
+            tracing::error!(error = ?err, "the local copy didn't open");
+            let (problem, path, detail) = match err.downcast_ref::<LocalCopyError>() {
+                Some(e) => (
+                    serde_json::to_value(e.problem).unwrap_or_default(),
+                    e.path.display().to_string(),
+                    e.detail.clone(),
+                ),
+                None => (
+                    "other".into(),
+                    data_dir.display().to_string(),
+                    format!("{err:#}"),
+                ),
+            };
+            let stand_in =
+                std::env::temp_dir().join(format!("sol-{}-stand-in-{}", world, std::process::id()));
+            if let Ok(mut kept) = STAND_IN.lock() {
+                *kept = Some(stand_in.clone());
+            }
+            let link = tokio
+                .block_on(Link::open(config(stand_in, Tokens::File)))
+                .expect("an empty stand-in copy opens");
+            let problem = serde_json::json!({ "problem": problem, "path": path, "detail": detail });
+            (link, Some(problem.to_string()))
+        }
+    }
+}
+
+/// The app's place on this computer: its app-menu entry, autostart, the
+/// doors other apps open it by, and its moons. A planet's hold on its moons'
+/// "running" lock, when it starts them; `alone` (a preview, or a copy that
+/// didn't open) starts none.
+fn settle_on_the_computer(app: &App, parent: Option<&str>, alone: bool) -> Option<moons::Running> {
+    // The app-menu entry follows the installed version; updates come through Sol.
+    install::refresh(app);
+    crate::autostart::refresh(app);
+    // Other apps on this computer can open this one from their sidebars.
+    orbit::doors::settle(app);
+    match parent {
+        // Its planet starts it from where it says it is.
+        Some(parent) => {
+            moons::settle(app, parent);
+            None
+        }
+        // A preview runs alone: the installed moons stay as they are; and
+        // a copy that didn't open does nothing until the person chose.
+        None if alone => None,
+        // A planet's moons run whenever it does.
+        None => moons::start(app.world),
+    }
+}
+
+/// A preview's throwaway copy gets the world's sample data, once.
+fn fill_with_samples(
+    tokio: &tokio::runtime::Runtime,
+    link: &Link,
+    sample: Option<&Sample>,
+    data_dir: &Path,
+) {
+    if let Some(sample) = sample
+        && !data_dir.join("sampled").exists()
+    {
+        match tokio.block_on(sample(link.clone())) {
+            Ok(()) => {
+                let _ = std::fs::write(data_dir.join("sampled"), "");
+            }
+            Err(why) => tracing::warn!("sample data: {why:#}"),
+        }
+    }
+}
+
+/// A moon its planet started, without a window, leaves a few seconds
+/// after its planet does (or at once, unpaired: there's nothing to do
+/// until it's opened and paired).
+fn follow_the_planet(tokio: &tokio::runtime::Runtime, link: &Link, parent: String) {
+    let unpaired = matches!(link.status(), Status::Unpaired { .. });
+    if unpaired {
+        leave(0);
+    }
+    tokio.spawn(async move {
+        loop {
+            moons::planet_gone(&parent).await;
+            runtime().tell(ToWindow::PlanetGone);
+        }
+    });
+}
+
+/// The window. Qt owns the main thread from here, until the app leaves.
+fn show_the_window(manifest: &WorldManifest, version: &str, main: &str, source: &'static str) -> ! {
+    let mut gui = QGuiApplication::new();
+    // The .desktop file orbit::install writes: the desktop looks the icon and the name up under it.
+    QGuiApplication::set_desktop_file_name(&QString::from(&format!("sol-{}", manifest.id)));
+    if let Some(mut gui) = gui.as_mut() {
+        gui.as_mut()
+            .set_application_name(&QString::from(&manifest.name));
+        gui.as_mut()
+            .set_application_version(&QString::from(version));
+        gui.as_mut()
+            .set_organization_domain(&QString::from("sachi.digital"));
+    }
+    let mut engine = QQmlApplicationEngine::new();
+    // A window that fails to load (a QML error, a Qt module missing) ends the
+    // app, rather than leaving it running with nothing to show.
+    let failed = Arc::new(AtomicBool::new(false));
+    if let Some(mut engine) = engine.as_mut() {
+        let flag = failed.clone();
+        let _guard = engine
+            .as_mut()
+            .on_object_creation_failed(move |_, url| {
+                tracing::error!("the window failed to load: {url}");
+                flag.store(true, Ordering::Relaxed);
+            })
+            .release();
+        if crate::live::asked(runtime().preview) {
+            crate::live::read_from_disk(engine.as_mut(), &crate::live::folders(main, source));
+        }
+        engine.load(&QUrl::from(main));
+    }
+    if failed.load(Ordering::Relaxed) {
+        // Right after an update: the version before goes back in at once.
+        if TRYING.load(Ordering::Relaxed)
+            && let Some(trial) = install::roll_back(&runtime().app)
+        {
+            after_roll_back(&trial, &manifest.id, &runtime().data_dir);
+        }
+        leave(1);
+    }
+    if TRYING.load(Ordering::Relaxed) {
+        // Up and drawing for a little while: the update stays.
+        runtime().tokio.spawn(async {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            install::started_well(&runtime().app);
+            TRYING.store(false, Ordering::Relaxed);
+        });
+    }
+    let code = match gui.as_mut() {
+        Some(gui) => gui.exec(),
+        None => 1,
+    };
+    drop(engine);
+    leave(code)
+}
+
+fn platform() -> Option<String> {
+    cfg!(target_os = "linux").then(|| "linux".into())
+}
+
+/// The Qt this process runs on: the version of the Qt Core library loaded
+/// (`libQt6Core.so.6.10.1`), else the one it was built with.
+fn running_qt() -> &'static str {
+    let loaded = std::fs::read_to_string("/proc/self/maps")
+        .ok()
+        .and_then(|maps| {
+            maps.lines().find_map(|line| {
+                let file = line.rsplit('/').next()?;
+                let version = file.strip_prefix("libQt6Core.so.")?;
+                (version.matches('.').count() >= 2).then(|| version.trim().to_owned())
+            })
+        });
+    match loaded {
+        Some(v) => Box::leak(v.into_boxed_str()),
+        None => BUILT_QT,
+    }
+}
+
+/// Where the app's log goes: its own state folder
+/// (`~/.local/state/digital.sachi.sol.<world>/<world>.log`), or the
+/// preview's throwaway folder.
+fn log_file(world: &str, preview: bool) -> PathBuf {
+    let dir = if preview {
+        data_dir(world)
+    } else {
+        dirs::state_dir()
+            .or_else(dirs::data_dir)
+            .unwrap_or_else(std::env::temp_dir)
+            .join(format!("digital.sachi.sol.{world}"))
+    };
+    dir.join(format!("{world}.log"))
+}
+
+/// What the app is for, in a word or three: `role` in sol-world.json
+/// ("Habits and diary"). Sol doesn't read it; the app menu and the tray do.
+fn role(manifest: &WorldManifest) -> Option<String> {
+    manifest
+        .role
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty())
+        .map(str::to_owned)
+}
+
+fn make_app(world: &World, manifest: &WorldManifest) -> App {
+    let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
+    // In the app menu with what it is for, so a planet's name needn't be remembered.
+    let name = match role(manifest) {
+        Some(role) => format!("{} · {role}", manifest.name),
+        None => manifest.name.clone(),
+    };
+    App {
+        world: leak(&manifest.id),
+        name: leak(&name),
+        comment: leak(&manifest.tagline),
+        version: world.version,
+        wm_class: world.bin,
+        icons: world.icons,
+        // One key per line; any of them signs an update.
+        pubkey: Some(world.update_key.trim()).filter(|k| !k.is_empty()),
+        qt: None,
+    }
+}
+
+/// `--install`, `--uninstall` and `--version` from a terminal, and the
+/// desktop's `--status`, `--do` and `--find`, before any window opens.
+fn command_line(app: &App, name: &str, parent: Option<&str>) -> Option<i32> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let arg = args.first()?.clone();
+    let preview = std::env::var_os("SOL_PREVIEW").is_some();
+    match arg.as_str() {
+        "--status" => return Some(crate::status::print(app.world, name, preview)),
+        "--do" => return Some(crate::door::act(app.world, name, preview, &args[1..])),
+        "--find" => return Some(crate::door::find(app.world, name, preview, &args[1..])),
+        _ => {}
+    }
+    let done = match arg.as_str() {
+        "--install" => install::install(app).map(|bin| {
+            // The other apps on this computer can open this one from now on.
+            orbit::doors::settle_installed(app, &bin);
+            if let Some(parent) = parent {
+                moons::settle_installed(app, parent, &bin);
+            }
+            format!("Installed {}: {}", app.name, bin.display())
+        }),
+        "--uninstall" => install::uninstall(app).map(|()| {
+            format!(
+                "Removed {}. Its data stays in Sol; the local copy stays in the app's data folder.",
+                app.name
+            )
+        }),
+        // Also how an update is tried before it goes in: the Qt is checked.
+        "--version" => Ok(format!("{name} {} (Qt {BUILT_QT})", app.version)),
+        _ => return None,
+    };
+    Some(match done {
+        Ok(said) => {
+            println!("{said}");
+            0
+        }
+        Err(err) => {
+            eprintln!("{err:#}");
+            1
+        }
+    })
+}
+
+/// After an update that didn't come up was rolled back: the local copy goes
+/// back to how it was before that version migrated it (the copy it made in
+/// `backups/` first), with the one it left set aside; then the version
+/// before starts again and this one leaves.
+fn after_roll_back(trial: &install::Trial, world: &str, data_dir: &std::path::Path) -> ! {
+    let since: std::time::SystemTime = trial.at.into();
+    let backup = std::fs::read_dir(data_dir.join("backups"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| {
+            let made = e.metadata().ok()?.modified().ok()?;
+            let name = e.file_name().into_string().ok()?;
+            (made >= since && name.starts_with(&format!("{world}-schema")))
+                .then_some((made, e.path()))
+        })
+        .min();
+    if let Some((_, backup)) = backup {
+        match orbit::link::set_aside(data_dir, world).and_then(|_| {
+            Ok(std::fs::copy(
+                &backup,
+                data_dir.join(format!("{world}.db")),
+            )?)
+        }) {
+            Ok(_) => {
+                tracing::warn!(from = %backup.display(), "the local copy is back as it was before the update")
+            }
+            Err(err) => tracing::error!(error = ?err, "couldn't put the local copy back"),
+        }
+    }
+    match install::current_exe()
+        .map_err(anyhow::Error::from)
+        .and_then(|bin| install::relaunch(&bin))
+    {
+        Ok(()) => {
+            tracing::warn!(version = %trial.from, "starting the version before the update again")
+        }
+        Err(err) => tracing::error!(error = ?err, "couldn't start the version before the update"),
+    }
+    single::leave();
+    std::process::exit(0)
+}
+
+/// SIGTERM and SIGINT (a shutdown, `kill`, Ctrl+C) quit the way the tray's
+/// Quit does: the window keeps its state, the door closes, and the moons
+/// hear the planet go. A second signal, or a window that doesn't close
+/// within a few seconds, leaves at once.
+fn quit_on_signals(tokio: &tokio::runtime::Handle) {
+    use tokio::signal::unix::{SignalKind, signal};
+    tokio.spawn(async {
+        let (Ok(mut term), Ok(mut int)) = (
+            signal(SignalKind::terminate()),
+            signal(SignalKind::interrupt()),
+        ) else {
+            tracing::warn!("no signal handlers; a SIGTERM ends the app at once");
+            return;
+        };
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = int.recv() => {}
+        }
+        tracing::info!("asked to stop; quitting");
+        quit();
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = int.recv() => {}
+            () = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+        }
+        leave(0)
+    });
+}

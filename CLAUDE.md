@@ -113,7 +113,10 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   (the `kept` command) and `orbit::updates::Status` (Connect, SolCard,
   KeptAside, AppUpdates and `Sol` read their fields, `rolled_back` too);
   `SolBackend.problem`'s `{ problem, path, detail }`. `SolBackend.changed`
-  (the collections) has no QML listener today; screens use `changes`.
+  (the collections, a JSON list; empty for "any") reaches the screens as
+  `Sol.changedIn`, which `Watch` filters; `callSeen` answers with
+  `recalled(id, body)` first and `repeated(id)` before `replied` when the
+  reply is what was kept (`seen.rs`, `through`).
 - **Across processes** (what they mean: `docs/world-apps.md`, "The desktop
   around the app" and "Quick capture"): the tray socket (abstract
   `sol-tray:$XDG_RUNTIME_DIR`, JSON lines of lowercase `Up`/`Down`,

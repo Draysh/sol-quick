@@ -80,7 +80,7 @@ for light in night day; do
     shoot "$light-panels" "$light" "/panels"
     shoot "$light-panels-lower" "$light" "/panels?_scroll=1000"
     shoot "$light-panels-end" "$light" "/panels?_scroll=2300"
-    shoot "$light-panels-long" "$light" "/panels?_scroll=3400"
+    shoot "$light-panels-long" "$light" "/panels?_scroll=5000"
     shoot "$light-overlays" "$light" "/overlays"
     shoot "$light-overlays-menu" "$light" "/overlays?_menu=1"
 done

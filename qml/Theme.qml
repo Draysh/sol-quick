@@ -214,21 +214,22 @@ QtObject {
         Keeps `view` (a ListView or GridView inside `item`, as tall as all
         its rows) showing the part of `item` that is in sight in the page's
         Flickable, so the page scrolls it and only what shows is made:
-        `view` is one window tall, moved down `item` as the page scrolls,
-        its own `contentY` following. Returns a function that lets go.
+        `view` is one window tall, moved down `item` as the page scrolls
+        (past its end once it has scrolled by), its own `contentY`
+        following. Returns a function that lets go.
     */
     function scrollWith(item, view) {
         const f = flickableOf(item)
+        // Where the window starts depends on the page's scroll and where `item` sits, never on
+        // how tall `item` is: a list whose height is still being reckoned can't chase itself.
         const place = () => {
-            const total = item.height
-            if (!f || f.height <= 0) { view.y = 0; view.height = total; view.contentY = view.originY; return }
-            const top = item.mapToItem(f.contentItem, 0, 0).y
-            const y = Math.max(0, Math.min(f.contentY - top, total - f.height))
-            view.height = f.height
-            view.y = y
-            view.contentY = view.originY + y
+            if (!f || f.height <= 0) { view.y = 0; view.height = Math.max(item.height, 1); view.contentY = view.originY; return }
+            const y = Math.max(0, f.contentY - item.mapToItem(f.contentItem, 0, 0).y)
+            if (view.height !== f.height) view.height = f.height
+            if (Math.abs(view.y - y) > 0.25) view.y = y
+            if (Math.abs(view.contentY - (view.originY + y)) > 0.25) view.contentY = view.originY + y
         }
-        const changes = f ? [f.contentYChanged, f.heightChanged, f.contentHeightChanged, item.yChanged, item.heightChanged, view.originYChanged, view.countChanged] : [item.heightChanged, view.countChanged]
+        const changes = f ? [f.contentYChanged, f.heightChanged, f.contentHeightChanged, item.yChanged, view.originYChanged, view.countChanged] : [item.heightChanged, view.countChanged]
         for (const s of changes) s.connect(place)
         place()
         return () => { for (const s of changes) s.disconnect(place) }
