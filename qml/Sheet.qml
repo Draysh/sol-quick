@@ -27,6 +27,8 @@ Item {
     /** Extra content under the name, such as the screen's main action. */
     default property alias under: underRow.data
     property real drift: 0
+    /** Faint rings round the world, one for each (Mercury: a week of reviews in a row, up to 12). */
+    property int rings: 0
     /** 0 at rest, 1 shrunk to a bar; the Screen drives it when the Sheet is pinned. */
     property real collapse: 0
     readonly property real compact: Theme.navHeight
@@ -101,7 +103,16 @@ Item {
                 phase: placed.sky ? placed.sky.phase : placed.at.phase
             }
 
-            Placed { world: root.world; at: root.portrait ? root.w.portrait : root.w.hero }
+            Placed { id: mainBody; world: root.world; at: root.portrait ? root.w.portrait : root.w.hero }
+            Rings {
+                visible: root.rings > 0
+                cx: mainBody.x + mainBody.disc / 2
+                cy: mainBody.y + mainBody.disc / 2
+                body: mainBody.disc / 2
+                radii: Array.from({ length: Math.min(12, root.rings) }, (_, i) => 1.03 + i * 0.028)
+                color: Theme.mark(root.w.color)
+                alpha: 0.32
+            }
             Repeater {
                 model: root.portrait ? [] : (root.w.companions || [])
                 delegate: Placed { required property var modelData; world: modelData.world; at: modelData }

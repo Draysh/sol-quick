@@ -16,7 +16,7 @@ use orbit::{
 use crate::{
     app::{quit, runtime},
     autostart::{autostart, set_autostart},
-    commands::{Commands, say},
+    commands::Commands,
     exchange, single,
 };
 
@@ -66,32 +66,31 @@ pub(crate) fn add(
             crate::desktop::notify(&a.title, &a.body, a.action).await
         })
         .add("connect", |link, a: Server| async move {
-            link.connect(&a.server).await.map_err(say)
+            link.connect(&a.server).await
         })
-        .add("cancel", |link, _: ()| async move {
+        .add("cancel", |link, ()| async move {
             link.cancel();
             Ok(())
         })
-        .add("forget", |link, _: ()| async move {
-            link.forget().await.map_err(say)
-        })
-        .add("settings", |link, _: ()| async move {
-            link.settings().await.map_err(say)
-        })
-        .add("open_in_sol", |link, _: ()| async move {
+        .add("forget", |link, ()| async move { link.forget().await })
+        .add("settings", |link, ()| async move { link.settings().await })
+        .add("open_in_sol", |link, ()| async move {
             let server = match link.status() {
                 Status::Online { server, .. } | Status::Offline { server, .. } => server,
-                _ => return Err("pair with Sol first".to_string()),
+                _ => anyhow::bail!("pair with Sol first"),
             };
-            open::that_detached(format!("{server}/worlds/{}", link.world())).map_err(say)
+            Ok(open::that_detached(format!(
+                "{server}/worlds/{}",
+                link.world()
+            ))?)
         })
         .add(
             "doors",
-            |_, _: ()| async move { Ok(orbit::doors::installed()) },
+            |_, ()| async move { Ok(orbit::doors::installed()) },
         )
         .add("open_world", |_, a: Which| async move {
             let Some(path) = a.path else {
-                return orbit::doors::open(&a.world).map_err(say);
+                return orbit::doors::open(&a.world);
             };
             // Running: it opens the page. If not, it starts, and opens it once it answers.
             let knock = single::Knock::Open(path);
@@ -99,98 +98,92 @@ pub(crate) fn add(
             if single::knock(&a.world, preview, &knock) {
                 return Ok(());
             }
-            orbit::doors::open(&a.world).map_err(say)?;
+            orbit::doors::open(&a.world)?;
             for _ in 0..40 {
                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                 if single::knock(&a.world, preview, &knock) {
                     return Ok(());
                 }
             }
-            Err(format!("{} started, but didn't open the page", a.world))
+            anyhow::bail!("{} started, but didn't open the page", a.world)
         })
-        .add("check_updates", |_, _: ()| async move {
+        .add("check_updates", |_, ()| async move {
             let updates = &runtime().updates;
-            updates.check().await.map_err(say)?;
+            updates.check().await?;
             Ok(updates.status())
         })
-        .add("install_update", |_, _: ()| async move {
+        .add("install_update", |_, ()| async move {
             // The new version runs from the next start (or a restart).
             let updates = &runtime().updates;
-            updates.install().await.map_err(say)?;
+            updates.install().await?;
             Ok(updates.status())
         })
         .add("set_auto_update", |_, a: Auto| async move {
-            runtime().updates.set_auto(a.auto).await.map_err(say)
+            runtime().updates.set_auto(a.auto).await
         })
         // Writes kept aside instead of sent: conflicts, rejected, earlier.
-        .add("kept", |link, _: ()| async move {
-            link.kept_writes().await.map_err(say)
-        })
+        .add("kept", |link, ()| async move { link.kept_writes().await })
         .add("keep_mine", |link, a: Seq| async move {
-            link.keep_mine(a.seq).await.map_err(say)
+            link.keep_mine(a.seq).await
         })
         .add("drop_kept", |link, a: Seq| async move {
-            link.drop_kept(a.seq).await.map_err(say)
+            link.drop_kept(a.seq).await
         })
-        .add("save_kept", |link, _: ()| async move {
-            let json = link.export_kept().await.map_err(say)?;
+        .add("save_kept", |link, ()| async move {
+            let json = link.export_kept().await?;
             let dir = downloads()?;
             let path = dir.join(format!("sol-{}-kept-{}.json", link.world(), chrono_stamp()));
-            let text = serde_json::to_string_pretty(&json).map_err(say)?;
-            std::fs::write(&path, text).map_err(say)?;
+            let text = serde_json::to_string_pretty(&json)?;
+            std::fs::write(&path, text)?;
             Ok(path.display().to_string())
         })
         // The local copy didn't open: it goes aside (kept), and the app
         // starts again from Sol's copy.
-        .add("start_fresh", |_, _: ()| async move {
+        .add("start_fresh", |_, ()| async move {
             let rt = runtime();
             if rt.problem.is_none() {
-                return Err("the local copy is fine".to_string());
+                anyhow::bail!("the local copy is fine");
             }
-            let aside = orbit::link::set_aside(&rt.data_dir, rt.link.world()).map_err(say)?;
+            let aside = orbit::link::set_aside(&rt.data_dir, rt.link.world())?;
             tracing::warn!(to = %aside.display(), "set the local copy aside; starting from Sol's");
-            install::relaunch(&install::current_exe().map_err(say)?).map_err(say)?;
+            install::relaunch(&install::current_exe()?)?;
             quit();
             Ok(aside.display().to_string())
         });
 
     // Both start the installed copy, which waits for this one to leave.
-    commands.add("restart", move |_, _: ()| async move {
+    commands.add("restart", move |_, ()| async move {
         let path = match install::here(&app) {
             install::Here::Installed { path, .. } | install::Here::Loose { path } => path,
-            _ => return Err::<(), String>("start the app again yourself".to_string()),
+            _ => anyhow::bail!("start the app again yourself"),
         };
-        install::relaunch(&path).map_err(say)?;
+        install::relaunch(&path)?;
         quit();
         Ok(())
     });
     // Starting with the computer, in the tray without a window: only the
     // installed copy can (null otherwise).
-    commands.add(
-        "autostart",
-        move |_, _: ()| async move { Ok(autostart(&app)) },
-    );
+    commands.add("autostart", move |_, ()| async move { Ok(autostart(&app)) });
     commands.add("set_autostart", move |_, a: On| async move {
-        set_autostart(&app, a.on)?;
+        set_autostart(&app, a.on).map_err(anyhow::Error::msg)?;
         Ok(autostart(&app))
     });
-    commands.add("install_app", move |_, _: ()| async move {
-        let bin = install::install(&app).map_err(say)?;
-        install::relaunch(&bin).map_err(say)?;
+    commands.add("install_app", move |_, ()| async move {
+        let bin = install::install(&app)?;
+        install::relaunch(&bin)?;
         quit();
-        Ok::<(), String>(())
+        anyhow::Ok(())
     });
 
     // Everything in the world's own collections, as one file in Downloads.
+    let kept_ids: Vec<String> = collections.iter().map(|c| c.id.clone()).collect();
     let kept = Arc::new(collections);
     let these = kept.clone();
-    commands.add("export_world", move |link, _: ()| {
+    commands.add("export_world", move |link, ()| {
         let these = these.clone();
         async move {
             let dir = downloads()?;
-            let (path, documents) = exchange::write(&link, &these, &dir, &chrono_stamp())
-                .await
-                .map_err(say)?;
+            let (path, documents) = exchange::write(&link, &these, &dir, &chrono_stamp()).await?;
             Ok(serde_json::json!({ "path": path.display().to_string(), "documents": documents }))
         }
     });
@@ -224,19 +217,66 @@ pub(crate) fn add(
         let kept = kept.clone();
         async move {
             let path = a.path.strip_prefix("file://").unwrap_or(&a.path);
-            let file = exchange::read(std::path::Path::new(path), link.world()).map_err(say)?;
+            let file = exchange::read(std::path::Path::new(path), link.world())?;
             if a.dry {
-                exchange::plan(&link, &kept, &file).await.map_err(say)
+                exchange::plan(&link, &kept, &file).await
             } else {
-                exchange::import(&link, &kept, &file).await.map_err(say)
+                exchange::import(&link, &kept, &file).await
             }
+        }
+    });
+
+    // Moments: whether an occasion is new to the person (recorded the
+    // first time, so no device plays it again).
+    #[derive(serde::Deserialize)]
+    struct Occasion {
+        occasion: String,
+    }
+    commands.add("moment", |link, a: Occasion| async move {
+        crate::moments::first_time(&link, &a.occasion, &crate::app::device_name()).await
+    });
+    // Undo: the documents an undoable write changed (the `undoable` call
+    // keeps them under a token), put back as they were.
+    #[derive(serde::Deserialize)]
+    struct Restore {
+        undo: u64,
+    }
+    let own: Arc<Vec<String>> = Arc::new(
+        kept_ids
+            .iter()
+            .cloned()
+            .chain([crate::moments::MOMENTS.to_owned()])
+            .collect(),
+    );
+    commands.add("restore", move |link, a: Restore| {
+        let own = own.clone();
+        async move {
+            let before = crate::undo::take(a.undo)
+                .ok_or_else(|| anyhow::anyhow!("that is too long ago to take back"))?;
+            crate::undo::restore(&link, &before, &own).await
+        }
+    });
+    // Quick capture: what each running world would do with a line, and doing it.
+    #[derive(serde::Deserialize)]
+    struct Capture {
+        line: String,
+        #[serde(default)]
+        world: Option<String>,
+    }
+    commands.add("capture", |_, a: Capture| async move {
+        match a.world {
+            Some(world) => crate::capture::run(&world, &a.line)
+                .await
+                .map(serde_json::Value::String)
+                .map_err(anyhow::Error::msg),
+            None => Ok(serde_json::json!(crate::capture::offers(&a.line).await)),
         }
     });
 
     // A moon's place beside its planet: running with it, without a window.
     if let Some(parent) = parent {
         let (me, p) = (app, parent.clone());
-        commands.add("with_planet", move |_, _: ()| {
+        commands.add("with_planet", move |_, ()| {
             let (me, p) = (me, p.clone());
             async move { Ok(moons::enabled(&me, &p)) }
         });
@@ -244,7 +284,7 @@ pub(crate) fn add(
         commands.add("set_with_planet", move |_, a: On| {
             let (me, p) = (me, p.clone());
             async move {
-                moons::set_enabled(&me, &p, a.on).map_err(say)?;
+                moons::set_enabled(&me, &p, a.on)?;
                 Ok(moons::enabled(&me, &p))
             }
         });
@@ -253,15 +293,15 @@ pub(crate) fn add(
 
 /// Where files the person saves go: Downloads, or home without one; a
 /// preview keeps them in its own throwaway folder.
-fn downloads() -> Result<std::path::PathBuf, String> {
+fn downloads() -> anyhow::Result<std::path::PathBuf> {
     if runtime().preview {
         let dir = runtime().data_dir.join("downloads");
-        std::fs::create_dir_all(&dir).map_err(say)?;
+        std::fs::create_dir_all(&dir)?;
         return Ok(dir);
     }
     dirs::download_dir()
         .or_else(dirs::home_dir)
-        .ok_or_else(|| "no folder to save into".to_string())
+        .ok_or_else(|| anyhow::anyhow!("no folder to save into"))
 }
 
 /// Now, for a file name: `2026-10-10-2014`.

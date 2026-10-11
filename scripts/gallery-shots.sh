@@ -3,7 +3,12 @@
 # picture of every page, night and day (and two narrow), into <folder>,
 # and says what the journal had to say about the QML while they were taken.
 #
-#   scripts/gallery-shots.sh <folder> [name…]
+#   scripts/gallery-shots.sh [--build] <folder> [name…]
+#
+# The kit's QML and the gallery's are read from this checkout
+# (SOL_QML_LIVE=1), so after an edit to .qml files alone it takes the
+# pictures without building; it builds when anything else changed, when a
+# .qml file was added or removed (the module lists them), or with --build.
 #
 # With names (e.g. `night-controls day-panels`), only the pictures whose
 # names start with one of them. Every picture is taken on a hidden display
@@ -15,15 +20,29 @@ if [[ ${WAYLAND_DISPLAY:-} != hidden ]]; then
     exec "$(dirname "$0")/hidden.sh" -- "$0" "$@"
 fi
 
-out=${1:?usage: scripts/gallery-shots.sh <folder> [name…]}
+build=
+if [[ ${1:-} == --build ]]; then build=1; shift; fi
+out=${1:?usage: scripts/gallery-shots.sh [--build] <folder> [name…]}
 shift
 only=("$@")
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 cd "$(dirname "$0")/.."
 
-cargo build --example gallery
-bin=$PWD/target/debug/examples/gallery
+bin=$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")/debug/examples/gallery
+# The .qml files the last build compiled into the module, beside the binary.
+listed=$bin.qml-files
+qml_files() { find qml -name '*.qml' | sort; }
+if [[ -z $build && ( ! -x $bin || ${SOL_QML_LIVE:-1} != 1 ) ]]; then build=1; fi
+if [[ -z $build ]] && ! qml_files | cmp -s - "$listed"; then build=1; fi
+if [[ -z $build ]] && [[ -n $(find build.rs Cargo.toml Cargo.lock src cpp assets shaders examples/gallery/main.rs ../orbit/src \
+    -newer "$bin" -not -name '*.qml' -print -quit 2>/dev/null) ]]; then build=1; fi
+if [[ -n $build ]]; then
+    "$(dirname "$0")/capped" cargo build --example gallery
+    qml_files >"$listed"
+else
+    echo "Only .qml changed since the last build: reading it from the checkout, no build."
+fi
 
 # A fresh throwaway copy, so the window opens at its own size.
 rm -rf /tmp/sol-preview-gallery
@@ -61,6 +80,7 @@ for light in night day; do
     shoot "$light-panels" "$light" "/panels"
     shoot "$light-panels-lower" "$light" "/panels?_scroll=1000"
     shoot "$light-panels-end" "$light" "/panels?_scroll=2300"
+    shoot "$light-panels-long" "$light" "/panels?_scroll=3400"
     shoot "$light-overlays" "$light" "/overlays"
     shoot "$light-overlays-menu" "$light" "/overlays?_menu=1"
 done
@@ -73,7 +93,14 @@ shoot "night-overlays-ask" night "/overlays?_ask=1"
 shoot "night-overlays-notice" night "/overlays?_notice=1"
 shoot "night-overlays-notice-button" night "/overlays?_notice=button"
 shoot "night-overlays-kept" night "/overlays?_kept=1"
+shoot "night-overlays-moment" night "/overlays?_moment=1"
+shoot "day-overlays-moment" day "/overlays?_moment=1"
+shoot "night-overlays-moment-calm" night "/overlays?_moment=1" SOL_CALM=1 SOL_SHOT_AFTER=2000
+# Quick capture: its own window's picture lands beside, as <name>-capture.png.
+shoot "night-overlays-capture" night "/overlays?_capture=walk"
 shoot "day-overlays-kept" day "/overlays?_kept=1"
+shoot "night-overlays-tour" night "/overlays?_tour=1"
+shoot "day-overlays-tour" day "/overlays?_tour=2"
 shoot "night-problem-newer" night "/?_problem=newer"
 shoot "day-problem-damaged" day "/?_problem=damaged"
 # Narrow: the sidebar as a rail, one column.

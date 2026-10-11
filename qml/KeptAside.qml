@@ -125,7 +125,7 @@ Item {
                 }
             }
             Row { spacing: Theme.s2
-                Button { text: "Save a copy"; enabled: root.writes.length > 0
+                Button { icon: "download"; text: "Save a copy"; enabled: root.writes.length > 0
                     onClicked: Sol.call("save_kept").then(path => Notices.show({ world: Sol.world, title: "Saved a copy", body: path })).catch(why => Sol.fail("Not saved", why)) }
                 Button { variant: "quiet"; text: "Close"; onClicked: root.close() } }
         }

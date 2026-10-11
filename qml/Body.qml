@@ -21,6 +21,13 @@ Item {
     property real phase: sky ? sky.phase : w.icon.phase
     readonly property var sky: Worlds.skyOf(world)
     property bool animated: true
+    /** How green the land is, 0 dry … 0.5 the photograph … 1 lush: a world with clouds only (Terra). `Worlds.setSurface` sets it for every body of a world. */
+    property real green: surface ? surface.green : 0.5
+    /** How much cloud, 0 clear … 0.5 the usual … 1 overcast; as `green`. */
+    property real cloudy: surface ? surface.cloudy : 0.5
+    readonly property var surface: Worlds.surfaces[world] || null
+    /** How fast its clouds or corona move, 1 the usual, 0 still (no frames asked for): Neptune's storms speed up to the beat in vinyl mode. */
+    property real pace: 1
 
     readonly property var w: Worlds.get(world)
     readonly property real away_x: -Math.sin(light * Math.PI / 180)
@@ -58,6 +65,10 @@ Item {
         readonly property var fitted: root.w.fit || ({ x: 0.5, y: 0.5, r: 0.5 })
         property vector4d fit: Qt.vector4d(fitted.x, fitted.y, fitted.r, fitted.lit === undefined ? 0 : (root.light - fitted.lit) * Math.PI / 180)
         property real air: root.w.air || 0
+        property real green: root.green
+        property real cloudy: root.cloudy
+        Behavior on green { NumberAnimation { duration: Theme.calm ? 0 : 2400; easing.type: Easing.InOutSine } }
+        Behavior on cloudy { NumberAnimation { duration: Theme.calm ? 0 : 2400; easing.type: Easing.InOutSine } }
         property real aspect: photo.status === Image.Ready && photo.implicitWidth > 0 ? photo.implicitHeight / photo.implicitWidth : 0.484
         property real time: 0
         property int live: root.w.live === "clouds" ? 1 : root.w.live === "corona" ? 2 : 0
@@ -66,7 +77,7 @@ Item {
         // Alive: a second a second, while the window is awake and the body is
         // big enough to see it; it picks up where it stopped.
         // Only for a world that moves (clouds, a corona): a still one never asks for a frame.
-        FrameAnimation { running: shade.live !== 0 && root.animated && root.disc >= 120 && Theme.alive && shade.visible; onTriggered: shade.time = (shade.time + frameTime) % 3600 }
+        FrameAnimation { running: shade.live !== 0 && root.animated && root.pace > 0 && root.disc >= 120 && Theme.alive && shade.visible; onTriggered: shade.time = (shade.time + frameTime * root.pace) % 3600 }
 
         // A body comes up out of the dark, a touch closer as it brightens.
         opacity: root.animated ? 0 : 1

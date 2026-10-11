@@ -8,10 +8,12 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 
 ## Who sees a change here
 
-- The worlds pin a released tag (`sol-quick = { git, tag = "v0.x.0" }`),
-  so an edit reaches nothing until they point at it. `hub/scripts/worlds.sh
-  use-local` points every consumer at this checkout (`path = "../../kit/quick"`);
-  then `cargo build` in a world compiles this crate's QML too.
+- The worlds pin a released tag (`sol-quick = { git, tag = "v1.x.0" }`,
+  and again with `features = ["testing"]` under `[dev-dependencies]`), so
+  an edit reaches nothing until they point at it. `hub/scripts/worlds.sh
+  use-local` points every consumer at this checkout (`path =
+  "../../kit/quick"`, both lines); then `cargo build` in a world compiles
+  this crate's QML too.
 - Installed apps on this computer may run older kit versions side by side:
   anything that crosses processes (sockets, settings files, the tray's
   messages) must stay compatible.
@@ -72,41 +74,93 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `menu.show`; Key `ask.current`, `commandPalette.open`, `menu.open`;
   DeviceCard `widget`, `widgetsHere`, `widgetPrefs.*`, `widgetName`;
   `assets/widget/DesktopWidget.qml` `host.widget`, `host.widgetPrefs.corner`;
-  the notice stack `shell.pageArea`; SolCard `keptAside.open`. Worlds read
-  `menu`, `ask`, `keptAside`, `shell`, `started` and set `commands`,
-  `find`, `footer`, `busy`, `warn`.
+  `assets/capture/Capture.qml` `host.capturing` (it sets it false to
+  close) and `host.stagedCapture`; the Shell's `?` sheet `tour`,
+  `tourSheet.show()` and `allCommands` (the window's `commands` and the
+  page's `Screen.actions`, which the palette lists too); the notice stack
+  `shell.pageArea`; SolCard `keptAside.open`. Worlds read `menu`, `ask`,
+  `keptAside`, `moment`, `shell`, `started` and set `commands`, `find`,
+  `footer`, `busy`, `warn`, `tour`, `moments` (`_moment=<name>[:<arg>]`
+  plays one; `stageMoment` reads the arg after the first `:`).
 - **Notice's required properties** match the roles of `Notices.list`
   (`key`, `world`, `title`, `body`, `tone`, `action`); a delegate must not
   redeclare `model`. A notice's `run` lives in `Notices.runs` by key, not
   in the model (a ListModel can't hold a function).
+- **Moments**: a world that plays one lists `moments` among its collections
+  (`moments::MOMENTS`; the documents are `{ occasion, at, device }`, the id
+  `occasion_id(occasion)`; `testing::assert_manifest` checks the listing).
 - **Singletons written from outside**: `Theme.world` (Shell, DeviceCard),
-  `Theme.picks` (Shell's Tone), `Theme.alive` (AppWindow).
-- **Settings files**: `~/.config/sol/device.conf` `[appearance] mode`
-  (every Sol app); the app's own file (name from `set_application_name`
-  and `set_organization_domain("sachi.digital")` in `run`) with categories
-  `sol.device` (sounds) and `sol.<world>` (`accent`, `widget`, `corner`).
+  `Theme.picks` (Shell's Tone), `Theme.alive` (AppWindow), `Worlds.surfaces`
+  (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
+  body shader's last two uniforms).
+- **Settings files**: `~/.config/sol/device.conf` `[appearance] mode` and
+  `motion` (`full` / `less`: `Theme.calm`) (every Sol app); the app's own
+  file (name from `set_application_name` and `set_organization_domain("sachi.digital")` in `run`) with categories
+  `sol.device` (sounds) and `sol.<world>` (`accent`, `widget`, `corner`,
+  `toured` (the first-run tour seen); Luna's `nightSounds`, `nightVolume`;
+  Neptune's `notToday`; Triton's `dj`). A preview shares the installed app's
+  file: the tour writes `toured` only outside a preview.
+- **The world's voice**: `Sounds.voice()` plays `assets/sounds/<Sol.world>.wav`
+  for the worlds in `Sounds.voices`; a new world adds its line there and in
+  `scripts/world-sounds.py`.
 - **Rust ↔ QML**: every `SolBackend` property, method and signal name
   (`bridge.rs`); the commands the kit's QML calls (the shared ones in
-  `README.md`, plus `notify`); the events `tray`, `shortcut`, `notified`;
-  the JSON of `orbit::link::Status`, `orbit::link::Kept`, `KeptWrite`
+  `README.md`: `moment` from Moment, `undoable` and `restore` from
+  `Sol.undoable` (`commands.rs` answers `undoable { command, args }` with
+  `{ result, undo }`, the token `restore { undo }` and `undo::take` read;
+  `undo.rs`), `capture` from Capture.qml, plus `notify` and the
+  rest); the events `tray`, `shortcut`, `notified`; the JSON of `orbit::link::Status`, `orbit::link::Kept`, `KeptWrite`
   (the `kept` command) and `orbit::updates::Status` (Connect, SolCard,
   KeptAside, AppUpdates and `Sol` read their fields, `rolled_back` too);
   `SolBackend.problem`'s `{ problem, path, detail }`. `SolBackend.changed`
   (the collections) has no QML listener today; screens use `changes`.
-- **Across processes**: the tray socket (abstract `sol-tray:$XDG_RUNTIME_DIR`,
-  JSON lines of lowercase `Up`/`Down`, `tray.rs`); the single-instance
-  door, abstract `sol-<world>:$XDG_RUNTIME_DIR` / `sol-preview-<world>:…`,
-  plus the socket file `sol-<world>.sock` / `sol-preview-<world>.sock`
-  that versions before 1.0 use (knocked on before running, listened at;
-  drop it once no 0.x app is left), with lines `show`, `open <path>` and
-  `wait`; the desktop file `sol-<world>`; the flags `--background` (a moon
-  its planet started), `--login` (the autostart entry), `--open <path>`,
-  `--install`, `--uninstall`, `--version` (its line ends `(Qt X.Y.Z)`:
-  `orbit::updates` reads it when it tries an update); SIGTERM/SIGINT quit
-  like the tray's Quit.
+- **Across processes** (what they mean: `docs/world-apps.md`, "The desktop
+  around the app" and "Quick capture"): the tray socket (abstract
+  `sol-tray:$XDG_RUNTIME_DIR`, JSON lines of lowercase `Up`/`Down`,
+  `tray.rs`); the single-instance door, abstract `sol-<world>:$XDG_RUNTIME_DIR`
+  / `sol-preview-<world>:…` (`sol-test-<pid>-<world>` with `testing`), plus
+  the socket file `sol-<world>.sock` that versions before 1.0 use (knocked
+  on before running, listened at; drop it once no 0.x app is left), with
+  lines `show`, `open <path>`, `wait` and `ask do|find|ask|capture <json>`
+  (answered `ok <json>` / `no <why>`; older copies answer only `ok`; `ask
+  capture null` opens quick capture, answered `ok "open"`, which
+  `deploy/desktop/bin/sol-capture` reads); the status file
+  `$XDG_RUNTIME_DIR/sol/<world>.json` (`preview-<world>.json`), the world's
+  `status` plus `world`, `name`, `pid`, `at`, read by the desktop's plugin,
+  fastfetch and `sol-do`; the world commands `status`, `do` (`Do { id, arg
+  }`), `find` (`Query` → `[Found]`) and `ask` (`Question { id, arg }` →
+  JSON; `capture` is `Line { line, go }` → `Offer { does, sure }` / null,
+  or with `go` one sentence), all four registered by `desktop::Desktop`
+  (`register` adds only those with something to answer; `status` and `ask`
+  reply as JSON text through `Commands::add_text`); the sure scale in
+  `desktop/matching.rs` (`EXACT` 1.0, `VERB` 0.9, `PREFIX` 0.8, `ALL_WORDS`
+  0.7, `SOME_WORD` 0.5, `GUESS` 0.3), which every world's offers are ranked
+  on against each other; the questions worlds ask each other, typed in
+  `questions.rs` (Mercury's `Furigana`, `Say`, `Level`, `AddWord`;
+  Neptune's `Now`, `Duck`, `Pause`), whose wire (ids, JSON fields, `duck`'s
+  and `add-word`'s JSON inside the `do` argument, `level` and `now` asked
+  with a null) stays as installed apps speak it: the answerers'
+  `fixtures/questions/*.json` and the askers' copies check it (who asks
+  what: the table in `docs/world-apps.md`); the desktop file `sol-<world>`; the flags
+  `--status`, `--do <action> [arg]`, `--find <words>`, `--background` (a
+  moon its planet started), `--login` (the autostart entry), `--open
+  <path>`, `--install`, `--uninstall`, `--version` (its line ends `(Qt
+  X.Y.Z)`: `orbit::updates` reads it when it tries an update);
+  SIGTERM/SIGINT quit like the tray's Quit.
 - **Environment**: `SOL_PREVIEW`, `SOL_SHOT`, `SOL_SHOT_AFTER`,
   `SOL_SHOT_PATH` (and its `_` keys), `SOL_FPS`, `SOL_DRIVE`, `SOL_LIGHT`,
-  `SOL_FAKE_NAVIDROME`.
+  `SOL_CALM`, `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
+- **Live QML** (`src/live.rs`, `cpp/live.h`; what it is for:
+  `docs/world-apps.md`, "Live QML"): with `SOL_QML_LIVE=1` a preview maps
+  `qrc:/qt/qml/Sol/Design/qml/<File>.qml` to this checkout's `qml/` and
+  `qrc:/qt/qml/Sol/<World>/qml/` (from `World::main`) to `World::source`'s
+  `qml/`. A file's folder on disk must stay laid out as in the module
+  (`qml/`, `../assets`, `../shaders`).
+- **Test helpers** (`src/testing.rs`, feature `testing`, which turns on
+  orbit's `testing`): the worlds' tests call `offline_link`,
+  `assert_manifest`/`Expect`, `capture_q`, `assert_asked`, `assert_told`,
+  `assert_copy`, `undoably`, `take_back` and `FakeDoor` by name; keep them
+  and their meaning (`docs/world-apps.md`, "Tests").
 - **The stand-in Navidrome** (`src/navidrome/`, feature `fake-navidrome`):
   Neptune's and Triton's previews and tests name its ids (`al-1`, `ar-2`,
   `pl-1`, `tr-1-1`) and counts (9 artists, 24 albums, 168 tracks); change
@@ -147,14 +201,13 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   for an image already decoded; Settle/Card `whenSeen` must forget on
   destruction and treat a Flickable of height ≤ 0 as in view.
 - Commands reply as JSON text (an `f32` through `serde_json::Value`
-  widens); a panicking command still replies. `SolBackend` subscribes to
+  widens); a panicking command still replies. A command's closure returns
+  `anyhow::Result` and `Commands` says the error (`say`); `undoable` is a
+  name `Commands::call` answers itself, so no world may name a command so. `SolBackend` subscribes to
   the link before reading its state.
 - QML errors go to the journal, not stderr. `QT_QPA_PLATFORM=offscreen`
   draws neither the body shader nor glyph images: look at real windows,
-  on the hidden display. **Every preview, shot, drive and gallery run goes
-  through `scripts/hidden.sh -- <command>`** (a headless KWin with its own
-  bus and runtime folder): never open a window on the person's desktop.
-  A drive's TestEvent click needs a mouse move onto the item first.
+  on the hidden display (`../../docs/agents.md`). A drive's TestEvent click needs a mouse move onto the item first.
   `SOL_SHOT` beside `SOL_DRIVE`: both run on their own clocks, and
   whichever quits first ended the run (a drive's `Qt.quit()` before
   `SOL_SHOT_AFTER` left no picture; the shot's quit closed the window
@@ -165,29 +218,32 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   stays open; a script that fails to load says so in the journal
   (`SOL_DRIVE: the script didn't load`). The shot's clock starts when the
   frame shows the Shell or Connect, not when the window opens.
-- **One build at a time**, in the foreground (cxx-qt builds are heavy;
-  parallel world builds crashed this machine).
+- A world's own `qrc_resources` in its `build.rs` hid the kit's assets (every
+  photo and shader failed to open): a world ships a file with `include_bytes!`
+  and writes it to its cache folder (Luna's night sounds) instead.
 
 ## Checks
 
-- `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`.
+- `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`,
+  each with and without `--features testing`.
 - After any change here, the gallery: `scripts/gallery-shots.sh <folder>`
-  builds it once (`examples/gallery`, the kit's own window with every
-  component on four pages) and takes every page night and day, two narrow,
-  and the focus, menu, palette, dialog and notice states, then prints what
-  the journal said about the QML (nothing, or the lines). Read the
-  pictures, before and after the change (a control's focus shows only
-  while the window stays in front). It runs itself inside `hidden.sh`.
-  By hand: `scripts/hidden.sh -- cargo run --example gallery` (with
-  `SOL_SHOT` to see it).
+  (`examples/gallery`, every component on four pages, night and day, two
+  narrow, and the focus, menu, palette, dialog and notice states, then
+  what the journal said about the QML). It builds only when more than
+  `.qml` files changed (`--build` builds anyway). Read the pictures,
+  before and after (a control's focus shows only while the window stays
+  in front). The gallery runs the Rust side too (it calls
+  `sol_quick::run`).
 - Build a world (with `use-local` on) only when its own screens use what
-  changed, and look at those screens; never every world's pages. A change
-  to the Rust side is run by the gallery too (it calls `sol_quick::run`).
+  changed, and look at those screens; never every world's pages.
 
 ## Releasing
 
-1. Bump `version` in `Cargo.toml` (1.x.0 for anything new); keep
-   `orbit` on a released tag (`orbit = { git, tag }`), not `path`.
+1. Bump `version` in `Cargo.toml` (1.x.0 for anything new). While
+   `use-local` is on, `orbit` here is `{ path = "../orbit" }` (in
+   `[dependencies]` and `[dev-dependencies]`); a release points both at a
+   released orbit tag first (`worlds.sh use-tags … kit/quick`), so the
+   crate builds on its own from GitHub.
 2. The person commits, tags `v<version>` and pushes (Draysh/sol-quick is
    public, so cargo can fetch it without credentials).
 3. `hub/scripts/worlds.sh use-tags <orbit> <design> <quick>` points every

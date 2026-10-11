@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Runs a heavy command (cargo build/test/clippy, a world's preview) in a group
+# of its own with a memory ceiling, so if it grows too big only it is stopped,
+# never Claude or the desktop. Every agent runs cargo through this.
+#
+#   ~/Projects/sol/kit/quick/scripts/capped cargo build
+#   ~/Projects/sol/kit/quick/scripts/capped cargo test --workspace
+#
+# MemoryHigh slows the group down before the ceiling; MemoryMax stops it.
+exec systemd-run --user --scope --quiet --collect \
+	-p MemoryHigh=10G -p MemoryMax=14G -p MemorySwapMax=0 \
+	-- "$@"

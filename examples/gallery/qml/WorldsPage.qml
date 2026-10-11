@@ -43,6 +43,8 @@ Screen {
     header: Sheet {
         world: page.world
         drift: page.contentY
+        // Mercury's rings: three weeks of reviews in a row.
+        rings: page.world === "mercury" ? 3 : 0
         callout: page.sample.callout
         rows: page.sample.rows
         moons: Worlds.kin(page.world).map(k => ({ id: k.id, label: k.name + " · " + k.role, hint: k.tagline, open: () => { page.win.world = k.id } }))
@@ -68,6 +70,36 @@ Screen {
                         text: Worlds.get(modelData).name
                         on: page.world === modelData
                         onClicked: page.win.world = modelData
+                    }
+                }
+            }
+        }
+
+        Card {
+            width: parent.width
+            title: "Body · Terra's surface (green, cloudy)"
+            Strip {
+                width: parent.width
+                spacing: Theme.s3
+                fades: true
+                ground: Theme.raised
+                Repeater {
+                    model: [{ green: 0, cloudy: 0.2, name: "Dry, clear" }, { green: 0.2, cloudy: 0.85, name: "Dry, overcast" }, { green: 0.5, cloudy: 0.5, name: "As it is" },
+                        { green: 0.8, cloudy: 0.35, name: "Green" }, { green: 1, cloudy: 0.1, name: "Lush, clear" }]
+                    delegate: Item {
+                        id: surfaceCell
+                        required property var modelData
+                        width: 150
+                        height: 150 + 48 + Theme.s4 * 2
+                        Body { world: "terra"; disc: 120; x: 15; y: 15; green: surfaceCell.modelData.green; cloudy: surfaceCell.modelData.cloudy }
+                        Row {
+                            y: 150
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: Theme.s2
+                            Body { world: "terra"; disc: 48; animated: false; green: surfaceCell.modelData.green; cloudy: surfaceCell.modelData.cloudy }
+                            Item { width: 22; height: 48; Body { world: "terra"; disc: 22; y: 13; animated: false; green: surfaceCell.modelData.green; cloudy: surfaceCell.modelData.cloudy } }
+                        }
+                        Quiet { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; text: surfaceCell.modelData.name }
                     }
                 }
             }
@@ -126,6 +158,45 @@ Screen {
                 }
             }
             Words { width: parent.width; small: true; quiet: true; text: "Each at 10 and 16 px, then hollow (the app isn’t answering)." }
+        }
+
+        // Every Icon by name: the chrome's own first, then Lucide's.
+        Card {
+            id: iconCard
+            width: parent.width
+            title: "Icon"
+            Icon { id: probe; visible: false }
+            Flow {
+                width: parent.width
+                spacing: Theme.s2
+                Repeater {
+                    model: Object.keys(probe.paths).concat(Object.keys(probe.lines))
+                    delegate: Item {
+                        id: iconCell
+                        required property string modelData
+                        width: 84
+                        height: 56
+                        Icon { x: (parent.width - width) / 2; y: 6; name: iconCell.modelData; size: 20; color: Theme.text }
+                        Text {
+                            x: (parent.width - width) / 2; y: 36
+                            width: Math.min(implicitWidth, parent.width)
+                            elide: Text.ElideRight
+                            text: iconCell.modelData
+                            font.family: Theme.font; font.pixelSize: Theme.textXs
+                            color: Theme.textQuiet
+                        }
+                    }
+                }
+            }
+            Row {
+                spacing: Theme.s4
+                Repeater {
+                    model: [12, 16, 24, 48]
+                    delegate: Icon { required property int modelData; name: "settings"; size: modelData; color: Theme.text; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Icon { name: "sparkles"; size: 48; stroke: 1; color: Theme.textFaint; anchors.verticalCenter: parent.verticalCenter }
+            }
+            Words { width: parent.width; small: true; quiet: true; text: "Each at 20 px. Then one at 12 (a button), 16 (the sidebar, menus and the palette), 24 and 48, and a large faint one as an empty page has." }
         }
     }
 }

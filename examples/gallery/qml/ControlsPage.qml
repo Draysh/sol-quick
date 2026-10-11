@@ -70,6 +70,8 @@ Screen {
                 Button { variant: "round"; icon: "play"; busy: true }
                 Button { variant: "round"; icon: "close"; enabled: false }
                 Button { icon: "arrow-up-right"; text: "Open in Sol" }
+                Button { icon: "download"; text: "Export"; hint: "A leading icon, for an action a glyph makes quicker to find" }
+                Button { variant: "quiet"; icon: "refresh"; text: "Refresh" }
                 Button { id: focusButton; text: "With the keys"; hint: "Tab moves the keys; the ticks follow" }
             }
         }
@@ -110,7 +112,9 @@ Screen {
             title: "Check"
             Column {
                 width: parent.width
-                Check { width: parent.width; label: "Walk"; meta: "12 d"; checked: true; onToggled: c => checked = c }
+                Check { width: parent.width; label: "Walk"; meta: "12 d"; checked: true; weight: weightOf(12); onToggled: c => checked = c }
+                Check { width: parent.width; label: "Stretch"; meta: "41 d"; checked: true; weight: weightOf(41); onToggled: c => checked = c }
+                Check { width: parent.width; label: "Japanese"; meta: "104 d"; weight: weightOf(104); onToggled: c => checked = c }
                 Check { width: parent.width; label: "Read"; meta: "due 21:30"; onToggled: c => checked = c }
                 Check { width: parent.width; label: "Saving"; meta: "busy"; busy: true }
                 Check {

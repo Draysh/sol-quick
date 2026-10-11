@@ -33,7 +33,7 @@ QtObject {
     readonly property int keptCount: kept.conflicts + kept.rejected + kept.earlier
     /** Why this device's copy didn't open (`{ problem: "newer" | "damaged" | "other", path, detail }`), or null. */
     readonly property var problem: SolBackend.problem ? JSON.parse(SolBackend.problem) : null
-    /** Bumped whenever documents change, here or on another device: bind to it to read again. */
+    /** Bumped whenever documents change, here or on another device. A page reads again with a `Watch` on its own collections instead. */
     readonly property int changes: SolBackend.changes
     /** Bumped when the world's settings change in Sol. */
     readonly property int settingsVersion: SolBackend.settingsVersion
@@ -70,21 +70,46 @@ QtObject {
         Resolves with the fresh reply.
     */
     function callSeen(command, args, use) {
+        const id = nextId++
         const key = command + " " + JSON.stringify(args || {})
-        const last = SolBackend.recall(key)
-        if (last !== "") {
-            try { use(JSON.parse(last), true) } catch (e) { }
-        }
-        return call(command, args).then(reply => {
-            SolBackend.remember(key, JSON.stringify(reply))
-            use(reply, false)
-            return reply
-        })
+        return new Promise((resolve, reject) => {
+            // What was seen last is read and kept on the Rust side, off the window's thread;
+            // `same` says the fresh reply is what was seen, so nothing need compare them here.
+            pending[id] = { resolve: resolve, reject: reject, recalled: last => {
+                try { use(JSON.parse(last), true, false) } catch (e) { }
+            } }
+            SolBackend.callSeen(id, key, command, JSON.stringify(args || {}))
+        }).then(r => { use(r.reply, false, r.same); return r.reply })
     }
 
     // ---- Little helpers every world's screens share -----------------------------
     /** A failure as a notice from this world: titled for what didn't happen, the reason as its body. */
     function fail(title, why) { return Notices.failed(world, title, why) }
+
+    /**
+        Runs the command `command` with `args` as a write that can be taken
+        back from its notice for a few seconds: the world's Rust says which
+        documents it changes (`Commands::undoable`), keeps them as they
+        were, and the notice's Undo puts them back. `o` is the notice's
+        `title` and `body`; `undone()` follows a taken-back write (to load
+        the page again). A write with a way back of its own (a star in
+        Navidrome, Saturn's `put_back`) passes `undo: (result, token) =>
+        promise`, handed the token its documents were kept under (null when
+        the command keeps none). Resolves with what the command returned.
+
+            Sol.undoable("archive_habit", { id: id }, { title: "Archived", body: "“Walk” is off the list." })
+    */
+    function undoable(command, args, o) {
+        return call("undoable", { command: command, args: args || {} }).then(r => {
+            const back = o.undo ? () => o.undo(r.result, r.undo)
+                : r.undo !== null ? () => call("restore", { undo: r.undo }) : null
+            if (back)
+                Notices.show({ world: world, title: o.title, body: o.body || "", action: "Undo",
+                    run: () => back().then(() => { Sounds.off(); if (o.undone) o.undone() }).catch(why => fail("Not taken back", why)) })
+            else Notices.show({ world: world, title: o.title, body: o.body || "" })
+            return r.result
+        })
+    }
 
     /** Whether two replies say the same (so what shows can stay as it is). */
     function same(a, b) { return JSON.stringify(a) === JSON.stringify(b) }
@@ -105,9 +130,13 @@ QtObject {
         follows each reply taken. Resolves with the fresh reply.
     */
     function fill(item, name, command, args, then) {
-        return callSeen(command, args || {}, (reply, seen) => {
+        let shown = false
+        return callSeen(command, args || {}, (reply, seen, same) => {
             if (seen && item[name]) return
-            update(item, name, reply)
+            // The fresh reply is what was seen, and that is what shows: nothing to compare.
+            if (same && shown) return
+            if (seen) { item[name] = reply; shown = true }
+            else update(item, name, reply)
             if (then) then(reply)
         })
     }
@@ -166,6 +195,8 @@ QtObject {
 
     /** A world's own event for its screens: `Connections { target: Sol; function onEvent(name, data) { … } }`. */
     signal event(string name, var data)
+    /** Documents changed in these collections (an empty list: in any); a page reads again with a `Watch`. */
+    signal changedIn(var collections)
 
     property Connections link: Connections {
         target: SolBackend
@@ -174,9 +205,14 @@ QtObject {
             const p = sol.pending[id]
             if (!p) return
             delete sol.pending[id]
-            if (ok) p.resolve(body === "" || body === "null" ? null : JSON.parse(body))
-            else p.reject(body)
+            const reply = ok ? (body === "" || body === "null" ? null : JSON.parse(body)) : null
+            if (!ok) p.reject(body)
+            else if (p.recalled) p.resolve({ reply: reply, same: !!p.same })
+            else p.resolve(reply)
         }
+        function onRecalled(id, body) { const p = sol.pending[id]; if (p && p.recalled) p.recalled(body) }
+        function onRepeated(id) { const p = sol.pending[id]; if (p) p.same = true }
+        function onChanged(collections) { sol.changedIn(JSON.parse(collections)) }
         function onNotice(title, body, tone) {
             Notices.show({ world: "sol", title: title, body: body, tone: tone })
         }

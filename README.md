@@ -15,16 +15,20 @@ How a world app is laid out and what it uses from here is in
 
 ```toml
 [dependencies]
-sol-quick = { git = "https://github.com/Draysh/sol-quick", tag = "v0.3.0" }   # or path = "../../kit/quick" (worlds.sh use-local)
+sol-quick = { git = "https://github.com/Draysh/sol-quick", tag = "v1.1.0" }   # or path = "../../kit/quick" (worlds.sh use-local)
 cxx-qt = "0.10"
 [build-dependencies]
 cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }
+[dev-dependencies]
+sol-quick = { git = "https://github.com/Draysh/sol-quick", tag = "v1.1.0", features = ["testing"] }
 ```
 
 `build.rs` declares the app's own QML module (`Sol.<Name>`, every file in
 `qml/`), and `main.rs` hands `sol_quick::run` a `World`: the manifest, the
 update key, the icons, the `Handler` for what Sol asks of the app, the
-`Commands` its screens call, and the URL of `Main.qml`. The template in
+`Commands` its screens call, the URL of `Main.qml`, and `source:
+env!("CARGO_MANIFEST_DIR")` (where a preview with `SOL_QML_LIVE=1` reads
+the screens from). The template in
 `kit/template` is the smallest complete example; `cargo build` compiles the
 QML too, so a mistake in a `.qml` file fails the build.
 
@@ -35,8 +39,9 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 
 | File | What it does |
 | --- | --- |
-| `lib.rs` | Re-exports: `run`, `World`, `Prepare`, `Sample`, `Commands`, `say`, `data_dir`, `cache_dir`, `device_name`, `emit`, `quit`, `leave`, `runtime`, `Shared`, `handler` |
+| `lib.rs` | Re-exports: `run`, `World`, `Prepare`, `Sample`, `Commands`, `say`, `data_dir`, `cache_dir`, `device_name`, `emit`, `open`, `quit`, `leave`, `runtime`, `Shared`, `handler` |
 | `app.rs` | `run` (command line, the log, one copy at a time, an update on trial, SIGTERM/SIGINT, the tokio runtime, the `Link`, moons, the tray, then the window), `World`, `Runtime`, `data_dir`, `cache_dir`, `emit`, `quit`, `leave` |
+| `live.rs` (+ `cpp/live.h`) | `SOL_QML_LIVE`: a preview reads the QML modules from their checkouts (a URL interceptor on the engine) |
 | `shared.rs` | The commands every world's screens can call besides their own (below) |
 | `exchange.rs` | Export and import of a world's own collections (those in its manifest) as one JSON file: `export`, `write`, `read`, `plan`, `import`; an import goes through the `Link`, merges by id and deletes nothing |
 | `seen.rs` | What pages last showed (`Sol.callSeen`), a file per key in the data folder's `seen/`, pruned after 30 days |
@@ -44,10 +49,19 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 | `commands.rs` | `Commands` (typed async commands by name; replies go to JSON text, so an `f32` stays as written) and `say` (an error as one sentence with its causes, `{:#}`) |
 | `engine.rs` | `Shared<T>` (a world's engine, built in `prepare` and read by commands and the handler) and `handler(|| …)` (a `Handler` made for each call, around that engine) |
 | `bridge.rs` | `SolBackend`, the one QObject the QML side talks to (properties, `call`, signals) |
-| `single.rs` | One copy at a time: the abstract socket `sol-<world>:$XDG_RUNTIME_DIR` (`sol-preview-<world>:…` in preview) and its knocks (`show`, `open <path>`); also the file `sol-<world>.sock` that versions before 1.0 use, knocked on and listened at, so an old and a new version never both run |
+| `capture.rs` | Quick capture (`docs/world-apps.md`, "Quick capture"): every running world asked, best offer first (`Line`, `Offer`) |
+| `desktop/mod.rs` | The desktop around the app (`docs/world-apps.md`): `Desktop`, a world's status, actions, find, verbs and questions said once and registered as the door's commands; `Plan`, `Typed`, `encode`; and the portal (`portal.rs`: `notify`, `pick_file`, global shortcuts) |
+| `desktop/matching.rs` | Quick capture's one scale of how sure (`EXACT` … `GUESS`), `score`, `best`, `rank`, `after_verb`, `pick_by_name_or_next_open` |
+| `door.rs` | What comes through the door: `--do`, `--find` (`Do`, `Query`, `Found`), another world asked (`ask`, `tell`, `Question`, `Unanswered`) |
+| `questions.rs` | The questions worlds ask each other, typed (`Furigana`, `Say`, `Level`, `AddWord`, `Now`, `Duck`, `Pause`), and `ask` / `tell` for them |
+| `moments.rs` | Moments played once per occasion for the person (`first_time`, kept in the world's `moments` collection) |
+| `commands.rs` | `Commands` (the registry: `add`, `undoable`, `creates`, `names`; over the link, `engine(&ENGINE)` or `over(…)`), `doc`, `say` |
+| `undo.rs` | Undo: the documents a write changes, kept under a token (`keep`, `take`) and put back (`restore`) |
+| `status.rs` | The status file for the bar (`refresh`) and `--status` |
+| `testing.rs` | With the `testing` feature, for a world's tests (`docs/world-apps.md`, "Tests"): `offline_link`, `assert_manifest` and `Expect`, `capture_q`, `undoably` and `take_back`, `FakeDoor`, and orbit's `FakeHttp`, `Reply`, `StandInSol` |
+| `single.rs` | One copy at a time: the abstract socket `sol-<world>:$XDG_RUNTIME_DIR` (`sol-preview-<world>:…` in preview) and its knocks (`show`, `open <path>`, and `ask <command> <json>` for the desktop's `do` and `find`, answered `ok <reply>` or `no <why>`); also the file `sol-<world>.sock` that versions before 1.0 use, knocked on and listened at, so an old and a new version never both run |
 | `tray.rs` | One Sol tray for every Sol app here (the first one hosts it; the others join over a socket) and the counts on the apps' icons |
-| `desktop.rs` | Notifications (`notify`), and global shortcuts through the desktop's portal |
-| `navidrome/` | With the `fake-navidrome` feature (Neptune and Triton): `FakeNavidrome`, a stand-in Navidrome on 127.0.0.1 for previews and tests (a made-up library with drawn covers, playlists, stars, lyrics, streams of silence; `mod.rs` the server's handle and `preview()`, `library.rs` the library, `api.rs` the Subsonic endpoints, `http.rs` the socket, `media.rs` the PNGs and WAVs) |
+| `navidrome/` | With the `fake-navidrome` feature (Neptune and Triton): `FakeNavidrome`, a stand-in Navidrome on 127.0.0.1 for previews and tests (a made-up library with drawn covers, playlists, stars, lyrics (Japanese for Kaito Mori), two artists of anime openings and endings (for Triton), streams of silence; `mod.rs` the server's handle and `preview()`, `library.rs` the library, `api.rs` the Subsonic endpoints, `http.rs` the socket, `media.rs` the PNGs and WAVs) |
 
 **The shared commands** (`shared.rs`): `connect {server}`, `cancel`,
 `forget`, `settings`, `open_in_sol`, `doors` (the worlds installed here),
@@ -58,7 +72,13 @@ the writes kept aside (`kept`, `keep_mine {seq}`, `drop_kept {seq}`,
 `save_kept`, which writes them to a JSON file in Downloads and returns its
 path); `export_world` (every document of the world's own collections to
 `Downloads/sol-<world>-<stamp>.json`, a preview's `downloads/` instead; replies `{ path, documents }`) and
-`import_world {path, dry?}` (an export file read back: with `dry`, what it
+`moment {occasion}` (true the first time, for the person: recorded in the
+world's `moments`), `undoable {command, args}` (the world's write run
+with the documents it touches kept: `{ result, undo }`, `undo` a token or
+null) and `restore {undo}` (Undo: those documents put back as they were;
+the world's own collections only), `capture {line, world?}` (quick capture: every running world's
+offer, best first, and `away`, those not running; with `world`, that one
+does it); `import_world {path, dry?}` (an export file read back: with `dry`, what it
 would do; without, the same written through the link; replies a plan,
 `{ world, exported_at, added, replaced, same, skipped, collections: [{
 collection, label, added, replaced, same }] }`), `pick_file {title, filter?:
@@ -75,10 +95,12 @@ replaced: don't use them.
 | --- | --- |
 | `SOL_PREVIEW` | The Shell without pairing, on a throwaway copy (`/tmp/sol-preview-<world>`) filled with sample data the first time; its own socket, so it runs beside the installed app. On with any value, even `0` |
 | `SOL_SHOT=<png>` | A picture of the window `SOL_SHOT_AFTER` ms (2500 unless set) after it shows the Shell (or Connect), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
-| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette), `_scroll=N` (the page scrolled to N, 1.8 s in), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell) |
+| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, 1.8 s in), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, 1.2 s in) |
+| `SOL_QML_LIVE=1` | A preview reads the kit's and the world's QML from their checkouts, so an edited `.qml` shows without a build (`docs/world-apps.md`, "Live QML"); `scripts/hidden.sh` turns it on unless set, `0` looks at the compiled QML |
 | `SOL_FPS` | The frames really painted each second, in the journal (0 while nothing moves). On with any value |
 | `SOL_DRIVE=<file.qml>` | A script loaded into the window (handed `win`) that drives it end to end, and ends the run with `Qt.quit()` |
 | `SOL_LIGHT=night\|day` | This run's light, whatever the device's setting says |
+| `SOL_CALM` | This run with less motion (moments short and still), whatever the device's setting says |
 | `SOL_FAKE_NAVIDROME=off` | A music world's preview without the stand-in Navidrome (`navidrome::preview()` answers none), to see its pages unconnected |
 | `QT_SCALE_FACTOR` | Qt's own: `1.5` to check fractional scaling; a large one (3) also makes a narrow window |
 
@@ -93,6 +115,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 - `Theme`: every token (the sky in three depths, night and day, type,
   spacing, corners, durations, eases) and the rules the controls share:
+  `calm` (less motion, per device: Settings → On this device, or `SOL_CALM`),
   `whenSeen(item, arrival)`, `wheel(event, notch)`, `screenOf(item)`,
   `keepInView(flick, top, height)`, `typing(item)`, `isRepeater(item)`,
   `chosenAccent` (this device's accent, `sol.<world>`), `mark(c)`, `tint(c, a)`.
@@ -102,7 +125,10 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   and `callSeen`, and the helpers every
   world shares: `fail`, `same`, `update`, `fill`, `fetch`, `sync`,
   `follow`, `badge`, `openUrl`, `openInSol`, `openWorld`, `doors`, `moons`,
-  `clock`, and the `event(name, data)` signal.
+  `clock`, `undoable(command, args, { title, body, undo?, undone? })` (a
+  write with Undo in its notice: the documents the world's Rust says it
+  touches are kept and put back, or a way back of its own), and the
+  `event(name, data)` signal.
 - `Format`: counts, days, times and durations as words (`plural`, `dayOf`,
   `toDate`, `addDays`, `weekday`, `dayNumber`, `short`, `long`, `month`,
   `date`, `when`, `ago`, `until`, `hours`, `hm`, `length`, `duration`,
@@ -111,7 +137,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (moons and planets), and the real sky (`skyOf`, `moonAt`, `now`).
 - `Notices`: in-app notices (`show`, with an optional button: `action`
   and `run`; `dismiss`, `act`, `failed`).
-- `Sounds`: `tick`, `done`, `off`, once turned on in `DeviceCard`.
+- `Sounds`: `tick`, `done`, `off`, `chime` (a moment's, two soft seconds) and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which), once turned on in `DeviceCard` (one switch for all).
 - `SolBackend` (Rust, `bridge.rs`): what `Sol` and `AppWindow` are built on.
 
 **The frame**
@@ -120,16 +146,24 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   with the app's `sections` and `pages`; `menu`, `ask`, `commandPalette`,
   `commands`, `find`, `footer`, `busy`, `warn`, `widget`, `widgetName`, and
   `started()` (the moment to start the app's own work: once paired, at
-  once in preview; not again on an offline/online flip).
+  once in preview; not again on an offline/online flip), `tour` (the
+  first-run tour's three cards, below), and `moments` (the scenes a
+  picture can stage with `_moment=<name>`).
 - `Shell`: the sidebar and the pane, history and the way back (a page
   opened from another has one, a section opened with params from another
   page too), the keys, the hero flight (`go(path, params, { item, url })`).
 - `Sidebar` (the Shell's own, with `SidebarRow` for sections and doors).
+  A section is `{ path, label, hint, icon?, badge? }`: its `icon` (an
+  `Icon` name) stands where the small dot would, quiet at rest and bright
+  when current or under the pointer, and alone on the rail; doors keep
+  their world's glyph. The palette's "Go to" rows lead with it too.
 - `Screen`: a page in the pane (`header`, `filter`/`filters`, `hero`,
-  `scrollBy`, `wheel(event)`, `notch`, `pageStep`).
+  `scrollBy`, `wheel(event)`, `notch`, `pageStep`, `actions`: the page's
+  own rows in the palette and on the `?` sheet, "Rate 8", "Bury this card").
 - `PageHead`: a working page's toolbar (title, a quiet line, actions, the
   way back, `editable`).
-- `Sheet`: the band across a world's first screen, pinned and shrinking.
+- `Sheet`: the band across a world's first screen, pinned and shrinking;
+  `rings` draws faint rings round the world (Mercury: a week of reviews each).
 - `Back`: the way back, by name (Space or Enter from the keys).
 - `Connect`: pairing; `LinkStatus`: the sidebar's bottom line; `Waiting`:
   a small spinner while the status is unknown.
@@ -151,8 +185,10 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 **Controls**
 
-- `Button` (`primary` once a screen, `ghost`, `quiet`, `round`), `Chip`,
-  `Check` (optimistic, `fail()`), `Toggle`, `Slider`, `Field`, `TextArea`
+- `Button` (`primary` once a screen, `ghost`, `quiet`, `round`; `icon`
+  leads the label with a hairline glyph, for the few actions a glyph makes
+  quicker to find, such as Export, Import, Play next, Refresh), `Chip`,
+  `Check` (optimistic, `fail()`; `weight` 1–3 rings the box for a streak of 7, 30, 100 days, `weightOf(days)`), `Toggle`, `Slider`, `Field`, `TextArea`
   (`large` for writing at length, `single` when Enter goes on), `Select`,
   `Editable`, `MoonLink`.
 - `Key`: a key for one page (quiet while you type, or while a menu, dialog
@@ -160,15 +196,25 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 **Overlays** (on the window, over the pages, on glass)
 
-- `ContextMenu` (one per window: `win.menu`), `CommandPalette` (Ctrl+K),
+- `ContextMenu` (one per window: `win.menu`), `CommandPalette` (Ctrl+K)
+  (an entry or command may lead with an `icon`, for common actions; a
+  menu's other labels line up after it),
   `Ask` (`win.ask.name(…)`, `win.ask.confirm(…)`), `Hint`, `Notice` (made
-  by the window from `Notices.list`), `Shortcuts` (`?`).
+  by the window from `Notices.list`), `Shortcuts` (`?`: the Shell's keys,
+  the app's, and the palette's actions here, the window's and the page's).
+- `Moment` (one per window, `win.moment.play({ occasion, scene, facts,
+  chime, length })`) and `MomentCaption`, a scene's words; `Tour` (one per
+  window, `win.tourSheet`, filled from `AppWindow.tour`): both in
+  `docs/world-apps.md` ("Moments", "The first run").
 - `Glass` (the pages behind, blurred and bent, cut to its `radius`; `from`
   blurs another item, as pairing does) and `GlassPanel` (glass with a
   hairline and `Theme.radius` corners: what the overlays sit on).
 
 **Display**
 
+- `Empty` (a page or card with nothing in it yet: a small still scene, a
+  `line`, a `hint`, at most one `action`; `compact` in a card; how to word
+  it in `docs/world-apps.md`).
 - `Display` (a figure that counts up), `DataRows` (`Label: value`),
   `Progress`, `Chart`, `Skeleton` (a page's shape before its data).
 - `Picture` (a picture from a `url`, or a `key` in a `PictureStore`:
@@ -179,11 +225,27 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Strip`: a row that scrolls sideways (sideways wheel, swipe or Shift;
   the vertical wheel goes to the page), a hairline showing where you are,
   `fades` at the ends.
-- `Body` (a world's photo on a sphere lit by a shader: its place in the photo, `fit`, and its `air` are in `Worlds`), `Reticle`, `WorldGlyph`,
-  `Icon`, `Tone` (a picture's colour), `Spark` (a burst for a moment that
-  earns one).
+- `Body` (a world's photo on a sphere lit by a shader: its place in the photo, `fit`, and its `air` are in `Worlds`; `green` and `cloudy` shape a world with clouds, set for every body of a world by `Worlds.setSurface` (Terra's habits and weather); `pace` speeds its clouds), `Reticle`, `WorldGlyph`,
+  `Icon` (below), `Tone` (a picture's colour), `Spark` (a burst for a moment that
+  earns one), `Rings` (faint rings round a body, its far half hidden behind it, drawn once: Mercury's weeks, Saturn's lit rings).
 - Text: `Heading`, `Label` (uppercase, small, bright), `Quiet` (uppercase,
   small, quiet), `Words` (reading text, `quiet`, `small`, `jp`).
+
+**Icon** draws a line glyph by `name` in `color`, `size` px square, a
+`stroke` (1.2) wide at any size: 12 in a button, 16 in the sidebar, menus
+and the palette, 40 or so and `Theme.textFaint` for an empty page. Headings
+and card titles stay words. The chrome's own sit on a 14-unit grid; the
+rest are [Lucide](https://lucide.dev)'s (ISC, `CREDITS.md`) on its 24, drawn
+thinner. A new one is Lucide's SVG with circles, boxes and lines written as
+paths, added to `lines` in `Icon.qml` and to the list here.
+
+| Group | Names |
+| --- | --- |
+| The chrome's | `arrow-left`, `arrow-right`, `arrow-up-right`, `close` (also `x`), `tick` (also `check`), `chevron-down`, `search`, `plus`, `minus`, `play`, `sound` |
+| Places and pages | `home`, `sun` (today), `sunrise`, `moon`, `bed`, `calendar`, `days`, `week`, `grid`, `clock`, `history`, `timeline`, `chart`, `trend`, `activity`, `settings` |
+| Writing and learning | `book`, `book-open` (a dictionary), `diary`, `pen` (write), `edit`, `cards` (a review), `layers` (decks), `languages` (kana), `mic`, `flame` (a streak), `target`, `checklist`, `smile`, `tag` |
+| Watching and listening | `library`, `compass` (discover), `telescope`, `sparkles` (a season), `star` (picks), `heart` (favourites), `bookmark`, `eye`, `orbit` (a galaxy), `film`, `tv`, `music`, `disc` (an album), `user` (an artist), `list`, `playlist`, `queue`, `radio`, `antenna` (stations) |
+| Actions | `pause`, `skip`, `skip-back`, `shuffle`, `repeat`, `volume`, `mute`, `download` (export), `upload` (import), `refresh`, `trash`, `more`, `link`, `external`, `info`, `alert` |
 
 **Primitives**: `Ticks` (the focus mark, rounded with what it marks:
 `radius`), `Rounded` (an image's picture with rounded corners, cut in a
@@ -193,9 +255,10 @@ seen, a stagger apart), `Underline` (a field's line and its focus light),
 
 **Assets** (`assets/`, in the module's resources): the fonts (Outfit,
 Shippori Mincho), every world's photo (`worlds/`), the sounds (`sounds/`,
-generated WAVs), `grain.png`, `sol-tray.png` (the tray's icon), and
-`widget/DesktopWidget.qml`, loaded by URL from outside the compiled module
-(it imports `org.kde.layershell`, which may be missing). **Shaders**
+generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's own, `<world>.wav`; `scripts/night-sounds.py` makes Luna's rain, fire and space loops, which Luna keeps itself), `grain.png`, `sol-tray.png` (the tray's icon),
+`widget/DesktopWidget.qml` and `capture/Capture.qml` (quick capture's line),
+loaded by URL from outside the compiled module (they import
+`org.kde.layershell`, which may be missing). **Shaders**
 (`shaders/`): the body's lighting, the glass and the rounded picture
 (`picture.frag`, Rounded's), committed as `.qsb`; after changing one, from
 `shaders/`:
@@ -253,17 +316,8 @@ the app menu): what it is for in a word or three, shown under its name in
 the sidebar, in its doors and moon links, in the window title, the tray
 and the app menu ("Terra · Habits and diary").
 
-Things QML's JavaScript lacks or forbids, found the hard way: no
-`Array.flat`/`flatMap` (use `reduce` and `concat`); no `Promise.finally`
-(`Sol.qml` adds it); an `Item` can't take a custom property called `data`,
-`enabled`, `top`, `right` or `y`; `target: parent` inside an animation is
-undefined (use an id); a `Repeater`'s delegate must be an `Item` (use an
-`Instantiator` for `Shortcut`s or `ShapePath`s); no anchors inside a `Flow`;
-`required property int index; index: index` binds the property to itself
-(always 0); Qt 6 has no `Glow` (a `MultiEffect` shadow with no offset is
-one); and on Wayland Qt fills `pixelDelta` for a mouse wheel too, so only
-`event.phase === Qt.NoScrollPhase` tells a wheel from a touchpad
-(`Theme.wheel` does it).
+What QML's JavaScript lacks or forbids (no `flat`, the names final on
+`Item`, a wheel told from a touchpad) is listed in `CLAUDE.md`, "Pitfalls".
 
 ## The gallery
 
@@ -271,43 +325,34 @@ one); and on Wayland Qt fills `pixelDelta` for a mouse wheel too, so only
 `Sol.Design` on four pages, as Shell sections, with sample data and the
 kit's own photographs. **Worlds**: the window's world's Sheet (each world
 in turn, ← and →), every Body at 22, 48, 120 and 300 px, every
-WorldGlyph. **Controls**: every Button variant resting, busy and off,
+WorldGlyph, every Icon by name. **Controls**: every Button variant resting, busy and off,
 Chip, Check (on, off, busy, failing), Toggle, Slider, Field (empty,
 typed, invalid), TextArea (and `large`), Select, Editable, Back,
 MoonLink, a page's `Key`, Ticks. **Panels**: Card in its ways, Grid at
 three widths, DataRows, Display, Progress, Callout, Settle, every
 Skeleton and Chart, Strip, Picture and Poster (loaded, missing, dim,
-lifted). **Overlays**: ContextMenu, CommandPalette, Ask, notices, Hint.
+lifted), Empty (both ways). **Overlays**: ContextMenu, CommandPalette, Ask, notices, Hint, the Tour (`_tour=1`), a Moment
+(`_moment=1`; `SOL_CALM=1` for its still form), quick capture (`_capture=walk`,
+answered by the gallery's own `ask`).
 
 ```sh
 scripts/hidden.sh -- cargo run --example gallery   # by hand: a preview, no Sol, no network
-scripts/gallery-shots.sh /tmp/shots               # after a kit change: one build, every page night and day, the journal
+scripts/gallery-shots.sh /tmp/shots               # after a kit change: every page night and day, the journal (a build only when needed)
 ```
 
-Its QML (`examples/gallery/qml/`) is read from this checkout when it
-starts, so changing it needs no build; the kit's own QML is the compiled
-module, as in a world. It is an example, so the worlds get nothing from
-it. Besides the usual `_` keys, its shot path takes `_world=saturn` (the
+Its QML (`examples/gallery/qml/`) and the kit's are read from this
+checkout, so `gallery-shots.sh` builds only when something besides `.qml`
+changed or a `.qml` file was added or removed (`--build` builds anyway).
+It is an example, so the worlds get nothing from it. Besides the usual `_` keys, its shot path takes `_world=saturn` (the
 window as that world), `_focus=field` (`button`, `field`, `textarea`,
 `slider`, or `select` with its list open) and `_menu=1` (the menu open on
 Overlays).
 
 ## Checking a screen
 
-Every preview, picture, drive and gallery run goes through
-`scripts/hidden.sh` (a headless KWin with its own session bus and runtime
-folder, drawing on the GPU), so nothing opens on the person's desktop;
-`gallery-shots.sh` does it by itself.
-
-```sh
-scripts/hidden.sh -- env SOL_PREVIEW=1 SOL_SHOT=/tmp/today.png SOL_SHOT_AFTER=2500 SOL_SHOT_PATH=/ cargo run
-journalctl --user -S -1min | grep '<world>\['     # QML runtime errors land here, not on stderr
-```
-
-`SOL_SHOT_PATH` takes a page's params as a query (`/title?key=x`), and the
-`_` keys above stage a notice, the dialog, the palette or a scroll. A
-change to the kit itself is looked at in the gallery (above), not in
-every world.
+How to run, shoot and read a preview (always inside `scripts/hidden.sh`)
+is in `../../docs/agents.md`; a change to the kit itself is looked at in
+the gallery (above), not in every world.
 
 ## The desktop around the window
 
@@ -332,7 +377,21 @@ every world.
 - **Global keys**: `World::shortcuts` binds them through the desktop's
   portal and sends a `shortcut` event on each press; the desktop may ask
   to confirm them the first time. Neptune's MPRIS (media keys, the
-  desktop's player widget) lives in its audio crate.
+  desktop's player widget) lives in its audio crate. Umbriel has no such
+  portal: its keys run `--do` instead (below).
+- **The bar, the launcher, the terminal** (`src/status.rs`): a world's
+  `status`, `do`, `find` and `ask` commands, written to a status file and
+  answered through its door (`--status`, `--do`, `--find`, another world's
+  `questions::ask`), said once in a `desktop::Desktop`; all of it in `docs/world-apps.md`, "The desktop around
+  the app". The Sol desktop (`deploy/desktop`) reads them.
+
+## Quick capture and Undo
+
+Quick capture (one line over the desktop, done by whichever running world
+understands it; `src/capture.rs`, `assets/capture/Capture.qml`) and
+`Sol.undoable` (a write taken back from its notice; `Commands::undoable`,
+`src/undo.rs`, the shared `undoable` and `restore`) are described, with every world's capture verbs,
+in `docs/world-apps.md`.
 
 ## Work is never lost, updates roll back
 

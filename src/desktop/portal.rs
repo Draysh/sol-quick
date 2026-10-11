@@ -20,7 +20,7 @@ pub async fn notify(
     title: &str,
     body: &str,
     action: Option<(String, String)>,
-) -> Result<u32, String> {
+) -> anyhow::Result<u32> {
     #[cfg(target_os = "linux")]
     {
         let rt = app::runtime();
@@ -47,15 +47,15 @@ pub async fn notify(
                 }
             }
             Err(e) => {
-                let _ = tx.send(Err(e.to_string()));
+                let _ = tx.send(Err(e));
             }
         });
-        rx.await.map_err(|e| e.to_string())?
+        Ok(rx.await??)
     }
     #[cfg(not(target_os = "linux"))]
     {
         let _ = (title, body, action);
-        Err("notifications are Linux only for now".into())
+        anyhow::bail!("notifications are Linux only for now")
     }
 }
 
@@ -68,7 +68,7 @@ pub async fn pick_file(
     title: &str,
     folder: Option<&std::path::Path>,
     filter: Option<(&str, &[String])>,
-) -> Result<Option<String>, String> {
+) -> anyhow::Result<Option<String>> {
     #[cfg(target_os = "linux")]
     {
         use ashpd::desktop::{
@@ -86,9 +86,9 @@ pub async fn pick_file(
             request = request.filter(kind);
         }
         if let Some(folder) = folder.filter(|f| f.is_dir()) {
-            request = request.current_folder(folder).map_err(|e| e.to_string())?;
+            request = request.current_folder(folder)?;
         }
-        let sent = request.send().await.map_err(|e| e.to_string())?;
+        let sent = request.send().await?;
         match sent.response() {
             Ok(files) => Ok(files
                 .uris()
@@ -96,13 +96,13 @@ pub async fn pick_file(
                 .and_then(|uri| uri.to_file_path().ok())
                 .map(|path| path.display().to_string())),
             Err(ashpd::Error::Response(ResponseError::Cancelled)) => Ok(None),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(e.into()),
         }
     }
     #[cfg(not(target_os = "linux"))]
     {
         let _ = (title, folder, filter);
-        Err("the desktop's file picker is Linux only for now".into())
+        anyhow::bail!("the desktop's file picker is Linux only for now")
     }
 }
 

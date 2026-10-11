@@ -9,7 +9,10 @@
 // `air` is how much atmosphere there is (0 none, 1 Titan's); `effect` 1 makes
 // it a haze that rings even the night side. `live` 1 drifts clouds over the
 // disc, 2 makes a star's corona flicker; `time` is seconds, and 0 keeps
-// everything still.
+// everything still. `green` and `cloudy` shape a world with clouds (Terra):
+// 0.5 is the photograph as it is; `green` towards 1 greens the deserts,
+// towards 0 browns the land; `cloudy` towards 1 thickens the clouds,
+// towards 0 clears them.
 
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
@@ -28,6 +31,8 @@ layout(std140, binding = 0) uniform buf {
     float day;      // 1 by day: the night side lets the sky through, as the moon does in daylight
     vec4 fit;
     float air;
+    float green;
+    float cloudy;
 };
 layout(binding = 1) uniform sampler2D source;
 
@@ -128,12 +133,32 @@ void main() {
     vec2 turned = vec2(ct * q.x + st * q.y, -st * q.x + ct * q.y);
     vec4 photo = texture(source, clamp(fit.xy + turned * fit.z, 0.0, 1.0));
     vec3 base = photo.a > 0.5 ? photo.rgb : vec3(0.10);
+    if (live == 1 && abs(green - 0.5) > 0.01) {
+        // The land answers how the weeks went: sand (warm, red over blue,
+        // not white) turns to grass with good weeks; green land dries to
+        // sand after bad ones. Sea, ice and cloud stay as they are.
+        float lum = dot(base, vec3(0.3, 0.55, 0.15));
+        // Sand is warm (red over green and blue) and not white; the
+        // photograph's green land is dark and not blue (that is the sea).
+        float white = smoothstep(0.78, 0.9, min(base.r, min(base.g, base.b)));
+        float sand = smoothstep(0.0, 0.07, base.r - base.b) * smoothstep(0.0, 0.05, base.r - base.g) * (1.0 - white);
+        float grass = smoothstep(-0.01, 0.02, base.g - base.b) * smoothstep(-0.04, 0.0, base.g - base.r) * (1.0 - smoothstep(0.35, 0.5, lum)) * (1.0 - sand);
+        float wet = clamp((green - 0.5) * 2.0, 0.0, 1.0);
+        float dry = clamp((0.5 - green) * 2.0, 0.0, 1.0);
+        // The same light in another colour, so the ground keeps its grain:
+        // a soft savanna green, a little darker than the sand was; a dusty ochre.
+        vec3 lush = lum * vec3(0.66, 0.92, 0.5) * 0.85;
+        vec3 dust = lum * vec3(1.31, 1.03, 0.76);
+        base = mix(base, lush, sand * wet * 0.58);
+        base = mix(base, dust, grass * dry * 0.7);
+    }
     if (live == 1) {
         // Clouds drifting across the sphere, thinner towards the limb, white
         // where the sun is on them; the photograph shows through.
         vec2 sphere = vec2(asin(clamp(p.x, -1.0, 1.0)), asin(clamp(p.y, -1.0, 1.0)));
         float c = clouds(sphere, time);
-        float cover = smoothstep(0.52, 0.78, c) * 0.5 * (0.4 + 0.6 * mu);
+        float lo = mix(0.68, 0.36, clamp(cloudy, 0.0, 1.0));
+        float cover = smoothstep(lo, lo + 0.26, c) * mix(0.3, 0.7, clamp(cloudy, 0.0, 1.0)) * (0.4 + 0.6 * mu);
         // Under a haze (Titan) the clouds are faint, and the haze's colour.
         vec3 cloud = effect == 1 ? mix(base, vec3(1.0, 0.86, 0.62), 0.5) : vec3(0.92, 0.94, 0.97);
         base = mix(base, cloud, effect == 1 ? cover * 0.6 : cover);

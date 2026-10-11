@@ -2,8 +2,8 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
-    The keys, on a sheet over the pane: what the Shell does everywhere and
-    what this app adds. `?` opens it, Escape (the Shell's) or a click
+    The keys, on a sheet over the pane: what the Shell does everywhere,
+    what this app adds, and the actions its palette has here. `?` opens it, Escape (the Shell's) or a click
     outside closes it.
 */
 Item {
@@ -11,12 +11,17 @@ Item {
 
     /** The app's own `{ keys, does }`, shown after the Shell's. */
     property var shortcuts: []
+    /** The palette's own actions (the window's `commands`, `{ label, hint, keys }`), shown last: what Ctrl+K does here. */
+    property var actions: []
     /** The sidebar's field is there (`/` goes to it). */
     property bool finderShown: false
     /** The app has a search page. */
     property bool search: false
     property int sections: 0
+    /** The window has a first-run tour: a button here opens it again. */
+    property bool tour: false
     signal closed()
+    signal tourAsked()
 
     readonly property var everywhere: [].concat(
         sections ? [{ keys: sections > 1 ? "Ctrl+1 … " + Math.min(sections, 9) : "Ctrl+1", does: "Go to a section, in the order of the sidebar" }] : [],
@@ -75,6 +80,7 @@ Item {
                 Item {
                     width: parent.width; height: Theme.control
                     Label { text: "Keys"; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter }
+                    Button { visible: root.tour; variant: "quiet"; text: "Take the tour"; hint: "Three cards: what this app does, its best key, where to start"; anchors.right: parent.right; anchors.rightMargin: 30; anchors.verticalCenter: parent.verticalCenter; onClicked: root.tourAsked() }
                     Button { variant: "round"; icon: "close"; hint: "Close (Esc)"; anchors.right: parent.right; anchors.rightMargin: -10; anchors.verticalCenter: parent.verticalCenter; onClicked: root.closed() }
                 }
 
@@ -114,6 +120,8 @@ Item {
                 Repeater { model: root.everywhere; delegate: KeyRow { required property var modelData; keys: modelData.keys; does: modelData.does } }
                 Group { name: "Here"; visible: root.shortcuts.length > 0 }
                 Repeater { model: root.shortcuts; delegate: KeyRow { required property var modelData; keys: modelData.keys; does: modelData.does } }
+                Group { name: "Actions, from Ctrl+K"; visible: root.actions.length > 0 }
+                Repeater { model: root.actions; delegate: KeyRow { required property var modelData; keys: modelData.keys || "Ctrl+K"; does: modelData.hint ? modelData.label + ": " + modelData.hint : modelData.label } }
             }
             }
         }

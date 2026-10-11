@@ -8,14 +8,14 @@ use super::Playlist;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Artist {
-    /// `ar-1` … `ar-9`; also its picture's cover id.
+    /// `ar-1` … `ar-11`; also its picture's cover id.
     pub id: String,
     pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Album {
-    /// `al-1` … `al-24`; also its cover id.
+    /// `al-1` … `al-28`; also its cover id.
     pub id: String,
     pub name: String,
     pub artist: usize,
@@ -121,6 +121,65 @@ const ARTISTS: [Discography; 9] = [
     ),
 ];
 
+/// An artist, its genre, and its albums with their years and track titles.
+type Themes = (
+    &'static str,
+    &'static str,
+    &'static [(&'static str, u32, &'static [&'static str])],
+);
+
+/// Two made-up anime-song artists: openings and endings named the ways a
+/// real library names them (the show in the album or the title, `OP1`,
+/// `ED`, `TV size`), for Triton's "Openings and endings".
+const THEMES: [Themes; 2] = [
+    (
+        "Kumo Lights",
+        "Anime",
+        &[
+            (
+                "Attack on Titan Theme Songs",
+                2014,
+                &[
+                    "Wings Over the Wall (Attack on Titan OP1)",
+                    "Crimson Arrows (OP2)",
+                    "Quiet Harbour (Attack on Titan ED1)",
+                    "Last Light of the District (ED2)",
+                    "Shingeki no Kyojin Main Theme",
+                ],
+            ),
+            (
+                "Frieren Opening and Ending",
+                2023,
+                &[
+                    "Beyond the Journey (TV size)",
+                    "Flowers by the Road",
+                    "A Thousand Years On (Frieren ED)",
+                ],
+            ),
+        ],
+    ),
+    (
+        "Hoshi Parade",
+        "Anime",
+        &[
+            (
+                "Kaguya-sama OP Collection",
+                2019,
+                &["Love Is a Game (OP)", "Secret Council (ED)"],
+            ),
+            (
+                "Demon Slayer Songs",
+                2019,
+                &[
+                    "Red Lotus Bloom (Kimetsu no Yaiba OP)",
+                    "Night of the Lanterns (ED)",
+                    "Water Breathing",
+                ],
+            ),
+        ],
+    ),
+];
+
 const FIRST: [&str; 16] = [
     "Quiet", "Paper", "Golden", "Late", "Silver", "Hollow", "Northern", "Slow", "Little", "Open",
     "Blue", "Distant", "Bright", "Velvet", "Second", "Winter",
@@ -194,6 +253,38 @@ impl Library {
                         1 + (n * 7) % 27,
                         n % 60
                     ),
+                    songs: list,
+                });
+            }
+        }
+        for (name, genre, records) in THEMES.iter() {
+            let a = artists.len();
+            artists.push(Artist {
+                id: format!("ar-{}", a + 1),
+                name: (*name).into(),
+            });
+            for (title, year, tracks) in records.iter() {
+                let n = albums.len();
+                let mut list = Vec::new();
+                for (t, track) in tracks.iter().enumerate() {
+                    let h = hash(&[n as u64, t as u64]);
+                    list.push(songs.len());
+                    songs.push(Song {
+                        id: format!("tr-{}-{}", n + 1, t + 1),
+                        title: (*track).into(),
+                        album: n,
+                        track: t as u32 + 1,
+                        duration: 90 + (h >> 16) as u32 % 180,
+                        plays: (h >> 32) % 25,
+                    });
+                }
+                albums.push(Album {
+                    id: format!("al-{}", n + 1),
+                    name: (*title).into(),
+                    artist: a,
+                    year: *year,
+                    genre: (*genre).into(),
+                    created: format!("2025-06-{:02}T21:00:00Z", 1 + n % 27),
                     songs: list,
                 });
             }

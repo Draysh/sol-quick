@@ -1832,7 +1832,6 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "orbit"
 version = "1.0.0"
-source = "git+https://github.com/Draysh/sol-orbit?tag=v1.0.0#62ae741a5459d13e73be69304b7a02cc7cbf33d5"
 dependencies = [
  "anyhow",
  "base64",
@@ -1849,6 +1848,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tar",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -2619,7 +2619,7 @@ dependencies = [
 
 [[package]]
 name = "sol-quick"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "ashpd",

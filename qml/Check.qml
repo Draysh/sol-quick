@@ -1,7 +1,13 @@
 import QtQuick
 import QtQuick.Shapes
 
-/* One checklist row: a box (`Theme.radiusS` corners), the label, and a short note on the right. The tick draws itself in. */
+/*
+    One checklist row: a box (`Theme.radiusS` corners), the label, and a short note on the right. The tick draws itself in.
+    `weight` marks a streak kept: 1 (a week) a hairline round the box, 2 (a month) that line in the world's light,
+    3 (a hundred days) a second, fainter one round that.
+
+        Check { label: "Walk"; checked: done; meta: "12 d"; weight: weightOf(12); onToggled: on => … }
+*/
 Item {
     id: root
 
@@ -10,6 +16,10 @@ Item {
     property string meta: ""
     property bool busy: false
     property bool last: false
+    /** How much a streak weighs: 0 none, 1 seven days, 2 thirty, 3 a hundred. */
+    property int weight: 0
+    /** The weight of a streak `days` long: 7, 30 and 100 days in a row. */
+    function weightOf(days) { return days >= 100 ? 3 : days >= 30 ? 2 : days >= 7 ? 1 : 0 }
     signal toggled(bool checked)
 
     readonly property bool live: enabled && !busy
@@ -52,6 +62,10 @@ Item {
             Behavior on border.color { ColorAnimation { duration: Theme.lock } }
             Behavior on scale { SpringAnimation { spring: 5; damping: 0.3 } }
             Ticks { on: root.activeFocus; out: 5; radius: box.radius }
+            // A streak's weight: rings round the box, a week, a month, a hundred days.
+            Rectangle { visible: root.weight >= 1; anchors.centerIn: parent; width: 24; height: 24; radius: Theme.radiusM; color: "transparent"; border.width: 1
+                border.color: root.weight >= 2 ? Theme.textWorld : Theme.lineStrong }
+            Rectangle { visible: root.weight >= 3; anchors.centerIn: parent; width: 31; height: 31; radius: Theme.radius; color: "transparent"; border.width: 1; border.color: Theme.tint(Theme.textWorld, 0.45) }
             // Lock: the box swells for a moment as the tick goes in.
             transform: Scale { id: swell; origin.x: 8; origin.y: 8; xScale: 1; yScale: 1 }
             SequentialAnimation {

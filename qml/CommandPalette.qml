@@ -14,9 +14,9 @@ Item {
     id: root
 
     property var sections: []
-    /** `{ label, hint, keys, run }` */
+    /** `{ label, hint, keys, icon, run }`; `icon` (an `Icon` name) leads the row, for a common action. */
     property var commands: []
-    /** `function(query) → Promise<[{ label, hint, run }]>`, or null. */
+    /** `function(query) → Promise<[{ label, hint, icon, run }]>`, or null. */
     property var find: null
     property var go: null
     property bool open: false
@@ -32,7 +32,8 @@ Item {
     visible: open || box.opacity > 0
     z: 940
 
-    function show() { field.text = ""; found = []; at = 0; rows.contentY = 0; open = true; Qt.callLater(() => field.input.forceActiveFocus()) }
+    /** Opens it, empty, or with `typed` already in the field (a staged picture: `_palette=rate`). */
+    function show(typed) { field.text = typed || ""; found = []; at = 0; rows.contentY = 0; open = true; Qt.callLater(() => field.input.forceActiveFocus()) }
     function close() {
         if (!open) return
         open = false
@@ -46,7 +47,7 @@ Item {
     /** Everything the palette knows, scored against the words typed. */
     readonly property var entries: {
         const all = []
-        for (const s of sections) all.push({ label: "Go to " + s.label, hint: s.hint || "", keys: "", kind: "section", run: () => root.go && root.go(s.path) })
+        for (const s of sections) all.push({ label: "Go to " + s.label, hint: s.hint || "", keys: "", icon: s.icon || "", kind: "section", run: () => root.go && root.go(s.path) })
         for (const c of commands) all.push(Object.assign({ kind: "command" }, c))
         for (const f of found) all.push(Object.assign({ kind: "found" }, f))
         if (q === "") return all.slice(0, 12)
@@ -141,7 +142,7 @@ Item {
                             required property int index
                             readonly property bool on: index === root.at
                             // What the label, the hint and the keys share: the label first.
-                            readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0)
+                            readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0) - (rowIcon.visible ? rowIcon.width + Theme.s3 : 0)
                             width: rowColumn.width
                             height: 44
                             // The light on a row, inset from the panel's edges and rounded with it.
@@ -151,6 +152,7 @@ Item {
                                 x: Theme.s4
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: Theme.s3
+                                Icon { id: rowIcon; visible: !!row.modelData.icon; name: row.modelData.icon || "close"; size: 16; color: row.on ? Theme.textBright : Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter; Behavior on color { ColorAnimation { duration: Theme.lock } } }
                                 Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue; color: row.on ? Theme.textBright : Theme.text }
                                 Text { readonly property real spare: row.room - labelText.width - Theme.s3; visible: !!row.modelData.hint && spare >= 60; text: row.modelData.hint || ""; width: Math.max(0, Math.min(implicitWidth, spare)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
                             }

@@ -29,7 +29,7 @@ Card {
         visible: !root.confirm
         width: parent.width
         spacing: Theme.s2
-        Button { text: "Open in Sol"; onClicked: Sol.openInSol() }
+        Button { icon: "external"; text: "Open in Sol"; onClicked: Sol.openInSol() }
         Button { visible: Sol.keptCount > 0; text: "See what’s kept"; onClicked: (root.Window.window as AppWindow).keptAside.open() }
         Button { variant: "quiet"; text: "Unpair…"; onClicked: root.confirm = true }
     }

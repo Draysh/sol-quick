@@ -7,11 +7,15 @@
 //! An example, not part of the library: the worlds get nothing from it.
 //! Its own screens (`examples/gallery/qml/`) are read from this checkout
 //! when it starts, so a change to them needs no build at all; the kit's
-//! QML is the compiled module, as in a world.
+//! QML is the compiled module, as in a world, unless `SOL_QML_LIVE=1`
+//! reads it from this checkout too (`scripts/gallery-shots.sh` does).
 
 use std::sync::Arc;
 
-use sol_quick::{Commands, World};
+use sol_quick::{
+    Commands, World,
+    desktop::{Desktop, Plan, Typed},
+};
 
 const MANIFEST: &str = r#"{
   "id": "gallery",
@@ -20,6 +24,22 @@ const MANIFEST: &str = r#"{
   "role": "The kit at a glance",
   "repo": "Draysh/sol-quick"
 }"#;
+
+/// The gallery's one verb: any line, said back, so quick capture's line
+/// has someone to answer it.
+fn commands() -> Commands {
+    let mut commands = Commands::default();
+    Desktop::new("Gallery")
+        .verb(&[], |_, typed: Typed| async move {
+            Ok::<_, String>(Some(Plan::said(
+                format!("say “{}” back", typed.line),
+                0.2,
+                format!("Said “{}” back.", typed.line),
+            )))
+        })
+        .register(&mut commands);
+    commands
+}
 
 fn main() {
     cxx_qt::init_crate!(sol_quick);
@@ -39,12 +59,13 @@ fn main() {
         bin: "sol-gallery",
         icons: &[(64, include_bytes!("../../assets/sol-tray.png"))],
         handler: Arc::new(orbit::link::Ignore),
-        commands: Commands::default(),
+        commands: commands(),
         main: concat!(
             "file://",
             env!("CARGO_MANIFEST_DIR"),
             "/examples/gallery/qml/Main.qml"
         ),
+        source: env!("CARGO_MANIFEST_DIR"),
         sample: None,
         prepare: None,
         tray: &[],

@@ -30,30 +30,34 @@ Cargo.toml        the version (tag releases v<version>); orbit and sol-quick on 
 sol-world.json    the manifest: id, name, tagline, role, repo, parent (a moon),
                   collections, emits, actions, settings, connections
 build.rs          the app's QML module Sol.<World>: every qml/*.qml
-src/main.rs       the Commands table and the World handed to sol_quick::run
-src/world.rs      the world's logic (src/world/*.rs for the rest)
+src/main.rs       the World handed to sol_quick::run, and the engine's static
+src/world.rs      the world's logic and `commands()`, which gathers every
+                  module's (src/world/*.rs for the rest; src/world/desktop.rs
+                  what the desktop sees of it, src/world/sample.rs the preview's data)
 qml/Main.qml      the AppWindow: sections, pages, the window's own wiring
 qml/<World>.qml   the world's singleton: state and words the screens share
 qml/*Page.qml     one Screen per page; other files are the pieces they share
-sample.json       preview data, where a world keeps it outside main.rs
+sample.json       preview data, where a world keeps it outside sample.rs
 scripts/          icon.sh, install-local.sh, signing-key.sh
 update.pub        the key release files are signed with
 ```
 
-- **`main.rs`** stays a table: the argument structs, `commands.add("name",
-  |link, a: Args| async move { world::thing(&link, a).await.map_err(say) })`
-  for each command the screens call, then `sol_quick::run(World { manifest,
-  update_key, version, bin, icons, handler, commands, main, sample, prepare,
-  tray, shortcuts })`. The logic lives in `world.rs` and `world/`.
+- **`main.rs`** is wiring: `sol_quick::run(World { manifest, update_key,
+  version, bin, icons, handler, commands: world::commands(), main, source,
+  sample, prepare, tray, shortcuts })`, and the engine's static for a world
+  with one. The logic and the commands live in `world.rs` and `world/`.
 - **`world.rs`** holds the collections, the events (each with a
   one-sentence summary), the `Handler` (what it does for each action in
   `sol-world.json`, and `widget.toggle`), the widget for Sol's overview,
-  and the views the commands return. A test `the_manifest_is_sound` parses
-  `sol-world.json` and checks its `problems()` and the actions and events
-  the code uses.
-- **The QML**: `Main.qml` is an `AppWindow` with `world`, `sections`,
-  `pages` (path → Component; a path not in the sections is a page opened
-  from another, e.g. `/title`), `search`, `shortcuts`, and as needed
+  and `commands()`, which calls each module's `commands(&mut c)` and
+  registers the desktop's. Its test `the_manifest_is_sound` checks
+  `sol-world.json` against the code with `assert_manifest` (Tests, below),
+  and `the_screens_commands_are_all_here` keeps the list of command names
+  the QML calls.
+- **The QML**: `Main.qml` is an `AppWindow` with `world`, `sections`
+  (each with an `icon`, an `Icon` name of its own among the world's
+  sections), `pages` (path → Component; a path not in the sections is a
+  page opened from another, e.g. `/title`), `search`, `shortcuts`, and as needed
   `commands`, `find`, `footer`, `busy`, `warn`, `widget`, `widgetName`.
   State the screens share lives in the singleton `qml/<World>.qml`
   (`pragma Singleton`, `import Sol.Design`); every file that uses it
@@ -87,20 +91,57 @@ The screens never talk to Sol; they call the app's commands
   `Lagged`), so an engine set up from the settings follows them. Spawn it
   on the runtime handle `prepare` is given: `tokio.spawn(link.on_settings(…))`.
 - Time: the person's zone is `link.time_zone()`, never the machine's.
-  "Today" for a world with a `day_starts` setting (Terra, Luna, Mercury)
-  is `orbit::clock::Clock::of(&link).await.today()` (04:00 until the
-  person sets it, `DEFAULT_DAY_STARTS`, which is what every manifest's
-  default must say) (or `Clock::with`
-  when the settings are already read; `day_of`, `at`, `start_of`,
-  `parse_time`, `time_setting` are there too). A world without one
-  (Saturn, Titan, Neptune, Triton) uses the zone alone.
+  "Today" for a world with a `day_starts` setting (Terra, Luna, Mercury,
+  the template) is `orbit::clock::Clock::of(&link).await.today()` (04:00
+  until the person sets it, `DEFAULT_DAY_STARTS`, which the setting's
+  default in the manifest must say too), or `Clock::with` when the
+  settings are already read; `day_of`, `at`, `start_of`, `parse_time`,
+  `time_setting` are there too. A world without one (Saturn, Titan,
+  Neptune, Triton) uses `Clock::calendar`: midnight in the person's zone.
 - The screens learn of changes through `Sol.changes` (documents, here or
   on another device) and `Sol.settingsVersion`; a world's own news to its
   screens goes out with `sol_quick::emit(name, &data)` and arrives as
   `Sol.onEvent(name, data)`.
-- Errors reach the screens as one sentence: `.map_err(sol_quick::say)`
-  (it keeps the causes, `{:#}`); don't write a local `say` with
-  `to_string()`.
+- Errors: the world's code returns `anyhow::Result` (never `Result<_,
+  String>`); the kit turns a command's error into the screens' one
+  sentence with its causes (`{:#}`, `sol_quick::say`), so a command has no
+  `map_err` of its own.
+
+## A command
+
+A module registers its commands next to the functions they call: the
+arguments are the struct the closure takes (`()` for none, as the screen
+may send `{}`), the reply anything serialisable.
+
+```rust
+// src/world/habits.rs
+#[derive(Deserialize)]
+struct Tick {
+    id: String,
+    done: bool,
+}
+
+pub fn commands(c: &mut sol_quick::Commands) {
+    c.add("list_habits", |link, ()| async move { habits(&link).await })
+        .add("tick_habit", |link, a: Tick| async move { set_done(&link, &a.id, a.done).await });
+}
+
+// src/world.rs
+pub fn commands() -> sol_quick::Commands {
+    let mut c = sol_quick::Commands::default();
+    habits::commands(&mut c);
+    diary::commands(&mut c);
+    desktop::desktop().register(&mut c);
+    c
+}
+```
+
+The name is what the QML calls (`Sol.call("tick_habit", { id, done })`),
+so it changes only together with every screen that calls it. A world
+built around an engine hands each command the engine instead of the link
+(`Commands::engine(&ENGINE)`, then `c.into()` for `World::commands`; the
+engine keeps the link), and one with state beside the link takes both
+(`Commands::over(move |link| (link, titan.clone()))`, Titan).
 
 ## The kit's helpers: use these, don't write your own
 
@@ -115,7 +156,7 @@ The screens never talk to Sol; they call the app's commands
 
   ```rust
   static ENGINE: sol_quick::Shared<Engine> = sol_quick::Shared::new();
-  // commands: world::today(&ENGINE.get()).await
+  commands: world::commands(&ENGINE),   // Commands::engine(&ENGINE): each is handed ENGINE.get()
   handler: sol_quick::handler(|| world::World(ENGINE.get())),
   prepare: Some(Box::new(|link, tokio| { ENGINE.set(Engine::new(link.clone())); /* tokio.spawn(…) */ })),
   ```
@@ -159,6 +200,176 @@ The screens never talk to Sol; they call the app's commands
   arrives in a list; `Skeleton` for a page's shape while it loads;
   `Chart`, `DataRows`, `Display` for figures.
 
+## The desktop around the app
+
+The Sol desktop (Noctalia's bar and launcher, Umbriel's keys, fastfetch;
+`../../deploy/desktop` in the workspace) shows what the running worlds are
+doing without a window, and other worlds' apps on this computer ask each
+other things. A world says all of it once, in `src/world/desktop.rs`: a
+`sol_quick::desktop::Desktop`, registered in `world::commands()` with
+`desktop::desktop().register(&mut c)`. The kit adds the four
+commands its single-instance door reaches (the only ones that are),
+routes each action and question by its id, and answers quick capture:
+
+```rust
+pub fn desktop() -> Desktop {
+    Desktop::new("Terra")
+        .status(|link| async move { status(&link).await })   // the bar
+        .action("tick", |link, habit| async move { tick(&link, habit.as_deref()).await })
+        .find(|link, query| async move { find(&link, query).await })
+        .verb(&["slept", "sleep"], slept)                       // quick capture
+        .verb(&[], tick_by_name)                                // every line
+        // .asked(|link, q: Furigana| …) and .told(|link, d: Duck| …): another world's
+}
+```
+
+A world built around an engine takes the static it keeps it in
+(`desktop(&ENGINE)`, `&'static sol_quick::Shared<Engine>`) and calls
+`engine.get()` inside each closure; a test leaks one
+(`Box::leak(Box::default())`) and sets its engine.
+
+- **`status`** (no arguments): a small object (now playing, habits left,
+  the next episode, cards due) with an `open` page for a click. The kit
+  writes it, with `world`, `name`, `pid` and `at` beside it, to
+  `$XDG_RUNTIME_DIR/sol/<world>.json` (`preview-<world>.json` in a
+  preview; in memory, removed when the app leaves) whenever it changes: it
+  asks at start, on every change to the world's documents or settings,
+  once a minute, and when the world calls `sol_quick::status::refresh()`
+  (news the documents don't carry). `sol-<world> --status` prints it. Keep
+  it small and cheap: nothing fetched. The desktop's plugin
+  (`deploy/desktop/noctalia-plugin/worlds`) and `fastfetch/sol-worlds.sh`
+  read its fields: add freely, change one only together with them.
+- **`action(id, …)`** (the `do` command, `sol_quick::door::Do { id, arg }`
+  → one sentence): from a key or the bar, `sol-<world> --do tick walk`. An
+  id nobody registered is answered "Terra can tick, not “dance”".
+  `desktop::matching::pick_by_name_or_next_open` is "the one named (by id
+  or name), else the next still open" (Terra's habits, Luna's rituals).
+- **`find`** (`door::Query { query }` → `Vec<Found { title, subtitle,
+  open, kind }>`): what the launcher finds here, local only, `sol-<world>
+  --find <words>` (JSON).
+- **`verb(words, read)`**: quick capture (below).
+- **`asked` / `told`**: a question from another world's app on this
+  computer, typed in `sol_quick::questions` (below); an id nobody
+  registered is answered "Mercury can't answer “x”".
+
+`--do` and `--find` ask the running copy through its door and print
+"<World> isn't running." (exit 3, or `[]` for `--find`) when none runs.
+
+### Asking another world
+
+Another world's app is asked while both run, never started:
+`sol_quick::questions::ask(Furigana { lines }).await` for a question with
+an answer, `questions::tell(Pause).await` for something to do (both off the
+async runtime by themselves; `door::ask` / `door::tell` underneath take an
+untyped id and JSON). A preview asks the preview's copy, and
+`Unanswered::NotRunning` says to do without. This is for what a running app
+knows (a dictionary, what's playing), never for its data, which stays in
+its own documents. Each question is a type naming the world that answers
+it and its id, so both ends read it alike:
+
+| Question | Asked of | By | Answer |
+| --- | --- | --- | --- |
+| `Furigana { lines }` (`ask furigana`) | Mercury | Neptune | `Readings { lines: [[Word { parts: [Part { base, rt? }], word?, entry? }]] }`, readings over Japanese lyrics |
+| `AddWord { word, entry?, line }` (`do add-word <word or JSON>`) | Mercury | Neptune | a sentence: the word in "From songs" |
+| `Say { text }` (`ask say`) | Mercury | Triton | `Spoken { path }`, a WAV in Mercury's voice for the DJ |
+| `Level` (`ask level`) | Mercury | Triton | `Known { level, hiragana, of, learned }`, how much Japanese the DJ speaks |
+| `Now` (`ask now`) | Neptune | Triton | `Playing { state, id, title, artist, position, duration }`, between tracks |
+| `Duck { level, ms }` (`do duck {"level","ms"}`) | Neptune | Triton | a sentence: the music lowered under the DJ's voice |
+| `Pause` (`do pause`) | Neptune | Luna | a sentence: the music paused at the end of a wind-down |
+
+The wire is what installed apps of other versions speak, so it changes
+only with additions that have defaults. The answering world keeps each
+question's fixture, `fixtures/questions/<id>.json` (`{ asked, arg, answer
+}`), checked by `testing::assert_asked::<Q>` / `assert_told::<T>`; each
+asker keeps a byte-identical copy (`fixtures/questions/<world>-<id>.json`),
+checked against the answerer's by `testing::assert_copy` when the sibling
+checkout is there, and asks a `FakeDoor` answering it. A new question is a
+type in `questions.rs` (with its row here), an `asked`/`told` line in the
+answering world, and the two fixtures.
+
+## Quick capture
+
+One line over the desktop, from a key (Umbriel's Mod+Alt+C runs
+`deploy/desktop/bin/sol-capture`, which knocks `ask capture null` on the
+first running Sol app's door; that app opens `assets/capture/Capture.qml`,
+a layer-shell window, namespace `sol-capture`, frosted like the widgets).
+As the person types, the kit's `capture` command asks every running
+world's `ask` the question `capture`, through its door, 100 ms at most
+each (`capture::BUDGET`); the line shows the best offer ("Terra · tick
+Walk"), ↑ ↓ choose, Enter asks that world again with `go` and shows the
+sentence it answers, Escape closes. It never starts an app; the ones
+installed and not running are named under the line.
+
+A world answers with its verbs. A verb is one function: the kit calls it
+for a line whose first word is one of its `words` (every line, for `&[]`)
+with the line as a `Typed { line, verb, rest }` (`verb` the first word
+lowercased, `rest` the others as typed), and it answers None (not its
+line) or a `Plan`: what it would do, how sure, and the doing.
+
+```rust
+/// "slept 7.5": last night's sleep on this morning's page.
+async fn slept(link: Link, typed: Typed) -> anyhow::Result<Option<Plan>> {
+    let Some(h) = hours_of(&typed.rest) else { return Ok(None) };
+    Ok(Some(Plan::new(format!("slept {h} h last night"), matching::VERB, async move {
+        log_sleep(&link, h).await?;
+        anyhow::Ok(format!("Slept {h} h last night, on this morning's page."))
+    })))
+}
+```
+
+The kit offers the surest plan of the world's verbs (the first added,
+between equals), and runs it only on Enter: do nothing before the `async
+move` (an offer is asked for on every key). `Plan::said(does, sure,
+sentence)` is a plan with nothing to do ("Walk is done today already").
+An offer comes from what is here, nothing fetched. Keep the reading a
+pure function with a test; `Desktop::capture(link, line, go)` (or `ask`
+with `testing::capture_q`) runs the whole of it in a world's test.
+`sol_quick::open(path)` opens a page in the window when doing it needs one
+(Mercury's "review"). `_capture=<line>` in a shot path stages it.
+
+### How sure: one scale
+
+The best offer of all the running worlds is the one shown, so every world
+says how sure it is on one scale, `sol_quick::desktop::matching`:
+
+| Sure | When |
+| --- | --- |
+| `EXACT` 1.0 | the line is one of the world's names, as written ("Read" for the habit Read) |
+| `VERB` 0.9 | one of its verbs, with all it needs ("bedtime", "rate 8", "watched frieren") |
+| `PREFIX` 0.8 | a name starts with what was typed ("walk" for Walk outside) |
+| `ALL_WORDS` 0.7 | every word typed is in a name ("drive night" for Night Drive; a word of one or two letters must start one of its words) |
+| `SOME_WORD` 0.5 | one word typed is a word of a name ("walk the dog" for Walk) |
+| `GUESS` 0.3 | the world's own words, likely not meant ("pause" with nothing playing) |
+
+`matching::score(typed, name)`, `best(typed, items, name_of)` and
+`rank(…)` (the surest first, the world's own order between equals) look
+a name up; a name after a verb is `matching::after_verb(sure)`, at most
+`VERB`. No world makes up a number of its own.
+
+Every world's words, so a new verb doesn't take another's (no first word
+is any other world's today):
+
+| World | Words | What it does | Sure |
+| --- | --- | --- | --- |
+| Terra | a habit's name, its start or its words, with or without `tick`, `did`, `done` | ticks it today | the name's: 1, 0.8, 0.7, 0.5 |
+| Terra | `slept 7.5`, `sleep 7,25h` | last night's sleep on this morning's page | 0.9 |
+| Luna | `bedtime`, `bed [now / 23:10]`, `sleeping` | tonight's bedtime | 0.9 |
+| Luna | `wind down [30 / until 23:00]`, `winddown` | a wind-down | 0.9 |
+| Luna | `evening`, `begin` / `start` (with "evening" or alone) | begins the evening | 0.9 |
+| Saturn | `watched`, `saw`, `seen` [title] [episode, `s2e3`, `2x3`] | ticks the next or the named episode | 0.9 bare; a title: its name's, at most 0.9 |
+| Saturn | `rate 8`, `rate 8/10` | rates the episode watched last | 0.9 |
+| Neptune | `pause`, `stop`; `resume`, `play`, `unpause`; `next`, `skip`; `previous`, `back` (alone) | the player's keys | 0.9 (0.3 with nothing playing) |
+| Neptune | `play` / `put` <album, artist or song> | plays it from the library | the name's, at most 0.9 (artist, album, song between equals; 0.5 a song found by something else) |
+| Triton | `radio`, `station` [surprise, anime, a decade, a genre, an artist, an album] | starts a station | 0.9; a name: its own, at most 0.9 |
+| Mercury | `review`, `study`, `reviews` [deck] | opens a review | 0.9; a deck: its name's, at most 0.9 |
+| Mercury | `add`, `learn` <word> | adds it to "Added from anywhere" | 0.9 (0.3 not in the dictionary) |
+| Template | `log`, `note` <text> | logs the line | 0.9 |
+
+Titan answers none. Terra's habit names are the person's own, so any
+line may reach it: a habit named exactly as another world's verb
+("Review") is sure 1 and comes first; part of a name comes after a
+verb's 0.9.
+
 ## Moons
 
 A moon (Luna, Titan, Triton) names its planet in `sol-world.json`
@@ -170,6 +381,87 @@ has `WithPlanet` (the shared `with_planet` / `set_with_planet`). Each
 lists the connections to and from its planet in its manifest. In the
 sidebar, the doors (`Sol.doors`) lead to Sol and to the kin installed
 here; a Sheet's moon links come from `Sol.moons`.
+
+## Moments
+
+`win.moment.play({ occasion, scene, facts, chime, length })` (the kit's
+`Moment`, one per window) plays a scene over the whole window: it fades
+in, plays a few seconds (5.2 unless `length` says, 2.6 and still with less
+motion) and goes on any key or click, only while the window is in front.
+An occasion plays once for the person, on any device: the kit's `moment`
+command records it in the world's `moments` collection (documents `{
+occasion, at, device }`, the id `moments::occasion_id(occasion)`), so a
+world that plays one lists `{ "id": "moments", "label": "Moments shown" }`
+in `sol-world.json` and the hub's catalog copy (`assert_manifest` checks
+it). Without an occasion it plays every time. Name occasions so one that
+may come again is another (`saturn.finished.<key>.<run>`,
+`terra.all-done.<day>`). A scene is a Component with `property var
+moment` (its `progress`, `facts`, `calm`); `MomentCaption` is its words.
+A world names the ones a picture can stage in `AppWindow { moments: ({
+sunrise: () => ({ scene: sunrise, facts: … }) }) }` (an object, or a
+function of an argument giving one or a promise of one), and
+`_moment=<name>` (or `<name>:<arg>`) in a shot path plays it, without its
+occasion: Terra's `sunrise`, Saturn's `finished:<key>`, Mercury's
+`perfect` and `milestone`, the template's `first`. The template's
+`FirstLine.qml` is the smallest example.
+
+## Undo
+
+Every tick, rating, grade, status and delete can be taken back for a few
+seconds. The Rust side says what a write touches, so the screens never
+spell a document's id:
+
+```rust
+c.undoable(
+    "archive_habit",
+    |_, a: Id| async move { Ok(vec![sol_quick::doc(HABITS, a.id)]) },  // what it changes
+    |link, a: Id| async move { archive(&link, &a.id).await },
+)
+// A write that makes documents: Undo deletes what `made` names from the reply.
+.creates("create_habit", |h: &Habit| vec![doc(HABITS, &h.id)], |link, a: Name| async move { … })
+```
+
+`touches` is handed what the command is (the link or the engine) and its
+arguments, so it may look things up first (Mercury's deck lists its
+cards). The screens call `Sol.undoable("archive_habit", { id }, { title,
+body, undone })`: the kit reads those documents, runs the write, keeps
+them as they were under a token (in memory, the last 64), and its notice
+says what was done, with Undo for its twelve seconds, which sends the
+token back (`restore { undo }`, the world's own collections only).
+Called with `Sol.call` the same command is a plain write.
+
+A write whose way back reaches outside Sol passes `undo: (result, token) =>
+promise` instead: a Navidrome star or rename (`token` null: nothing kept),
+Luna's wind-down (`cancel_wind`), and Saturn's `put_back`, the pattern for
+side effects elsewhere: its writes keep the title's document, and
+`put_back { key, undo: token, tick }` takes it (`sol_quick::undo::take`)
+and puts the title back through the engine, which tells AniList too. An
+event already sent to Sol stays sent.
+
+## Keys first
+
+The window's `commands` and each page's `Screen.actions` are the
+palette's rows ("Rate 8", "Next episode watched", "Bury this card", with
+`keys` where a key does it too; `win.allCommands` is both), and `?` lists
+them with the Shell's keys and the app's `shortcuts`.
+
+## The first run, empty pages, the voice
+
+- **The tour**: `AppWindow { tour: [three cards] }`, each `{ title, body,
+  keys?, icon?, go?, start? }`: what the world does, its best key (`keys:
+  "Space V"`, drawn as keycaps), where to start (`go: "/kana", start:
+  "Open Kana"`). The kit shows it once on a device, the first time the
+  window is in front (`sol.<world>` `toured`; never in a preview, a
+  picture or a drive), skippable, and puts it behind `?` and the palette
+  ("Take the tour"); `_tour=N` stages card N for a picture.
+- **Empty pages**: `Empty { icon; line; hint; action }` wherever a page or
+  card has nothing yet: the line in the world's own voice ("Nothing in
+  orbit yet.", "Only static, so far."), the hint saying what fills it, at
+  most one action. Inside a card, or for a search with no hits, `compact`.
+- **Its voice**: `Sounds.voice()` for the world's main good moment only (an
+  episode watched, a habit done, a right answer, a station on air), never
+  for every click; the kit's `tick` stays for the rest. A new world adds
+  its sound in the kit (`Sounds.voices`, `scripts/world-sounds.py`).
 
 ## Writes, conflicts and what is kept
 
@@ -241,48 +533,72 @@ the tray, and matches the world's entry in the kit's `Worlds.qml`.
   goes in), `--background` (a moon its planet started), `--login` (started
   with the computer: the tray, no window) and `--open /page?key=v` are the
   app's flags. `update.pub` may hold several keys, one per line.
-- No commits, tags or releases unless the person asks.
 
-## Preview, screenshots, the journal
+## Live QML: screens without a build
 
-- Every run below goes through `../../kit/quick/scripts/hidden.sh --
-  <command>`: a hidden display of its own (headless KWin, its own bus and
-  runtime folder). Never open a window on the person's desktop.
-- `SOL_PREVIEW=1 cargo run`: the app with sample data on a throwaway copy
+With `SOL_QML_LIVE=1` (which `hidden.sh` sets; `src/live.rs`, `cpp/live.h`)
+a preview reads the kit's QML from the kit's checkout and the world's from
+`World::source` (`env!("CARGO_MANIFEST_DIR")` in `main.rs`) instead of the
+compiled modules, so an edited `.qml` shows the next time the built binary
+runs (`~/Projects/sol/target/debug/<bin>`, not `cargo run`, which builds).
+A new `.qml` file is seen only by files in its own folder until a build
+adds it to the module (another module's `import` and a new singleton need
+that build); Rust, shaders and `sol-world.json` need a build too.
+`SOL_QML_LIVE=0` shows the compiled QML, and `cargo build` stays the check
+that every `.qml` compiles. How to run and shoot a preview is in
+`../../docs/agents.md`; every staging key is in the kit's README
+("Environment").
+
+## Preview data, logs
+
+- `SOL_PREVIEW=1`: the app with sample data on a throwaway copy
   (`/tmp/sol-preview-<world>`, filled the first time by `World::sample`;
-  delete the folder for fresh data). Keep the sample current when a
-  command changes. A world whose data lives in a service has a stand-in for
-  the preview where it can: Neptune and Triton play the kit's Navidrome
-  (`sol_quick::navidrome`, the `fake-navidrome` feature). To see the person's real library, copy
-  `~/.local/share/digital.sachi.sol.<world>` into the preview folder and
-  `touch sampled` there (never write to the real one).
-- A picture: `hidden.sh -- env SOL_PREVIEW=1 SOL_SHOT=<png> SOL_SHOT_AFTER=6000
-  SOL_SHOT_PATH='/page?key=v' timeout 40 ./target/debug/<bin>`; `_palette=1`,
-  `_notice=1`, `_ask=1`, `_notify=1`, `_kept=1`, `_scroll=N` stage it (the
-  time counts from when the Shell is up, so a fresh preview folder works);
-  `QT_SCALE_FACTOR=3` shows the narrow layout. Run them one after
-  another. Read the picture.
-- QML errors go to the journal: `journalctl --user -S "<start>" |
-  grep '<bin>\['` must show no TypeError, ReferenceError, "Cannot assign",
-  "Unable to assign" or binding loop from your code.
-- `SOL_DRIVE=<file.qml>` loads a script handed the window (`property var
-  win`), to drive it end to end; it takes its own pictures and must end
-  with `Qt.quit()`. A `SOL_SHOT` beside it is taken on its own timer and
-  doesn't quit (the drive does; one that quits sooner leaves no picture).
-  `SOL_FPS=1` counts the frames painted.
+  delete the folder for fresh data, or `touch sampled` in an empty one for
+  an empty app). Keep the sample current when a command changes, and give
+  it enough to fill every page. A world whose data lives in a service has a
+  stand-in where it can: Neptune and Triton play the kit's Navidrome
+  (`sol_quick::navidrome`, the `fake-navidrome` feature).
 - The app's own log (Rust's `tracing`, panics included) is
   `~/.local/state/digital.sachi.sol.<world>/<world>.log`, or `<world>.log`
-  in the preview folder; QML errors stay in the journal.
+  in the preview folder; QML errors go to the journal.
+
+## Tests
+
+`sol_quick::testing` (the kit's `testing` feature, on for tests only:
+`sol-quick = { …, features = ["testing"] }` under `[dev-dependencies]`):
+
+- `offline_link(world)`: a `Link` with a local copy in a fresh folder and
+  no Sol (keep the folder it returns as long as the link); `open(world,
+  dir)` opens one again, as a restart.
+- `assert_manifest(MANIFEST, Expect { parent, actions, emits, settings,
+  collections })`: the manifest parses and has no `problems()`, lists what
+  the code uses, defaults `day_starts` to orbit's 04:00, lists `moments`
+  when a screen plays one, and matches `../../hub/catalog/<id>.json` when
+  that exists. It returns the manifest for a world's own checks.
+- `undoably(&commands, &link, name, args)`: a write run as `Sol.undoable`
+  runs it (its reply and Undo's token); `take_back(&link, token)`: the
+  notice's Undo.
+- `capture_q(line, go)`: quick capture's question, for a world's `ask`
+  (`desktop().ask(link, capture_q("walk", false))`).
+- `assert_asked::<Q>(fixture)`, `assert_told::<T>(fixture)`: a question's
+  fixture reads as the kit's types and is written back the same;
+  `assert_copy(ours, "../<world>/fixtures/questions/<id>.json")`: an
+  asker's copy is the answerer's own.
+- `FakeDoor::open(world, |command, args| …)`: another world's running app,
+  answering `ask`, `do` and `find` through its door, and `asked()`. With
+  the feature on, every door is the test's own, so a test never reaches an
+  app running on the computer.
+- orbit's stand-ins: `FakeHttp` (a canned HTTP server on 127.0.0.1:
+  `routes([("GET /api/tags", Reply::ok(…))])` or `start(|request, seen| …)`,
+  every `Request` kept), `StandInSol` (no settings, long polls held, writes
+  to a function; `paired(world, person)` for a link paired with it).
 
 ## Checks
 
-- `cargo build` (it compiles the QML: a bad `.qml` fails here).
-- `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`
+- `cargo build` (it compiles the QML: a bad `.qml` fails here), then
+  `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`
   (Neptune: `--workspace`).
-- Screenshots of every page in `Main.qml`'s `pages`, one detail page, and
-  the journal, before and after a change.
-- A change to the kit is checked in the kit's gallery
-  (`../../kit/quick/scripts/gallery-shots.sh <folder>`, one build), not
-  by sweeping the worlds; a world is looked at only when its own screens
-  use what changed.
-- One build at a time, in the foreground: never two worlds at once.
+- Shots of every page in `Main.qml`'s `pages` that the change touches, one
+  detail page, and the journal, before and after (`../../docs/agents.md`).
+- A change to the kit is checked in the kit's gallery, not by sweeping the
+  worlds; a world is looked at only when its own screens use what changed.

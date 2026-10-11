@@ -30,8 +30,15 @@ QtObject {
         location: StandardPaths.writableLocation(StandardPaths.GenericConfigLocation) + "/sol/device.conf"
         category: "appearance"
         property string mode: "system"
+        property string motion: "full"
     }
     function setMode(m) { prefs.mode = m }
+    /**
+        Less motion, on this device (Settings → On this device, for every Sol
+        app here): moments are short and still, nothing drifts across them.
+    */
+    readonly property bool calm: SolBackend.calm || prefs.motion === "less"
+    function setCalm(on) { prefs.motion = on ? "less" : "full" }
     /** The hour, for "sun"; kept by Worlds' clock. */
     readonly property int hour: Worlds.now.getHours()
     readonly property bool day: mode === "day"
@@ -184,8 +191,7 @@ QtObject {
         that forgets it, for when the item goes first.
     */
     function whenSeen(item, arrival) {
-        let f = item.parent
-        while (f && !(f.hasOwnProperty("contentY") && f.hasOwnProperty("contentHeight") && f.hasOwnProperty("contentItem"))) f = f.parent
+        const f = flickableOf(item)
         const seen = () => f.height <= 0 || item.mapToItem(f.contentItem, 0, 0).y < f.contentY + f.height + 40
         if (!f || seen()) { arrival(false); return () => { } }
         const changes = [f.contentYChanged, f.heightChanged, f.contentHeightChanged, item.yChanged]
@@ -195,6 +201,37 @@ QtObject {
         check = () => { if (seen()) { forget(); arrival(true) } }
         for (const s of changes) s.connect(check)
         return forget
+    }
+
+    /** The nearest Flickable `item` scrolls in (the page's, in a Screen), or null. */
+    function flickableOf(item) {
+        let f = item ? item.parent : null
+        while (f && !(f.hasOwnProperty("contentY") && f.hasOwnProperty("contentHeight") && f.hasOwnProperty("contentItem"))) f = f.parent
+        return f
+    }
+
+    /**
+        Keeps `view` (a ListView or GridView inside `item`, as tall as all
+        its rows) showing the part of `item` that is in sight in the page's
+        Flickable, so the page scrolls it and only what shows is made:
+        `view` is one window tall, moved down `item` as the page scrolls,
+        its own `contentY` following. Returns a function that lets go.
+    */
+    function scrollWith(item, view) {
+        const f = flickableOf(item)
+        const place = () => {
+            const total = item.height
+            if (!f || f.height <= 0) { view.y = 0; view.height = total; view.contentY = view.originY; return }
+            const top = item.mapToItem(f.contentItem, 0, 0).y
+            const y = Math.max(0, Math.min(f.contentY - top, total - f.height))
+            view.height = f.height
+            view.y = y
+            view.contentY = view.originY + y
+        }
+        const changes = f ? [f.contentYChanged, f.heightChanged, f.contentHeightChanged, item.yChanged, item.heightChanged, view.originYChanged, view.countChanged] : [item.heightChanged, view.countChanged]
+        for (const s of changes) s.connect(place)
+        place()
+        return () => { for (const s of changes) s.disconnect(place) }
     }
 
     // ---- Rules the controls share ----------------------------------------------

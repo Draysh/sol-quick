@@ -445,7 +445,7 @@ fn reply(lib: &Library, st: &mut State, endpoint: &str, p: &Params) -> Answer {
                         .enumerate()
                         .map(|(i, l)| json!({ "start": 4_000 + i as u64 * 6_500, "value": l }))
                         .collect();
-                    vec![json!({ "lang": "eng", "synced": true, "offset": 0, "line": line,
+                    vec![json!({ "lang": if lines[0] == JAPANESE[0] { "jpn" } else { "eng" }, "synced": true, "offset": 0, "line": line,
                                  "displayArtist": lib.artist_of(lib.album_of(s)).name, "displayTitle": s.title })]
                 })
                 .unwrap_or_default();
@@ -484,9 +484,23 @@ fn plays(st: &State, s: &Song) -> u64 {
 }
 
 /// Every album's first track has words (made up, synced every few seconds).
+/// Kaito Mori sings in Japanese: his first tracks have these words (our
+/// own), so a preview can show the lyrics with readings over the kanji.
+const JAPANESE: [&str; 6] = [
+    "夜の街を一人で歩いて",
+    "君の声をずっと探している",
+    "雨が降っても大丈夫だよ",
+    "明日はきっと晴れるから",
+    "小さな光を見つけた",
+    "一緒にもう一度歌おう",
+];
+
 fn words(lib: &Library, s: &Song) -> Option<Vec<String>> {
     (s.track == 1).then(|| {
         let album = &lib.album_of(s).name;
+        if lib.artist_of(lib.album_of(s)).name == "Kaito Mori" {
+            return JAPANESE.iter().map(|l| (*l).to_owned()).collect();
+        }
         vec![
             format!("We left the lights on in {album}"),
             "and the radio kept the time".into(),

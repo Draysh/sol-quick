@@ -16,7 +16,7 @@ import Sol.Design as Design
 
         AppWindow {
             world: "exoplanet"
-            sections: [{ path: "/", label: "Log", hint: "What happened, newest first" }, { path: "/settings", label: "Settings", hint: "Sol, the world’s settings and updates" }]
+            sections: [{ path: "/", label: "Log", icon: "list", hint: "What happened, newest first" }, { path: "/settings", label: "Settings", icon: "settings", hint: "Sol, the world’s settings and updates" }]
             pages: ({ "/": log, "/settings": settings })
             Component { id: log; LogPage { } }
             Component { id: settings; SettingsPage { } }
@@ -54,11 +54,51 @@ Window {
     }
     /** What glass panels (menus, notices, hints) blur: the frame the pages live in. */
     readonly property Item backdrop: frame
-    /** The command palette's own entries: `{ label, hint, keys, run }`. */
+    /** The command palette's own entries: `{ label, hint, keys, icon, run }` (`icon` optional, an `Icon` name). */
     property var commands: []
     /** What the palette finds as you type: `function(query) → Promise<[{ label, hint, run }]>`. */
     property var find: null
     readonly property alias commandPalette: paletteBox
+    /** What the palette offers to do: the window's `commands`, then the page's own (`Screen.actions`). */
+    readonly property var allCommands: {
+        const p = shell ? shell.page as Design.Screen : null
+        return commands.concat(p && p.actions ? p.actions : [],
+            tour.length ? [{ label: "Take the tour", icon: "info", hint: "What " + w.name + " does, its best key, where to start", run: () => tourBox.show() }] : [])
+    }
+    /**
+        The world's first-run tour: three cards, `{ title, body, keys?, icon?, go?, start? }`
+        (what it does, its best key, where to start). Shown once on this device
+        the first time the window is in front (never in a preview or a picture,
+        unless `_tour=1` stages it); `?` and the palette open it again.
+    */
+    property var tour: []
+    readonly property alias tourSheet: tourBox
+    Settings { id: tourPrefs; category: "sol." + win.world; property bool toured: false }
+    // Once the Shell is up and the window in front, a moment after, so the first page has settled.
+    readonly property bool tourDue: tour.length > 0 && !tourPrefs.toured && !Sol.preview && SolBackend.shot === "" && SolBackend.drive === "" && !!shell && Theme.alive
+    onTourDueChanged: if (tourDue) tourLater.restart()
+    Timer { id: tourLater; interval: 1400; onTriggered: if (win.tourDue && !momentBox.showing) tourBox.show() }
+    /** The window's moment, over everything: `moment.play({ occasion, scene, facts, chime })` (see Moment). */
+    readonly property alias moment: momentBox
+    /**
+        The world's moments a picture can stage, by name: `_moment=<name>` in
+        the shot path (or `<name>:<arg>`) plays one, without its occasion. Each
+        is `{ scene, facts, chime, length }`, or a function of the arg giving
+        one (or a promise of one): `moments: ({ sunrise: () => ({ scene: sunrise, facts: … }) })`.
+    */
+    property var moments: ({})
+    function stageMoment(spec) {
+        const at = spec.indexOf(":"), name = at < 0 ? spec : spec.slice(0, at)
+        const m = win.moments[name]
+        if (!m) { if (Object.keys(win.moments).length) console.warn("no moment called " + name + " to stage"); return }
+        Promise.resolve(typeof m === "function" ? m(at < 0 ? "" : spec.slice(at + 1)) : m)
+            .then(o => { if (o) momentBox.play(Object.assign({}, o, { occasion: "" })) })
+            .catch(why => console.warn("the staged moment failed", why))
+    }
+    /** Quick capture is open over the desktop (its key, through the door); false closes it. */
+    property bool capturing: false
+    /** `_capture=<line>` in the shot path: quick capture opened with that line typed, and a picture of it. */
+    property string stagedCapture: ""
     /** What the app shows on the desktop when asked to (a Component), and what it is called: "Now playing". */
     property Component widget: null
     property string widgetName: ""
@@ -159,6 +199,16 @@ Window {
         function onPlanetGone() { if (!win.visible) win.quit() }
         function onQuitRequested() { win.quit() }
         function onOpenRequested(path) { win.goTo(path) }
+        function onCaptureRequested() { if (win.capturing && captureLoader.item) captureLoader.item.requestActivate(); else win.capturing = true }
+    }
+
+    // Quick capture: one line over the desktop, from outside the compiled
+    // module like the widget (it needs layer-shell); see Capture.qml.
+    Loader {
+        id: captureLoader
+        active: win.capturing && win.widgetsHere
+        Component.onCompleted: setSource(Qt.resolvedUrl("../assets/capture/Capture.qml"), { host: win })
+        onStatusChanged: if (status === Loader.Error) { console.warn("no quick capture here (layer-shell missing?)"); win.capturing = false }
     }
 
     /**
@@ -264,10 +314,14 @@ Window {
         }
         displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
     }
+    Tour { id: tourBox; world: win.world; cards: win.tour; go: path => win.shell && win.shell.go(path); onClosed: if (!Sol.preview) tourPrefs.toured = true }
+    Moment { id: momentBox }
+    // A staged moment waits for the first page and its data.
+    Timer { id: momentLater; property string spec: ""; interval: 1200; onTriggered: win.stageMoment(spec) }
     ContextMenu { id: contextMenu }
     KeptAside { id: keptBox }
     Ask { id: askBox }
-    CommandPalette { id: paletteBox; sections: win.sections; commands: win.commands; find: win.find; go: path => win.shell && win.shell.go(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
+    CommandPalette { id: paletteBox; sections: win.sections; commands: win.allCommands; find: win.find; go: path => win.shell && win.shell.go(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
 
     Component {
         id: waiting
@@ -334,11 +388,14 @@ Window {
                 else if (stage._notice) Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." })
                 if (stage._ask) win.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove")
                 if (stage._notify) Sol.call("notify", { title: "A notification", body: "From " + win.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why))
-                if (stage._palette) paletteBox.show()
+                if (stage._palette) paletteBox.show(stage._palette === "1" ? "" : stage._palette)
                 if (stage._kept) keptBox.open([
                     { seq: 1, why: "conflict", kind: "put", collection: "habits", id: "walk", data: { name: "Walk outside, 30 min" }, theirs: { version: 9, deleted: false, data: { name: "Walk outside" } } },
                     { seq: 2, why: "rejected", kind: "put", collection: "entries", id: "2026-10-10", data: { text: "A very long diary entry" }, message: "a document is at most 1 MiB" },
                     { seq: 3, why: "earlier", kind: "event", data: { summary: "Did “Read”, 4 days in a row" } }])
+                if (stage._capture) { win.stagedCapture = stage._capture === "1" ? "" : stage._capture; win.capturing = true }
+                if (stage._tour) Qt.callLater(() => { tourBox.show(); tourBox.at = Math.max(0, Math.min(win.tour.length - 1, Number(stage._tour) - 1)) })
+                if (stage._moment) { momentLater.spec = stage._moment; momentLater.restart() }
                 if (stage._scroll) { theShell.shotScroll = Number(stage._scroll); scrollLater.restart() }
             }
         }

@@ -5,7 +5,8 @@
 //! ```ignore
 //! static ENGINE: sol_quick::Shared<Engine> = sol_quick::Shared::new();
 //!
-//! commands.add("today", |_, _: ()| async move { world::today(&ENGINE.get()).await });
+//! // Each command is handed `ENGINE.get()`: `|engine, ()| async move { today(&engine).await }`.
+//! let commands = Commands::engine(&ENGINE);
 //! sol_quick::run(World {
 //!     // Sol's deliveries reach `world::World` around the engine, once it is built.
 //!     handler: sol_quick::handler(|| world::World(ENGINE.get())),

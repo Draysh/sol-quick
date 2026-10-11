@@ -29,7 +29,7 @@ fn files(dir: &str, keep: impl Fn(&Path) -> bool) -> Vec<String> {
 
 fn main() {
     // A file added to one of these folders reruns the build, as a changed one does.
-    for dir in ["qml", "assets", "shaders"] {
+    for dir in ["qml", "assets", "shaders", "cpp"] {
         println!("cargo::rerun-if-changed={dir}");
     }
     let mut module = QmlModule::new("Sol.Design");
@@ -61,7 +61,7 @@ fn main() {
         .qt_module("Network")
         .qt_module("Quick")
         .qt_module("Multimedia")
-        .files(["src/bridge.rs"])
+        .files(["src/bridge.rs", "src/live.rs"])
         .qrc_resources(resources)
         .build()
         .export();

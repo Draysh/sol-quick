@@ -10,7 +10,9 @@ import QtQuick
     or a wheel closes the menu.
 
     Entries: `{ label, run }`, `{ label, run, danger: true }`,
-    `{ label, items: () => [...] }`, `{ separator: true }`.
+    `{ label, items: () => [...] }`, `{ separator: true }`; any of them may
+    lead with an `icon` (an `Icon` name), for the common actions, and the
+    other labels in that list line up after it.
 
         ContextMenu { id: menu }   // once, in the window
         menu.show(mouse.x, mouse.y, entries)   // window coordinates
@@ -131,6 +133,9 @@ Item {
         readonly property var entry: modelData
         property bool sub: false
         readonly property bool keyed: sub ? menu.inSub && menu.subKey === row.index : !menu.inSub && menu.at === row.index
+        // Some entry in this list has an icon: every label starts after the icons' column.
+        readonly property bool indent: (row.sub ? (menu.subEntries || []) : menu.entries).some(e => e && !!e.icon)
+        readonly property real textX: Theme.s3 + (row.indent ? 16 + Theme.s2 : 0)
         readonly property bool lit: rowMouse.containsMouse || row.keyed || (!row.sub && menu.subIndex === row.index)
         width: parent.width
         height: entry.separator ? Theme.s2 + 1 : menu.rowHeight
@@ -139,9 +144,17 @@ Item {
         Rectangle { visible: !row.entry.separator; anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: row.lit ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
         // The keys' row, marked as the palette and the lists mark theirs.
         Rectangle { visible: row.keyed; x: Theme.s1; width: 2; height: parent.height - 14; y: 7; radius: 1; color: Theme.accent }
+        Icon {
+            visible: !row.entry.separator && !!row.entry.icon
+            x: Theme.s3
+            anchors.verticalCenter: parent.verticalCenter
+            name: row.entry.icon || "close"
+            size: 16
+            color: row.entry.danger ? Theme.dangerText : row.lit ? Theme.textBright : Theme.textQuiet
+        }
         Text {
             visible: !row.entry.separator
-            x: Theme.s3; width: parent.width - Theme.s3 * 2 - (row.entry.items ? 14 : 0)
+            x: row.textX; width: parent.width - row.textX - Theme.s3 - (row.entry.items ? 14 : 0)
             anchors.verticalCenter: parent.verticalCenter
             text: row.entry.label || ""
             elide: Text.ElideRight

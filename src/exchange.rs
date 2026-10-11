@@ -197,19 +197,6 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    async fn offline(dir: &Path) -> Link {
-        Link::open(orbit::link::Config {
-            world: "terra".into(),
-            dir: dir.to_owned(),
-            device: "Test".into(),
-            platform: None,
-            version: "0.1.0".into(),
-            tokens: orbit::link::Tokens::File,
-        })
-        .await
-        .unwrap()
-    }
-
     fn kept() -> Vec<Collection> {
         ["habits", "entries"]
             .map(|id| Collection {
@@ -222,7 +209,7 @@ mod tests {
     #[tokio::test]
     async fn an_export_comes_back_whole_and_merges_by_id() {
         let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-        let here = offline(a.path()).await;
+        let here = orbit::testing::open("terra", a.path()).await;
         here.put("habits", "walk", json!({ "name": "Walk", "rating": 7.3 }))
             .await
             .unwrap();
@@ -240,7 +227,7 @@ mod tests {
         assert!(!file.collections.contains_key("stray"));
 
         // Another device: one document differs, one is its own, one is missing.
-        let there = offline(b.path()).await;
+        let there = orbit::testing::open("terra", b.path()).await;
         there
             .put("habits", "walk", json!({ "name": "Walk outside" }))
             .await
@@ -268,7 +255,7 @@ mod tests {
     #[tokio::test]
     async fn another_worlds_file_and_strange_collections_stay_out() {
         let dir = tempfile::tempdir().unwrap();
-        let link = offline(dir.path()).await;
+        let link = orbit::testing::open("terra", dir.path()).await;
         let path = dir.path().join("luna.json");
         let file = json!({ "world": "luna", "version": 1, "exported_at": "", "collections": {} });
         std::fs::write(&path, file.to_string()).unwrap();

@@ -30,6 +30,8 @@ Item {
     property string filter: ""
     /** Whether this page filters in place (it reads `filter`). */
     property bool filters: false
+    /** This page's own actions, `{ label, hint, keys, icon, run }`, in the palette (Ctrl+K) after the window's, and on the `?` sheet: "Rate 8", "Bury this card". */
+    property var actions: []
     /** The Sheet pinned over the page, shrinking as it scrolls, if there is one. */
     property Item pinned: null
 

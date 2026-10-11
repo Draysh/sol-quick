@@ -1,6 +1,7 @@
 //! A stand-in Navidrome for the previews of the music worlds (Neptune and
-//! Triton) and for their tests: a made-up library of 9 artists, 24 albums
-//! and 168 tracks with covers drawn on the fly, three playlists, starred
+//! Triton) and for their tests: a made-up library of 11 artists, 28 albums
+//! and 181 tracks (13 of them anime openings and endings) with covers drawn
+//! on the fly, three playlists, starred
 //! things, play counts, similar songs and lyrics, served over the part of
 //! the Subsonic API those worlds ask for. Streams are silence of each
 //! track's length; covers are drawn PNGs. It listens on 127.0.0.1 only, at

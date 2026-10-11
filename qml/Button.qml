@@ -6,7 +6,9 @@ import QtQuick.Effects
     Hairlines and capitals. `primary` is the only filled shape on a screen:
     use it once, for the screen's main action; it carries the world's glow.
     `ghost` otherwise, `quiet` for low-stakes actions, `round` for icon-only
-    controls (give it an `icon`). Its corners are `Theme.radiusM` (a round
+    controls (give it an `icon`); any other may lead with an `icon` too, a
+    hairline glyph before its label (`Icon` names), for the few actions a
+    glyph makes quicker to find. Its corners are `Theme.radiusM` (a round
     one is a circle). Focus locks two corner ticks on; a press gives a
     little; while busy, a hairline sweeps along the bottom.
 
@@ -17,6 +19,7 @@ Item {
 
     property string text: ""
     property string variant: "ghost"
+    /** An `Icon` name: the glyph before the label (alone, on a `round` one). */
     property string icon: ""
     property bool busy: false
     /** A line about it, shown on hover. */
@@ -32,7 +35,7 @@ Item {
 
     /** Its padding either side of the label, both together. */
     readonly property real pad: quiet ? 20 : 32
-    readonly property real iconRoom: icon !== "" ? 12 + (text !== "" ? Theme.s2 : 0) : 0
+    readonly property real iconRoom: icon !== "" ? glyph.size + (text !== "" ? Theme.s2 : 0) : 0
     readonly property real natural: round ? Theme.control : iconRoom + (text !== "" ? label.implicitWidth : 0) + pad
     // The property a container gives its children's room in (see `room`). Read by name,
     // since it is on that container, not on every Item.
@@ -119,9 +122,11 @@ Item {
         spacing: Theme.s2
 
         Icon {
+            id: glyph
             visible: root.icon !== ""
             name: root.icon
-            size: 12
+            // Lucide's glyphs keep a margin of their own, so they take a little more room.
+            size: grid === 24 ? 14 : 12
             color: label.color
             anchors.verticalCenter: parent.verticalCenter
         }

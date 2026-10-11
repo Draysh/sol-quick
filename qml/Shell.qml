@@ -21,7 +21,7 @@ import Sol.Design as Design
 
         Shell {
             world: "terra"
-            sections: [{ path: "/", label: "Today", hint: "What's on today" }, { path: "/settings", label: "Settings" }]
+            sections: [{ path: "/", label: "Today", icon: "sun", hint: "What's on today" }, { path: "/settings", label: "Settings", icon: "settings" }]
             pages: ({ "/": todayPage, "/settings": settingsPage })   // Components
             doors: [{ world: "sol", label: "Sol", open: () => Sol.openInSol() }]
             search: "/search"
@@ -33,7 +33,7 @@ Item {
     id: shell
 
     property string world: "terra"
-    /** `{ path, label, hint, world?, badge? }`, in the order of the sidebar. */
+    /** `{ path, label, hint, icon?, world?, badge? }`, in the order of the sidebar; `icon` is an `Icon` name. */
     property var sections: []
     /** Path → Component. A path not in the sections is a page opened from another. */
     property var pages: ({})
@@ -171,6 +171,8 @@ Item {
             asynchronous: true
             cache: true
             smooth: true
+            // Decoded no wider than a Picture ever asks for, however large the file.
+            sourceSize.width: 1280
         }
         Rounded { anchors.fill: parent; image: flyerImage; radius: flyer.radius }
     }
@@ -271,6 +273,9 @@ Item {
         return { label: up ? up.label : "Home", go: () => shell.go(upPath()) }
     }
 
+    /** Closes the keys and opens the window's first-run tour again (the `?` sheet's button). */
+    function takeTour() { keys = false; const w = Window.window; if (w && w.tourSheet) w.tourSheet.show() }
+
     // ---- Keys ---------------------------------------------------------------
     /** Keys go to a field that takes text, not to the Shell. */
     function typing() { return Theme.typing(Window.activeFocusItem) }
@@ -343,7 +348,7 @@ Item {
         anchors.fill: parent
         z: 3
         active: shell.keys
-        sourceComponent: Shortcuts { shortcuts: shell.shortcuts; finderShown: side.finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
+        sourceComponent: Shortcuts { tour: !!shell.Window.window && !!shell.Window.window.tour && shell.Window.window.tour.length > 0; onTourAsked: shell.takeTour(); shortcuts: shell.shortcuts; actions: (shell.Window.window && shell.Window.window.allCommands) || []; finderShown: side.finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
     }
 
     Grain { }

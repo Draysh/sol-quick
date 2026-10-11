@@ -9,8 +9,9 @@ import Sol.Design as Design
     for), the field that filters the page or searches the app, the
     sections with the world's light on the current one, the doors to other
     apps, and where the app stands with Sol at the bottom. On the rail (a
-    narrow window) only the marks show, and the field folds away behind a
-    button until it is used. The Shell makes one and reads `finder` back.
+    narrow window) only the icons and marks show, and the field folds away
+    behind a button until it is used. The Shell makes one and reads
+    `finder` back.
 */
 Item {
     id: side
@@ -160,6 +161,7 @@ Item {
                     rail: side.frame.rail
                     label: modelData.label
                     world: modelData.world || ""
+                    icon: modelData.icon || ""
                     badge: modelData.badge || 0
                     current: side.frame.path === modelData.path
                     // On the rail only the mark shows: the hint names the section too.

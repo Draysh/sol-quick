@@ -7,8 +7,12 @@
 #   scripts/hidden.sh [--size 1440x1000] -- <command> [args…]
 #   scripts/hidden.sh -- env SOL_PREVIEW=1 SOL_SHOT=/tmp/x.png ./target/debug/terra
 #
-# Use it for every screenshot, drive and preview run.
+# Use it for every screenshot, drive and preview run. A preview in here
+# reads its screens from the checkouts (SOL_QML_LIVE=1, src/live.rs), so an
+# edited .qml shows on the next run without a build; SOL_QML_LIVE=0 looks
+# at the compiled ones.
 set -euo pipefail
+export SOL_QML_LIVE=${SOL_QML_LIVE:-1}
 
 size=1440x1000
 if [[ ${1:-} == --size ]]; then size=$2; shift 2; fi

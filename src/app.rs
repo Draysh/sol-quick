@@ -40,6 +40,10 @@ pub struct World {
     pub commands: Commands,
     /// The QML to load: `qrc:/qt/qml/Sol/Terra/qml/Main.qml`.
     pub main: &'static str,
+    /// `env!("CARGO_MANIFEST_DIR")`: the world's checkout. A preview with
+    /// `SOL_QML_LIVE=1` reads the screens from its `qml/` (and the kit's
+    /// from the kit's), so an edit shows without a build.
+    pub source: &'static str,
     /// With `SOL_PREVIEW`, fills the throwaway copy with sample data the
     /// first time, so the screens have something to show. Runs after
     /// `prepare`, so what that set up is there to fill.
@@ -58,7 +62,7 @@ pub struct World {
 pub type Prepare = Box<dyn FnOnce(&Link, &tokio::runtime::Handle) + Send>;
 
 pub type Sample = Arc<
-    dyn Fn(Link) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>>
+    dyn Fn(Link) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<()>> + Send>>
         + Send
         + Sync,
 >;
@@ -78,6 +82,8 @@ pub(crate) enum ToWindow {
     Event(String, String),
     /// Open a page: `/title?key=x` (another app asked, or `--open`).
     Open(String),
+    /// Open quick capture over the desktop (its key was pressed).
+    Capture,
 }
 
 type ToWindowFn = Box<dyn Fn(ToWindow) + Send + Sync>;
@@ -169,6 +175,12 @@ fn open_page(path: String) {
         Some(rt) if rt.tell(ToWindow::Open(path.clone())) => rt.activate_window(),
         _ => *PENDING_OPEN.lock().expect("pending lock") = Some(path),
     }
+}
+
+/// Opens `path` (`/review`) in this app's window and brings it up: for
+/// something the desktop asked of it (quick capture's "review").
+pub fn open(path: &str) {
+    open_page(path.to_owned());
 }
 
 /// The page asked for before the window was up, once.
@@ -277,9 +289,18 @@ fn make_app(world: &World, manifest: &WorldManifest) -> App {
     }
 }
 
-/// `--install`, `--uninstall` and `--version` from a terminal, before any window opens.
+/// `--install`, `--uninstall` and `--version` from a terminal, and the
+/// desktop's `--status`, `--do` and `--find`, before any window opens.
 fn command_line(app: &App, name: &str, parent: Option<&str>) -> Option<i32> {
-    let arg = std::env::args().nth(1)?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let arg = args.first()?.clone();
+    let preview = std::env::var_os("SOL_PREVIEW").is_some();
+    match arg.as_str() {
+        "--status" => return Some(crate::status::print(app.world, name, preview)),
+        "--do" => return Some(crate::door::act(app.world, name, preview, &args[1..])),
+        "--find" => return Some(crate::door::find(app.world, name, preview, &args[1..])),
+        _ => {}
+    }
     let done = match arg.as_str() {
         "--install" => install::install(app).map(|bin| {
             // The other apps on this computer can open this one from now on.
@@ -369,8 +390,17 @@ pub fn leave(code: i32) -> ! {
         }
     }
     single::leave();
+    crate::status::leave();
+    // The empty copy a window that couldn't open its own ran on goes with it.
+    if let Some(stand_in) = STAND_IN.lock().ok().and_then(|mut s| s.take()) {
+        let _ = std::fs::remove_dir_all(stand_in);
+    }
     std::process::exit(code)
 }
+
+/// The empty local copy in the temporary folder that stands in for one that
+/// didn't open, removed when the app leaves.
+static STAND_IN: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
 
 /// This version was just put in place by an update, and hasn't yet been
 /// seen to come up.
@@ -486,8 +516,27 @@ pub fn run(world: World) -> ! {
             if let Some(rt) = RUNTIME.get() {
                 rt.activate_window();
             }
+            None
         }
-        single::Knock::Open(path) => open_page(path),
+        single::Knock::Open(path) => {
+            open_page(path);
+            None
+        }
+        // The desktop asks for something done or found, or another world
+        // asks a question: only these three of the world's commands are
+        // reachable this way.
+        // Quick capture's key: this app opens the line over the desktop.
+        single::Knock::Ask(command, _) if command == "capture" => Some(match RUNTIME.get() {
+            Some(rt) if rt.tell(ToWindow::Capture) => Ok("\"open\"".into()),
+            _ => Err("the app is still starting; try again in a moment".into()),
+        }),
+        single::Knock::Ask(command, args) => Some(match RUNTIME.get() {
+            Some(rt) if matches!(command.as_str(), "do" | "find" | "ask") => rt
+                .tokio
+                .block_on(rt.commands.call(rt.link.clone(), &command, args)),
+            Some(_) => Err(format!("nothing answers {command:?} from the desktop")),
+            None => Err("the app is still starting; try again in a moment".into()),
+        }),
     });
     if let Some(path) = open_at {
         open_page(path);
@@ -552,6 +601,9 @@ pub fn run(world: World) -> ! {
                 manifest.id,
                 std::process::id()
             ));
+            if let Ok(mut kept) = STAND_IN.lock() {
+                *kept = Some(stand_in.clone());
+            }
             let link = tokio
                 .block_on(Link::open(config(stand_in, Tokens::File)))
                 .expect("an empty stand-in copy opens");
@@ -589,7 +641,7 @@ pub fn run(world: World) -> ! {
             Ok(()) => {
                 let _ = std::fs::write(data_dir.join("sampled"), "");
             }
-            Err(why) => tracing::warn!("sample data: {why}"),
+            Err(why) => tracing::warn!("sample data: {why:#}"),
         }
     }
     let updates = tokio.block_on(Updates::new(link.clone(), app));
@@ -624,6 +676,8 @@ pub fn run(world: World) -> ! {
     if RUNTIME.set(rt).is_err() {
         panic!("sol_quick::run twice");
     }
+    // What the desktop around the app shows of it (the bar, the terminal).
+    crate::status::start(runtime());
 
     // A moon its planet started, without a window, leaves a few seconds
     // after its planet does (or at once, unpaired: there's nothing to do
@@ -680,6 +734,12 @@ pub fn run(world: World) -> ! {
                 flag.store(true, Ordering::Relaxed);
             })
             .release();
+        if crate::live::asked(runtime().preview) {
+            crate::live::read_from_disk(
+                engine.as_mut(),
+                &crate::live::folders(world.main, world.source),
+            );
+        }
         engine.load(&QUrl::from(world.main));
     }
     if failed.load(Ordering::Relaxed) {

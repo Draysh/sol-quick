@@ -6,8 +6,9 @@ import Sol.Design
     The panels and what goes in them: Card in its ways (plain, titled,
     with a world, openable, with a menu), the ExportCard, Grid at a few
     widths, DataRows, Display, Progress, Callout, every kind of Skeleton
-    and Chart, a Settle list, a Strip, and Picture and Poster loaded,
-    missing, dimmed and lifted. The pictures are the kit's own photographs.
+    and Chart, a Settle list, a Strip, Picture and Poster loaded,
+    missing, dimmed and lifted, and a long grid and list sifted by a field.
+    The pictures are the kit's own photographs.
 */
 Screen {
     id: page
@@ -66,6 +67,11 @@ Screen {
             Progress { width: parent.width; value: 1 }
         }
         ExportCard { }
+        Card {
+            title: "Empty"
+            Empty { width: parent.width; world: "luna"; icon: "bed"; line: "A quiet sky so far."; hint: "Nights appear here as you log bedtimes and mornings."; action: "Log tonight" }
+            Empty { width: parent.width; compact: true; world: "saturn"; icon: "star"; line: "Nothing in orbit yet."; hint: "Rate a title and it starts to circle here." }
+        }
         Card {
             title: "Callout"
             Callout { lines: ["Walk = done", "Read = 20 min", "Water = 6 / 8"] }
@@ -224,6 +230,54 @@ Screen {
                 spacing: Theme.s2
                 Poster { width: 120; source: page.missing; name: "A cover that never came" }
                 Quiet { text: "Poster, missing" }
+            }
+        }
+    }
+
+    // A library's worth of tiles and rows: only those in sight are made, and the field sifts them.
+    readonly property var many: Array.from({ length: 600 }, (_, n) => ({ n: n + 1, world: page.order[n % page.order.length], name: Worlds.get(page.order[n % page.order.length]).name + " " + (n + 1) }))
+    Sift { id: sift; rows: page.many; words: longFilter.text; text: r => r.name; order: (a, b) => b.n - a.n }
+    Card {
+        width: parent.width
+        title: "LongGrid, LongList and Sift"
+        Column {
+            width: parent.width
+            spacing: Theme.s4
+            Field { id: longFilter; width: Math.min(320, parent.width); label: "Filter"; placeholder: "A world or a number" }
+            Quiet { text: sift.shown.length + " of 600 · " + longGrid.count + " tiles, only those in sight made" }
+            LongGrid {
+                id: longGrid
+                width: parent.width
+                min: 110
+                rows: 4
+                tileHeight: cell + Theme.s2 + Theme.textS * 1.5
+                model: sift.shown
+                delegate: Settle {
+                    id: tile
+                    required property var modelData
+                    required property int index
+                    width: longGrid.cell; height: longGrid.tileHeight
+                    place: index
+                    animated: longGrid.arrives(index)
+                    Picture { id: tilePic; width: parent.width; ratio: 1; url: Worlds.get(tile.modelData.world).image; name: tile.modelData.name; outline: true }
+                    Words { y: tilePic.height + Theme.s2; width: parent.width; small: true; elide: Text.ElideRight; text: tile.modelData.name }
+                }
+            }
+            LongList {
+                id: longList
+                width: parent.width
+                model: sift.shown
+                delegate: Settle {
+                    id: line
+                    required property var modelData
+                    required property int index
+                    width: longList.width; height: 40
+                    place: index
+                    animated: longList.arrives(index)
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
+                    Words { anchors.verticalCenter: parent.verticalCenter; text: line.modelData.name }
+                    Quiet { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: "Row " + (line.index + 1) }
+                }
             }
         }
     }

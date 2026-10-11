@@ -1,7 +1,7 @@
 [package]
 name = "sol-quick"
 description = "The Sol design language as a Qt Quick module, and the Rust side every world app shares"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -14,7 +14,7 @@ links = "sol_quick"
 [workspace]
 
 [dependencies]
-orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v1.0.0", features = ["app"] }
+orbit = { path = "../orbit", features = ["app"] }
 anyhow = "1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 cxx = "1"
@@ -25,10 +25,11 @@ gethostname = "1.1"
 open = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "signal"] }
+tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "signal", "macros"] }
 tracing = "0.1.44"
+tempfile = { version = "3", optional = true }
 
-# The tray, notifications and global shortcuts (desktop.rs).
+# The tray, notifications and global shortcuts (tray.rs, desktop/portal.rs).
 [target.'cfg(target_os = "linux")'.dependencies]
 image = { version = "0.25", default-features = false, features = ["png"] }
 ksni = { version = "0.3", default-features = false, features = ["tokio"] }
@@ -40,8 +41,13 @@ futures-util = "0.3"
 [features]
 # A stand-in Navidrome for the music worlds' previews and tests (`navidrome`).
 fake-navidrome = []
+# Test helpers for the worlds (`testing`): an offline Link, the manifest's
+# checks, quick capture's question, a stand-in door, orbit's stand-ins. A
+# world turns it on under `[dev-dependencies]` only.
+testing = ["orbit/testing", "dep:tempfile"]
 
 [dev-dependencies]
+orbit = { path = "../orbit", features = ["app", "testing"] }
 tempfile = "3"
 tokio = { version = "1.53", features = ["macros"] }
 

@@ -35,7 +35,7 @@ fn it_answers_like_navidrome() {
     let lib = fake.library();
     assert_eq!(
         (lib.artists.len(), lib.albums.len(), lib.songs.len()),
-        (9, 24, 168)
+        (11, 28, 181)
     );
 
     // Browsing: an album with its tracks, an artist with its albums.
@@ -61,8 +61,12 @@ fn it_answers_like_navidrome() {
         "getAlbumList2",
         "&type=alphabeticalByName&size=500&offset=0",
     )["albumList2"]["album"];
-    assert_eq!(list.as_array().unwrap().len(), 24);
+    assert_eq!(list.as_array().unwrap().len(), 28);
     assert_eq!(list[0]["name"], "Afterglow");
+    // The openings and endings, found by their show.
+    let titan = &call(&fake, "search3", "&query=attack+on+titan&songCount=20")["searchResult3"];
+    assert_eq!(titan["song"].as_array().unwrap().len(), 5);
+    assert_eq!(titan["album"][0]["name"], "Attack on Titan Theme Songs");
     let seventies = &call(
         &fake,
         "getRandomSongs",

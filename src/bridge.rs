@@ -50,6 +50,8 @@ pub mod qobject {
         #[qproperty(QString, drive)]
         /// `SOL_LIGHT=night|day`: this run's light, whatever the device's setting says.
         #[qproperty(QString, light)]
+        /// `SOL_CALM=1`: this run with less motion, whatever the device's setting says.
+        #[qproperty(bool, calm)]
         /// The page to open first (`--open /title?key=x`, or asked for while starting).
         #[qproperty(QString, open_path, cxx_name = "openPath")]
         type SolBackend = super::Backend;
@@ -57,6 +59,21 @@ pub mod qobject {
         /// Runs a command; the reply arrives as `replied(id, ok, body)`.
         #[qinvokable]
         fn call(self: Pin<&mut Self>, id: i32, command: &QString, args: &QString);
+
+        /// Runs a command as `Sol.callSeen` does: what it replied last time on
+        /// this device (kept under `key`) arrives first as `recalled(id,
+        /// body)`, read off the window's thread; then `repeated(id)` when the
+        /// fresh reply is the same, and `replied` as for `call`. A new reply
+        /// is kept for next time.
+        #[qinvokable]
+        #[cxx_name = "callSeen"]
+        fn call_seen(
+            self: Pin<&mut Self>,
+            id: i32,
+            key: &QString,
+            command: &QString,
+            args: &QString,
+        );
 
         /// The world's manifest (`sol-world.json`), as JSON.
         #[qinvokable]
@@ -96,6 +113,16 @@ pub mod qobject {
         #[qsignal]
         fn replied(self: Pin<&mut Self>, id: i32, ok: bool, body: QString);
 
+        /// What a `callSeen` command replied last time on this device, before
+        /// the fresh reply.
+        #[qsignal]
+        fn recalled(self: Pin<&mut Self>, id: i32, body: QString);
+
+        /// A `callSeen` command's fresh reply is what it replied last time
+        /// (sent just before `replied`).
+        #[qsignal]
+        fn repeated(self: Pin<&mut Self>, id: i32);
+
         /// Documents changed, here or elsewhere: the collections, as a JSON list.
         #[qsignal]
         fn changed(self: Pin<&mut Self>, collections: QString);
@@ -113,6 +140,11 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "openRequested"]
         fn open_requested(self: Pin<&mut Self>, path: QString);
+
+        /// Quick capture's key was pressed: the window opens the line over the desktop.
+        #[qsignal]
+        #[cxx_name = "captureRequested"]
+        fn capture_requested(self: Pin<&mut Self>);
 
         /// Quit asked from outside the window (the tray, an update, a restart):
         /// the window closes for good, then the app leaves.
@@ -162,6 +194,7 @@ pub struct Backend {
     fps: bool,
     drive: QString,
     light: QString,
+    calm: bool,
     open_path: QString,
 }
 
@@ -189,7 +222,34 @@ impl Default for Backend {
             fps: std::env::var_os("SOL_FPS").is_some(),
             drive: QString::from(&std::env::var("SOL_DRIVE").unwrap_or_default()),
             light: QString::from(&std::env::var("SOL_LIGHT").unwrap_or_default()),
+            calm: std::env::var_os("SOL_CALM").is_some(),
             open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
+        }
+    }
+}
+
+/// A screen's command, started: its reply as `(ok, JSON or why not)`. A
+/// command that panics still answers, so the screen's promise settles.
+fn run(command: &QString, args: &QString) -> impl Future<Output = (bool, String)> + use<> {
+    let rt = app::runtime();
+    let command = command.to_string();
+    let args = args.to_string();
+    let args = match serde_json::from_str(&args) {
+        Ok(args) => args,
+        Err(err) => {
+            // Nothing passed reads as no arguments; anything else is the screen's mistake.
+            if !args.trim().is_empty() {
+                orbit::telemetry::damaged("a command's arguments from the screen", err);
+            }
+            serde_json::Value::Null
+        }
+    };
+    let future = rt.commands.call(rt.link.clone(), &command, args);
+    async move {
+        match rt.tokio.spawn(future).await {
+            Ok(Ok(json)) => (true, json),
+            Ok(Err(why)) => (false, why),
+            Err(_) => (false, format!("{command} failed inside the app")),
         }
     }
 }
@@ -216,6 +276,7 @@ impl cxx_qt::Initialize for qobject::SolBackend {
                         .as_mut()
                         .world_event(QString::from(&name), QString::from(&data)),
                     ToWindow::Open(path) => me.open_requested(QString::from(&path)),
+                    ToWindow::Capture => me.capture_requested(),
                 });
             }
         });
@@ -296,17 +357,37 @@ impl qobject::SolBackend {
     pub fn call(self: Pin<&mut Self>, id: i32, command: &QString, args: &QString) {
         let rt = app::runtime();
         let qt = self.qt_thread();
-        let command = command.to_string();
-        let args = serde_json::from_str(&args.to_string()).unwrap_or(serde_json::Value::Null);
-        let future = rt.commands.call(rt.link.clone(), &command, args);
+        let reply = run(command, args);
         rt.tokio.spawn(async move {
-            // A command that panics still answers, so the screen's promise settles.
-            let (ok, body) = match rt.tokio.spawn(future).await {
-                Ok(Ok(json)) => (true, json),
-                Ok(Err(why)) => (false, why),
-                Err(_) => (false, format!("{command} failed inside the app")),
-            };
+            let (ok, body) = reply.await;
             let _ = qt.queue(move |me| me.replied(id, ok, QString::from(&body)));
+        });
+    }
+
+    pub fn call_seen(
+        self: Pin<&mut Self>,
+        id: i32,
+        key: &QString,
+        command: &QString,
+        args: &QString,
+    ) {
+        let rt = app::runtime();
+        let qt = self.qt_thread();
+        let reply = run(command, args);
+        let key = key.to_string();
+        rt.tokio.spawn(async move {
+            let first = qt.clone();
+            let (ok, body, same) =
+                crate::seen::through(rt.data_dir.clone(), key, reply, move |kept| {
+                    let _ = first.queue(move |me| me.recalled(id, QString::from(&kept)));
+                })
+                .await;
+            let _ = qt.queue(move |mut me| {
+                if same {
+                    me.as_mut().repeated(id);
+                }
+                me.replied(id, ok, QString::from(&body))
+            });
         });
     }
 

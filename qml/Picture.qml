@@ -141,6 +141,7 @@ Item {
         onStatusChanged: root.missing()
         fillMode: root.crop ? Image.PreserveAspectCrop : Image.PreserveAspectFit
         asynchronous: true
+        sourceSize.width: root.sourceWidth
         smooth: true
         opacity: status === Image.Ready ? (root.dim ? 0.45 : 1) : 0
         Behavior on opacity { NumberAnimation { duration: root.fadeIn; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }

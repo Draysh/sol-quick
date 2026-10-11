@@ -134,7 +134,8 @@ QtObject {
     // ---- The real sky ----------------------------------------------------------
     /** The time the sky is drawn for: a minute's precision is plenty. */
     property date now: new Date()
-    property Timer minute: Timer { interval: 60000; running: true; repeat: true; onTriggered: worlds.now = new Date() }
+    // Only while the window is in front, and at once when it comes back, so nothing redraws for a sky no one sees.
+    property Timer minute: Timer { interval: 60000; running: Theme.alive; repeat: true; triggeredOnStart: true; onTriggered: worlds.now = new Date() }
 
     /**
         The moon at `date`: its age in days since new, the lit fraction, whether
@@ -168,6 +169,22 @@ QtObject {
             return { phase: Math.max(0.08, (1 - Math.cos(2 * Math.PI * h / 24)) / 2), light: h < 12 ? 90 : 270 }
         }
         return null
+    }
+
+    /**
+        What a world's surface looks like now, by id: `{ green, cloudy }`, each
+        0 … 1 with 0.5 the photograph as it is. A world sets its own
+        (Terra's habits and today's weather); every Body of it follows.
+
+            Worlds.setSurface("terra", { green: 0.7, cloudy: 0.4 })
+    */
+    property var surfaces: ({})
+    function setSurface(id, s) {
+        const was = surfaces[id]
+        if (was && Math.abs(was.green - s.green) < 0.005 && Math.abs(was.cloudy - s.cloudy) < 0.005) return
+        const next = Object.assign({}, surfaces)
+        next[id] = { green: s.green, cloudy: s.cloudy }
+        surfaces = next
     }
 
     /** The moons that open from a world's screens. */

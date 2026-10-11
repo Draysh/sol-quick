@@ -55,6 +55,6 @@ Card {
     Toggle { id: autoToggle; visible: root.updates && root.quiet; width: parent.width; label: "Install updates by myself"
         hint: "New versions are put in place quietly and run from the next start."
         checked: !!root.status && root.status.auto; onToggled: on => Sol.call("set_auto_update", { auto: on }).catch(why => { autoToggle.fail(); Notices.failed(Sol.world, "Updates", why) }) }
-    Button { visible: root.updates && !!root.status && root.status.state !== "downloading" && root.status.state !== "ready"; variant: "quiet"; text: "Check now"
+    Button { visible: root.updates && !!root.status && root.status.state !== "downloading" && root.status.state !== "ready"; variant: "quiet"; icon: "refresh"; text: "Check now"
         busy: !!root.status && root.status.state === "checking"; onClicked: root.act("check_updates") }
 }

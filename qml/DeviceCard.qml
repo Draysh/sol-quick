@@ -4,8 +4,8 @@ import Sol.Design
 
 /*
     What is this device's alone: night or day (for every Sol app here),
-    the world's accent (its own colour, or one from its photograph), and
-    whether the small sounds play. Every other setting lives in Sol.
+    the world's accent (its own colour, or one from its photograph), less
+    motion (every Sol app here too), and whether the small sounds play. Every other setting lives in Sol.
 */
 Card {
     id: root
@@ -94,5 +94,6 @@ Card {
         }
     }
     Words { width: parent.width; small: true; quiet: true; text: "The glow on buttons, the light in the sidebar, the limb of the world." }
-    Toggle { label: "Sounds"; checked: Sounds.on; hint: "A tick, a thing done, a thing taken back: a few milliseconds each."; onToggled: c => Sounds.setOn(c) }
+    Toggle { label: "Less motion"; checked: Theme.calm; hint: "Moments are short and still. For every Sol app on this computer."; onToggled: c => Theme.setCalm(c) }
+    Toggle { label: "Sounds"; checked: Sounds.on; hint: "A tick, a thing done, a thing taken back: a few milliseconds each" + (Sounds.voiceName ? "; and " + Sounds.voiceName + " when something goes well." : "."); onToggled: c => Sounds.setOn(c) }
 }

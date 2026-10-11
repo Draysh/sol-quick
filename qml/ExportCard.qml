@@ -78,8 +78,8 @@ Card {
     Flow {
         width: parent.width
         spacing: Theme.s2
-        Button { text: root.saved ? "Export again" : "Export everything"; busy: root.exporting; onClicked: root.exportAll() }
-        Button { variant: "quiet"; text: "Import a file…"; busy: root.importing; onClicked: root.pick() }
+        Button { icon: "download"; text: root.saved ? "Export again" : "Export everything"; busy: root.exporting; onClicked: root.exportAll() }
+        Button { variant: "quiet"; icon: "upload"; text: "Import a file…"; busy: root.importing; onClicked: root.pick() }
     }
 
     FileDialog {
