@@ -22,7 +22,8 @@ use crate::{
 
 /// The commands every world shares: the connection, the manifest, doors,
 /// the app's own updates and installation, export and import.
-pub(crate) fn add(
+#[doc(hidden)]
+pub fn add(
     commands: &mut Commands,
     app: App,
     parent: Option<String>,

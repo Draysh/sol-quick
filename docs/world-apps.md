@@ -26,14 +26,17 @@ kit's components are listed in `../../kit/quick/README.md`.
 ## The layout of a world
 
 ```
-Cargo.toml        the version (tag releases v<version>); orbit and sol-quick on tags
+Cargo.toml        the app and the workspace: the version ([workspace.package];
+                  tag releases v<version>), sol-quick on a tag
 sol-world.json    the manifest: id, name, tagline, role, repo, parent (a moon),
                   collections, emits, actions, settings, connections
 build.rs          the app's QML module Sol.<World>: every qml/*.qml
 src/main.rs       the World handed to sol_quick::run, and the engine's static
-src/world.rs      the world's logic and `commands()`, which gathers every
-                  module's (src/world/*.rs for the rest; src/world/desktop.rs
-                  what the desktop sees of it, src/world/sample.rs the preview's data)
+crates/<world>-core/
+  Cargo.toml      the logic: orbit and sol-quick-core (named sol-quick) on tags, no Qt
+  src/lib.rs      the world's logic and `commands()`, which gathers every
+                  module's (src/*.rs for the rest; src/desktop.rs what the
+                  desktop sees of it, src/sample.rs the preview's data)
 qml/Main.qml      the AppWindow: sections, pages, the window's own wiring
 qml/<World>.qml   the world's singleton: state and words the screens share
 qml/*Page.qml     one Screen per page; other files are the pieces they share
@@ -45,8 +48,14 @@ update.pub        the key release files are signed with
 - **`main.rs`** is wiring: `sol_quick::run(World { manifest, update_key,
   version, bin, icons, handler, commands: world::commands(), main, source,
   sample, prepare, tray, shortcuts })`, and the engine's static for a world
-  with one. The logic and the commands live in `world.rs` and `world/`.
-- **`world.rs`** holds the collections, the events (each with a
+  with one (`use <world>_core as world;`). The logic and the commands live
+  in the crate `<world>-core`.
+- **The logic crate** (`crates/<world>-core`) depends on orbit and the
+  kit's half without Qt (`sol-quick = { package = "sol-quick-core", … }`,
+  so it says `sol_quick::…` as the app does), never on cxx-qt: its tests
+  build and run in seconds, `cargo test -p <world>-core`, even right after
+  a kit change. Anything that needs Qt stays in the app. Its `lib.rs`
+  holds `MANIFEST` (`sol-world.json`), the collections, the events (each with a
   one-sentence summary), the `Handler` (what it does for each action in
   `sol-world.json`, and `widget.toggle`), the widget for Sol's overview,
   and `commands()`, which calls each module's `commands(&mut c)` and
@@ -120,7 +129,7 @@ arguments are the struct the closure takes (`()` for none, as the screen
 may send `{}`), the reply anything serialisable.
 
 ```rust
-// src/world/habits.rs
+// crates/terra-core/src/habits.rs
 #[derive(Deserialize)]
 struct Tick {
     id: String,
@@ -132,7 +141,7 @@ pub fn commands(c: &mut sol_quick::Commands) {
         .add("tick_habit", |link, a: Tick| async move { set_done(&link, &a.id, a.done).await });
 }
 
-// src/world.rs
+// crates/terra-core/src/lib.rs
 pub fn commands() -> sol_quick::Commands {
     let mut c = sol_quick::Commands::default();
     habits::commands(&mut c);
@@ -215,7 +224,7 @@ engine keeps the link), and one with state beside the link takes both
 The Sol desktop (Noctalia's bar and launcher, Umbriel's keys, fastfetch;
 `../../deploy/desktop` in the workspace) shows what the running worlds are
 doing without a window, and other worlds' apps on this computer ask each
-other things. A world says all of it once, in `src/world/desktop.rs`: a
+other things. A world says all of it once, in its core's `desktop.rs`: a
 `sol_quick::desktop::Desktop`, registered in `world::commands()` with
 `desktop::desktop().register(&mut c)`. The kit adds the four
 commands its single-instance door reaches (the only ones that are),
@@ -574,8 +583,15 @@ that every `.qml` compiles. How to run and shoot a preview is in
 
 ## Tests
 
-`sol_quick::testing` (the kit's `testing` feature, on for tests only:
-`sol-quick = { …, features = ["testing"] }` under `[dev-dependencies]`):
+Every test is in the logic crate: `cargo test -p <world>-core` while
+working (filtered: `cargo test -p terra-core habits::`), and `cargo test`
+(every member) at the end. The app binary has none (`test = false`), so
+no test builds Qt. A fixture's path is from the file
+(`include_str!("../../../fixtures/x.json")` in `src/`), or from
+`env!("CARGO_MANIFEST_DIR")` plus `/../..` for the world's folder.
+
+`sol_quick::testing` (always there, no feature: the kit builds once for
+the app and its tests):
 
 - `offline_link(world)`: a `Link` with a local copy in a fresh folder and
   no Sol (keep the folder it returns as long as the link); `open(world,
@@ -595,9 +611,9 @@ that every `.qml` compiles. How to run and shoot a preview is in
   `assert_copy(ours, "../<world>/fixtures/questions/<id>.json")`: an
   asker's copy is the answerer's own.
 - `FakeDoor::open(world, |command, args| …)`: another world's running app,
-  answering `ask`, `do` and `find` through its door, and `asked()`. With
-  the feature on, every door is the test's own, so a test never reaches an
-  app running on the computer.
+  answering `ask`, `do` and `find` through its door, and `asked()`. Outside
+  `sol_quick::run` every door is the process's own (`sol-test-<pid>-…`),
+  so a test never reaches an app running on the computer.
 - orbit's stand-ins: `FakeHttp` (a canned HTTP server on 127.0.0.1:
   `routes([("GET /api/tags", Reply::ok(…))])` or `start(|request, seen| …)`,
   every `Request` kept), `StandInSol` (no settings, long polls held, writes
@@ -606,8 +622,8 @@ that every `.qml` compiles. How to run and shoot a preview is in
 ## Checks
 
 - `cargo build` (it compiles the QML: a bad `.qml` fails here), then
-  `cargo fmt && cargo clippy --all-targets -- -D warnings && cargo test`
-  (Neptune: `--workspace`).
+  `cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
+  && cargo test` (every member's tests).
 - Shots of every page in `Main.qml`'s `pages` that the change touches, one
   detail page, and the journal, before and after (`../../docs/agents.md`).
 - A change to the kit is checked in the kit's gallery, not by sweeping the

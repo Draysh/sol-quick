@@ -59,16 +59,24 @@ impl Knock {
 #[cfg(target_os = "linux")]
 static OWNED: OnceLock<PathBuf> = OnceLock::new();
 
+/// Whether the doors are the computer's (`sol-<world>`, `sol-preview-<world>`).
+/// `sol_quick::run` says so before anything knocks; until then, as in every
+/// test, each door is the process's own (`sol-test-<pid>-<world>`), so a test
+/// never reaches an app running on the computer.
+static THE_COMPUTERS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// For `sol_quick::run`, first thing: this process is the app, and its doors
+/// are the ones other apps and the desktop knock on.
+#[doc(hidden)]
+pub fn use_the_computers_doors() {
+    THE_COMPUTERS.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
 #[cfg(target_os = "linux")]
 fn name(world: &str, preview: bool) -> String {
-    // A test's doors are its own, so nothing reaches an app running here.
-    #[cfg(feature = "testing")]
-    {
-        let _ = preview;
+    if !THE_COMPUTERS.load(std::sync::atomic::Ordering::SeqCst) {
         format!("sol-test-{}-{world}", std::process::id())
-    }
-    #[cfg(not(feature = "testing"))]
-    if preview {
+    } else if preview {
         format!("sol-preview-{world}")
     } else {
         format!("sol-{world}")
@@ -285,8 +293,8 @@ pub fn ask_within(
 /// `on_knock` until `stop` is set and the door knocked on once more
 /// ([`wake_door`]). The thread it answers on ends with the door closed, so
 /// joining it is waiting for the door to be free again.
-#[cfg(feature = "testing")]
-pub(crate) fn open_door(
+#[doc(hidden)]
+pub fn open_door(
     world: &str,
     stop: Arc<std::sync::atomic::AtomicBool>,
     on_knock: Arc<dyn Fn(Knock) -> Answer + Send + Sync>,
@@ -312,8 +320,8 @@ pub(crate) fn open_door(
 }
 
 /// Knocks on a test's door so it sees it should stop.
-#[cfg(feature = "testing")]
-pub(crate) fn wake_door(world: &str) {
+#[doc(hidden)]
+pub fn wake_door(world: &str) {
     #[cfg(target_os = "linux")]
     let _ = address(world, false).and_then(|a| UnixStream::connect_addr(&a));
     #[cfg(not(target_os = "linux"))]

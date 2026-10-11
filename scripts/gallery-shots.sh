@@ -35,7 +35,7 @@ listed=$bin.qml-files
 qml_files() { find qml -name '*.qml' | sort; }
 if [[ -z $build && ( ! -x $bin || ${SOL_QML_LIVE:-1} != 1 ) ]]; then build=1; fi
 if [[ -z $build ]] && ! qml_files | cmp -s - "$listed"; then build=1; fi
-if [[ -z $build ]] && [[ -n $(find build.rs Cargo.toml Cargo.lock src cpp assets shaders examples/gallery/main.rs ../orbit/src \
+if [[ -z $build ]] && [[ -n $(find build.rs Cargo.toml Cargo.lock src core cpp assets shaders examples/gallery/main.rs ../orbit/src \
     -newer "$bin" -not -name '*.qml' -print -quit 2>/dev/null) ]]; then build=1; fi
 if [[ -n $build ]]; then
     "$(dirname "$0")/capped" cargo build --example gallery

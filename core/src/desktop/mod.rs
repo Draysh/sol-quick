@@ -40,7 +40,8 @@ use orbit::link::Link;
 use serde::Serialize;
 use serde_json::Value;
 
-pub(crate) use portal::start;
+#[doc(hidden)]
+pub use portal::start;
 pub use portal::{Shortcut, TrayItem, notify, pick_file};
 
 pub use crate::door::{Do, Found, Query, Question};

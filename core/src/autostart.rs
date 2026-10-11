@@ -13,7 +13,8 @@ use crate::commands::say;
 pub(crate) const LOGIN: &str = "--login";
 
 /// Whether this process was started at login.
-pub(crate) fn at_login() -> bool {
+#[doc(hidden)]
+pub fn at_login() -> bool {
     std::env::args().skip(1).any(|a| a == LOGIN)
 }
 
@@ -28,7 +29,8 @@ fn entry_text(app: &App, bin: &std::path::Path) -> String {
 
 /// Brings an entry written by a version before 1.0 (`--background`) to
 /// today's flag; writes nothing when it is current, or there is none.
-pub(crate) fn refresh(app: &App) {
+#[doc(hidden)]
+pub fn refresh(app: &App) {
     let (Some(bin), Some(path)) = (installed_bin(app), autostart_entry(app)) else {
         return;
     };

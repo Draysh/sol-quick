@@ -1,0 +1,40 @@
+[package]
+name = "sol-quick-core"
+description = "The half of sol-quick that needs no Qt: commands, the desktop, questions, doors, undo, moments, test helpers"
+version.workspace = true
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+repository = "https://github.com/Draysh/sol-quick"
+publish = false
+
+[dependencies]
+# orbit's `testing` always: the kit's test helpers (`testing`) are always
+# built, so orbit and this crate are the same build for an app and its tests.
+orbit = { path = "../../orbit", features = ["app", "testing"] }
+anyhow = "1"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+dirs = "6"
+gethostname = "1.1"
+open = "5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "signal", "macros"] }
+tracing = "0.1.44"
+
+# The tray, notifications and global shortcuts (tray.rs, desktop/portal.rs).
+[target.'cfg(target_os = "linux")'.dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
+ksni = { version = "0.3", default-features = false, features = ["tokio"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+notify-rust = { version = "4", default-features = false, features = ["z"] }
+ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
+futures-util = "0.3"
+
+[features]
+# A stand-in Navidrome for the music worlds' previews and tests (`navidrome`).
+fake-navidrome = []
+
+[dev-dependencies]
+tokio = { version = "1.53", features = ["macros"] }

@@ -340,7 +340,7 @@ mod linux {
                 member: me,
                 to: None,
             }],
-            icon: pixmap(include_bytes!("../assets/sol-tray.png"))
+            icon: pixmap(include_bytes!("../../assets/sol-tray.png"))
                 .into_iter()
                 .collect(),
             up: false,

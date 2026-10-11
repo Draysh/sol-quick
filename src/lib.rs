@@ -1,6 +1,10 @@
 //! sol-quick: the Sol design language as a Qt Quick module (`Sol.Design`),
 //! and the Rust side every world's app shares: starting up, the one
 //! QObject the screens talk to (`SolBackend`), and the commands they call.
+//! Everything that needs no Qt (the commands, the desktop, questions,
+//! doors, undo, moments, the test helpers) is `sol-quick-core` in `core/`,
+//! re-exported here under the same paths; a world's logic crate uses that
+//! one alone, so its tests never build Qt.
 //!
 //! A world's `main.rs` is a few lines (`kit/template` has the whole of one):
 //!
@@ -30,31 +34,12 @@
 //! }
 //! ```
 
-pub mod app;
-mod autostart;
-pub mod bridge;
-pub mod capture;
-pub mod commands;
-pub mod desktop;
-pub mod door;
-pub mod engine;
-pub mod exchange;
-mod live;
-pub mod moments;
-#[cfg(feature = "fake-navidrome")]
-pub mod navidrome;
-pub mod questions;
-mod seen;
-mod shared;
-mod single;
-pub mod status;
-#[cfg(feature = "testing")]
-pub mod testing;
-mod tray;
-pub mod undo;
+// Everything that needs no Qt, under the paths it always had
+// (`sol_quick::desktop`, `sol_quick::testing`, …).
+pub use sol_quick_core::*;
 
-pub use app::{
-    Prepare, Sample, World, cache_dir, data_dir, device_name, emit, leave, open, quit, run, runtime,
-};
-pub use commands::{Commands, doc, say};
-pub use engine::{Shared, handler};
+pub mod app;
+pub mod bridge;
+mod live;
+
+pub use app::run;

@@ -1,7 +1,7 @@
 [package]
 name = "sol-quick"
 description = "The Sol design language as a Qt Quick module, and the Rust side every world app shares"
-version = "1.1.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -10,46 +10,37 @@ publish = false
 # cxx-qt exports this crate's C++ build (the QML module) to the app that links it.
 links = "sol_quick"
 
-# Its own workspace, so it builds the same inside or outside a checkout of Sol.
+# Its own workspace, so it builds the same inside or outside a checkout of
+# Sol: this crate (the QML module, the window) and `core/` (sol-quick-core,
+# everything that needs no Qt), released together under one tag.
 [workspace]
+members = [".", "core"]
+default-members = [".", "core"]
+
+# The one version of both crates, and the release tag (v<version>).
+[workspace.package]
+version = "1.1.0"
 
 [dependencies]
+sol-quick-core = { path = "core" }
 orbit = { path = "../orbit", features = ["app"] }
 anyhow = "1"
-chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 cxx = "1"
 cxx-qt = "0.10"
 cxx-qt-lib = { version = "0.10", features = ["qt_full"] }
 dirs = "6"
-gethostname = "1.1"
 open = "5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1.53", features = ["rt-multi-thread", "sync", "time", "signal", "macros"] }
 tracing = "0.1.44"
-tempfile = { version = "3", optional = true }
-
-# The tray, notifications and global shortcuts (tray.rs, desktop/portal.rs).
-[target.'cfg(target_os = "linux")'.dependencies]
-image = { version = "0.25", default-features = false, features = ["png"] }
-ksni = { version = "0.3", default-features = false, features = ["tokio"] }
-zbus = { version = "5", default-features = false, features = ["tokio"] }
-notify-rust = { version = "4", default-features = false, features = ["z"] }
-ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
-futures-util = "0.3"
 
 [features]
 # A stand-in Navidrome for the music worlds' previews and tests (`navidrome`).
-fake-navidrome = []
-# Test helpers for the worlds (`testing`): an offline Link, the manifest's
-# checks, quick capture's question, a stand-in door, orbit's stand-ins. A
-# world turns it on under `[dev-dependencies]` only.
-testing = ["orbit/testing", "dep:tempfile"]
+fake-navidrome = ["sol-quick-core/fake-navidrome"]
 
 [dev-dependencies]
-orbit = { path = "../orbit", features = ["app", "testing"] }
 tempfile = "3"
-tokio = { version = "1.53", features = ["macros"] }
 
 [build-dependencies]
 cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }

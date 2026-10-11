@@ -1,19 +1,34 @@
 # sol-quick (kit/quick)
 
 The design language in Qt Quick (the QML module `Sol.Design`, `qml/`) and
-the Rust side every world app shares (`sol_quick::run` and friends, `src/`).
+the Rust side every world app shares, in two crates of one workspace and
+one tag: `sol-quick` (`src/`: `sol_quick::run`, the window, `SolBackend`,
+live QML: what needs Qt) and `sol-quick-core` (`core/src/`: everything
+else: commands, the desktop, questions, doors, undo, moments, export, the
+test helpers). `sol-quick` re-exports core under the same paths. A Rust
+file named below without a folder is in `core/src/`, except `bridge.rs`,
+`live.rs` and `app/start.rs` (`src/`).
 Every world app and `kit/template` build on it; Sol's own web app does not
 (that is `kit/design`). `README.md` lists every component and module;
 `docs/world-apps.md` is the guide for working in a world.
 
 ## Who sees a change here
 
-- The worlds pin a released tag (`sol-quick = { git, tag = "v1.x.0" }`,
-  and again with `features = ["testing"]` under `[dev-dependencies]`), so
-  an edit reaches nothing until they point at it. `hub/scripts/worlds.sh
-  use-local` points every consumer at this checkout (`path =
-  "../../kit/quick"`, both lines); then `cargo build` in a world compiles
-  this crate's QML too.
+- The worlds pin a released tag: the app `sol-quick = { git, tag =
+  "v1.x.0" }`, its logic crate (`crates/<world>-core`) `sol-quick = {
+  package = "sol-quick-core", git, tag }` (cargo finds `core/` in the same
+  repository), so an edit reaches nothing until they point at it.
+  `hub/scripts/worlds.sh use-local` points every consumer at this checkout
+  (`path = "../../kit/quick"`, `"../../../../kit/quick/core"`); then
+  `cargo build` in a world compiles this crate's QML too, and `cargo test
+  -p <world>-core` compiles only core.
+- **Core never needs Qt**: no cxx-qt, nothing from `src/`, no feature that
+  changes what it builds for an app and for its tests (one would make
+  cargo build `sol-quick`, and run its Qt build script, once per variant).
+  So the test helpers are always built and orbit's `testing` is always on;
+  a door's name is chosen at run time (below). What `src/` needs from core
+  that a world mustn't is `#[doc(hidden)] pub` (`Runtime`'s fields,
+  `single`, `shared`, `seen`, `tray`, `autostart`, `status::start`).
 - Installed apps on this computer may run older kit versions side by side:
   anything that crosses processes (sockets, settings files, the tray's
   messages) must stay compatible.
@@ -121,7 +136,9 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   around the app" and "Quick capture"): the tray socket (abstract
   `sol-tray:$XDG_RUNTIME_DIR`, JSON lines of lowercase `Up`/`Down`,
   `tray.rs`); the single-instance door, abstract `sol-<world>:$XDG_RUNTIME_DIR`
-  / `sol-preview-<world>:…` (`sol-test-<pid>-<world>` with `testing`), plus
+  / `sol-preview-<world>:…` (`sol-test-<pid>-<world>` in any process until
+  `run` calls `single::use_the_computers_doors()`, so every test's doors are
+  its own), plus
   the socket file `sol-<world>.sock` that versions before 1.0 use (knocked
   on before running, listened at; drop it once no 0.x app is left), with
   lines `show`, `open <path>`, `wait` and `ask do|find|ask|capture <json>`
@@ -159,12 +176,13 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `qrc:/qt/qml/Sol/<World>/qml/` (from `World::main`) to `World::source`'s
   `qml/`. A file's folder on disk must stay laid out as in the module
   (`qml/`, `../assets`, `../shaders`).
-- **Test helpers** (`src/testing.rs`, feature `testing`, which turns on
-  orbit's `testing`): the worlds' tests call `offline_link`,
+- **Test helpers** (`testing.rs`, always built, with orbit's `testing`):
+  the worlds' tests call `offline_link`,
   `assert_manifest`/`Expect`, `capture_q`, `assert_asked`, `assert_told`,
   `assert_copy`, `undoably`, `take_back` and `FakeDoor` by name; keep them
   and their meaning (`docs/world-apps.md`, "Tests").
-- **The stand-in Navidrome** (`src/navidrome/`, feature `fake-navidrome`):
+- **The stand-in Navidrome** (`navidrome/`, feature `fake-navidrome` of
+  either crate):
   Neptune's and Triton's previews and tests name its ids (`al-1`, `ar-2`,
   `pl-1`, `tr-1-1`) and counts (9 artists, 24 albums, 168 tracks); change
   the library and their tests change with it. It answers only what those
@@ -227,8 +245,10 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 
 ## Checks
 
-- `cargo fmt`, `cargo clippy --all-targets -- -D warnings`, `cargo test`,
-  each with and without `--features testing`.
+- `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D
+  warnings`, `cargo test --all-features` (both crates: the workspace's
+  default members; `--all-features` adds the stand-in Navidrome). While
+  iterating on core, `cargo test -p sol-quick-core` builds no Qt.
 - After any change here, the gallery: `scripts/gallery-shots.sh <folder>`
   (`examples/gallery`, every component on four pages, night and day, two
   narrow, and the focus, menu, palette, dialog and notice states, then
@@ -242,10 +262,11 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 
 ## Releasing
 
-1. Bump `version` in `Cargo.toml` (1.x.0 for anything new). While
-   `use-local` is on, `orbit` here is `{ path = "../orbit" }` (in
-   `[dependencies]` and `[dev-dependencies]`); a release points both at a
-   released orbit tag first (`worlds.sh use-tags … kit/quick`), so the
+1. Bump `version` in `Cargo.toml` (`[workspace.package]`, both crates';
+   1.x.0 for anything new). While
+   `use-local` is on, `orbit` is `{ path = "../orbit" }` in `Cargo.toml`
+   and `{ path = "../../orbit" }` in `core/Cargo.toml`; a release points
+   both at a released orbit tag first (`worlds.sh use-tags … kit/quick`), so the
    crate builds on its own from GitHub.
 2. The person commits, tags `v<version>` and pushes (Draysh/sol-quick is
    public, so cargo can fetch it without credentials).

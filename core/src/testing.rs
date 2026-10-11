@@ -1,6 +1,6 @@
-//! For a world's tests (feature `testing`, turned on as a dev-dependency
-//! feature: `sol-quick = { …, features = ["testing"] }` under
-//! `[dev-dependencies]`):
+//! For a world's tests (`sol_quick::testing`, always there: nothing here
+//! runs unless a test calls it, and no feature means the kit is built once
+//! for the app and its tests alike):
 //!
 //! - [`offline_link`]: a `Link` with a local copy and no Sol.
 //! - [`assert_manifest`]: `sol-world.json` is sound and says what the code
@@ -17,8 +17,9 @@
 //! - orbit's stand-ins, re-exported: [`FakeHttp`], [`Reply`], [`Request`],
 //!   [`Requests`], [`StandInSol`].
 //!
-//! With this feature on, every door (`sol-<world>`) is the test process's
-//! own, so a test never reaches an app running on the computer.
+//! Outside `sol_quick::run` every door (`sol-<world>`) is the process's own
+//! (`sol-test-<pid>-<world>`), so a test never reaches an app running on the
+//! computer.
 
 use std::{
     collections::BTreeSet,
@@ -154,12 +155,18 @@ pub fn assert_manifest(manifest: &str, expect: Expect) -> WorldManifest {
     m
 }
 
-/// The folder of the world under test (cargo runs tests from there).
+/// The folder of the world under test: the nearest folder up from the crate
+/// being tested (cargo runs tests from there) with a `sol-world.json`, so a
+/// world's logic crate in `crates/<world>-core` finds its world's root.
 fn world_dir() -> PathBuf {
-    std::env::var_os("CARGO_MANIFEST_DIR")
+    let start = std::env::var_os("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .or_else(|| std::env::current_dir().ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    start
+        .ancestors()
+        .find(|dir| dir.join("sol-world.json").is_file())
+        .map_or(start.clone(), Path::to_path_buf)
 }
 
 /// Whether any screen in `qml` plays a moment.

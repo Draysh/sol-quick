@@ -28,6 +28,8 @@ use crate::single;
 
 /// Runs the app. Never returns.
 pub fn run(world: World) -> ! {
+    // This process is the app: its doors are the computer's, not a test's.
+    single::use_the_computers_doors();
     let manifest: WorldManifest =
         serde_json::from_str(world.manifest).expect("sol-world.json is a world manifest");
     let mut app = make_app(&world, &manifest);

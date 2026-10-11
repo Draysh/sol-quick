@@ -24,7 +24,8 @@ fn file_in(data_dir: &Path, key: &str) -> PathBuf {
 /// then the command's reply (`ok`, its JSON) is kept for next time when it
 /// is new. Answers the reply and whether it is what was recalled, so the
 /// screens can leave what they show as it is without comparing the two.
-pub(crate) async fn through(
+#[doc(hidden)]
+pub async fn through(
     data_dir: PathBuf,
     key: String,
     reply: impl Future<Output = (bool, String)>,
@@ -50,7 +51,8 @@ pub(crate) async fn through(
 
 /// Forgets what pages showed that nothing has shown for 30 days (a key per
 /// day, like a diary's page, would otherwise keep every day).
-pub(crate) fn prune() {
+#[doc(hidden)]
+pub fn prune() {
     let Ok(entries) = std::fs::read_dir(runtime().data_dir.join("seen")) else {
         return;
     };
@@ -67,12 +69,14 @@ pub(crate) fn prune() {
 }
 
 /// What a page last showed, if it was kept.
-pub(crate) fn recall(key: &str) -> Option<String> {
+#[doc(hidden)]
+pub fn recall(key: &str) -> Option<String> {
     std::fs::read_to_string(seen_file(key)).ok()
 }
 
 /// Keeps what a page shows; nothing is written when it is what was kept.
-pub(crate) fn remember(key: &str, json: &str) {
+#[doc(hidden)]
+pub fn remember(key: &str, json: &str) {
     let path = seen_file(key);
     let same = std::fs::read_to_string(&path).is_ok_and(|kept| kept == json);
     keep(&path, json, same);

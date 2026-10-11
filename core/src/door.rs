@@ -149,7 +149,8 @@ pub fn tell(world: &str, id: &str, arg: Option<String>) -> Result<String, Unansw
 
 /// `--do <action> [argument]`: asks the running copy to do it, and says
 /// what it did.
-pub(crate) fn act(world: &str, name: &str, preview: bool, args: &[String]) -> i32 {
+#[doc(hidden)]
+pub fn act(world: &str, name: &str, preview: bool, args: &[String]) -> i32 {
     let Some((id, rest)) = args.split_first() else {
         eprintln!("Usage: --do <action> [argument]");
         return 2;
@@ -176,7 +177,8 @@ pub(crate) fn act(world: &str, name: &str, preview: bool, args: &[String]) -> i3
 
 /// `--find <words>`: what the running copy finds for them, as a JSON list
 /// with each answer's world beside it (`[]` when it isn't running).
-pub(crate) fn find(world: &str, name: &str, preview: bool, args: &[String]) -> i32 {
+#[doc(hidden)]
+pub fn find(world: &str, name: &str, preview: bool, args: &[String]) -> i32 {
     let query = Query {
         query: args.join(" "),
     };

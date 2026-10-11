@@ -108,7 +108,8 @@ async fn reason(updates: &mut tokio::sync::broadcast::Receiver<Update>) {
 
 /// Keeps the status file current while the app runs, for a world that has
 /// a `status` command.
-pub(crate) fn start(rt: &'static Runtime) {
+#[doc(hidden)]
+pub fn start(rt: &'static Runtime) {
     if !rt.commands.has("status") {
         return;
     }
@@ -145,14 +146,16 @@ pub(crate) fn start(rt: &'static Runtime) {
 }
 
 /// Takes the status away as the app leaves.
-pub(crate) fn leave() {
+#[doc(hidden)]
+pub fn leave() {
     if let Some(path) = WRITTEN.get() {
         let _ = std::fs::remove_file(path);
     }
 }
 
 /// `--status`: prints the status of the copy running here, if one is.
-pub(crate) fn print(world: &str, name: &str, preview: bool) -> i32 {
+#[doc(hidden)]
+pub fn print(world: &str, name: &str, preview: bool) -> i32 {
     match file(world, preview).and_then(|p| std::fs::read_to_string(p).ok()) {
         Some(text) => {
             print!("{text}");

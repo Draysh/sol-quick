@@ -2622,12 +2622,28 @@ name = "sol-quick"
 version = "1.1.0"
 dependencies = [
  "anyhow",
- "ashpd",
- "chrono",
  "cxx",
  "cxx-qt",
  "cxx-qt-build",
  "cxx-qt-lib",
+ "dirs",
+ "open",
+ "orbit",
+ "serde",
+ "serde_json",
+ "sol-quick-core",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "sol-quick-core"
+version = "1.1.0"
+dependencies = [
+ "anyhow",
+ "ashpd",
+ "chrono",
  "dirs",
  "futures-util",
  "gethostname",

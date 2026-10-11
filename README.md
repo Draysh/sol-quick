@@ -13,15 +13,29 @@ How a world app is laid out and what it uses from here is in
 
 ## Using it
 
+Two crates under one tag: `sol-quick` (this folder: the QML module, the
+window, `run`) and `sol-quick-core` (`core/`: everything that needs no Qt,
+which `sol-quick` re-exports under the same paths). A world's app depends
+on the first; its logic, in a crate of its own, on the second alone, under
+the name `sol-quick`, so the paths are the same and its tests never build
+Qt:
+
 ```toml
+# Cargo.toml (the app)
 [dependencies]
+terra-core = { path = "crates/terra-core" }
 sol-quick = { git = "https://github.com/Draysh/sol-quick", tag = "v1.1.0" }   # or path = "../../kit/quick" (worlds.sh use-local)
 cxx-qt = "0.10"
 [build-dependencies]
 cxx-qt-build = { version = "0.10", features = ["link_qt_object_files"] }
-[dev-dependencies]
-sol-quick = { git = "https://github.com/Draysh/sol-quick", tag = "v1.1.0", features = ["testing"] }
+
+# crates/terra-core/Cargo.toml (the logic, and every test)
+[dependencies]
+sol-quick = { package = "sol-quick-core", git = "https://github.com/Draysh/sol-quick", tag = "v1.1.0" }   # or path = "../../../../kit/quick/core"
 ```
+
+The test helpers (`sol_quick::testing`) are always there: no feature, so
+the kit is one build for an app and its tests.
 
 `build.rs` declares the app's own QML module (`Sol.<Name>`, every file in
 `qml/`), and `main.rs` hands `sol_quick::run` a `World`: the manifest, the
@@ -35,20 +49,30 @@ QML too, so a mistake in a `.qml` file fails the build.
 Needs Qt 6.12 or later: `qt6-base`, `qt6-declarative`, `qt6-shadertools`
 and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 
-## The Rust side (`src/`)
+## The Rust side
+
+What needs Qt is in `src/` (the crate `sol-quick`); the rest is in
+`core/src/` (`sol-quick-core`), and `src/lib.rs` re-exports all of it, so
+`sol_quick::desktop`, `sol_quick::testing` and the rest name the same
+things from either crate.
 
 | File | What it does |
 | --- | --- |
-| `lib.rs` | Re-exports: `run`, `World`, `Prepare`, `Sample`, `Commands`, `say`, `data_dir`, `cache_dir`, `device_name`, `emit`, `open`, `quit`, `leave`, `runtime`, `Shared`, `handler` |
-| `app/` | `World`, `Runtime`, `data_dir`, `cache_dir`, `emit`, `quit`, `leave` (`mod.rs`); `run` in `start.rs`, a function for each step (command line, the log, one copy at a time, an update on trial, SIGTERM/SIGINT, the tokio runtime, the `Link`, moons, the tray, then the window) |
-| `live.rs` (+ `cpp/live.h`) | `SOL_QML_LIVE`: a preview reads the QML modules from their checkouts (a URL interceptor on the engine) |
+| `src/lib.rs` | `pub use sol_quick_core::*`, `run`, `bridge`; core's `lib.rs` re-exports `World`, `Prepare`, `Sample`, `Commands`, `say`, `data_dir`, `cache_dir`, `device_name`, `emit`, `open`, `quit`, `leave`, `runtime`, `Shared`, `handler` |
+| `src/app/` | `run` in `start.rs`, a function for each step (command line, the log, one copy at a time, an update on trial, SIGTERM/SIGINT, the tokio runtime, the `Link`, moons, the tray, then the window); `World`, `Runtime`, `data_dir`, `cache_dir`, `emit`, `quit`, `leave` are `core/src/app.rs` |
+| `src/live.rs` (+ `cpp/live.h`) | `SOL_QML_LIVE`: a preview reads the QML modules from their checkouts (a URL interceptor on the engine) |
+| `src/bridge.rs` | `SolBackend`, the one QObject the QML side talks to (properties, `call`, signals) |
+
+In `core/src/`:
+
+| File | What it does |
+| --- | --- |
 | `shared.rs` | The commands every world's screens can call besides their own (below) |
 | `exchange.rs` | Export and import of a world's own collections (those in its manifest) as one JSON file: `export`, `write`, `read`, `plan`, `import`; an import goes through the `Link`, merges by id and deletes nothing |
 | `seen.rs` | What pages last showed (`Sol.callSeen`), a file per key in the data folder's `seen/`, pruned after 30 days |
 | `autostart.rs` | Starting with the computer: `~/.config/autostart/sol-<world>.desktop` for the installed copy, run with `--login` (an entry from before 1.0 with `--background` is brought up to date) |
 | `commands.rs` | `Commands` (typed async commands by name; replies go to JSON text, so an `f32` stays as written) and `say` (an error as one sentence with its causes, `{:#}`) |
 | `engine.rs` | `Shared<T>` (a world's engine, built in `prepare` and read by commands and the handler) and `handler(|| …)` (a `Handler` made for each call, around that engine) |
-| `bridge.rs` | `SolBackend`, the one QObject the QML side talks to (properties, `call`, signals) |
 | `capture.rs` | Quick capture (`docs/world-apps.md`, "Quick capture"): every running world asked, best offer first (`Line`, `Offer`) |
 | `desktop/mod.rs` | The desktop around the app (`docs/world-apps.md`): `Desktop`, a world's status, actions, find, verbs and questions said once and registered as the door's commands; `Plan`, `Typed`, `encode`; and the portal (`portal.rs`: `notify`, `pick_file`, global shortcuts) |
 | `desktop/matching.rs` | Quick capture's one scale of how sure (`EXACT` … `GUESS`), `score`, `best`, `rank`, `after_verb`, `pick_by_name_or_next_open` |
@@ -58,10 +82,10 @@ and `qt6-multimedia` (the kit's own sounds use it, so every world does).
 | `commands.rs` | `Commands` (the registry: `add`, `undoable`, `creates`, `names`; over the link, `engine(&ENGINE)` or `over(…)`), `doc`, `say` |
 | `undo.rs` | Undo: the documents a write changes, kept under a token (`keep`, `take`) and put back (`restore`) |
 | `status.rs` | The status file for the bar (`refresh`) and `--status` |
-| `testing.rs` | With the `testing` feature, for a world's tests (`docs/world-apps.md`, "Tests"): `offline_link`, `assert_manifest` and `Expect`, `capture_q`, `undoably` and `take_back`, `FakeDoor`, and orbit's `FakeHttp`, `Reply`, `StandInSol` |
-| `single.rs` | One copy at a time: the abstract socket `sol-<world>:$XDG_RUNTIME_DIR` (`sol-preview-<world>:…` in preview) and its knocks (`show`, `open <path>`, and `ask <command> <json>` for the desktop's `do` and `find`, answered `ok <reply>` or `no <why>`); also the file `sol-<world>.sock` that versions before 1.0 use, knocked on and listened at, so an old and a new version never both run |
+| `testing.rs` | For a world's tests (always built; nothing in it runs unless a test calls it) (`docs/world-apps.md`, "Tests"): `offline_link`, `assert_manifest` and `Expect`, `capture_q`, `undoably` and `take_back`, `FakeDoor`, and orbit's `FakeHttp`, `Reply`, `StandInSol` |
+| `single.rs` | One copy at a time: the abstract socket `sol-<world>:$XDG_RUNTIME_DIR` (`sol-preview-<world>:…` in preview; `sol-test-<pid>-<world>` in any process that isn't `run`, so tests never reach a running app) and its knocks (`show`, `open <path>`, and `ask <command> <json>` for the desktop's `do` and `find`, answered `ok <reply>` or `no <why>`); also the file `sol-<world>.sock` that versions before 1.0 use, knocked on and listened at, so an old and a new version never both run |
 | `tray.rs` | One Sol tray for every Sol app here (the first one hosts it; the others join over a socket) and the counts on the apps' icons |
-| `navidrome/` | With the `fake-navidrome` feature (Neptune and Triton): `FakeNavidrome`, a stand-in Navidrome on 127.0.0.1 for previews and tests (a made-up library with drawn covers, playlists, stars, lyrics (Japanese for Kaito Mori), two artists of anime openings and endings (for Triton), streams of silence; `mod.rs` the server's handle and `preview()`, `library.rs` the library, `api.rs` the Subsonic endpoints, `http.rs` the socket, `media.rs` the PNGs and WAVs) |
+| `navidrome/` | With the `fake-navidrome` feature (of either crate; Neptune and Triton): `FakeNavidrome`, a stand-in Navidrome on 127.0.0.1 for previews and tests (a made-up library with drawn covers, playlists, stars, lyrics (Japanese for Kaito Mori), two artists of anime openings and endings (for Triton), streams of silence; `mod.rs` the server's handle and `preview()`, `library.rs` the library, `api.rs` the Subsonic endpoints, `http.rs` the socket, `media.rs` the PNGs and WAVs) |
 
 **The shared commands** (`shared.rs`): `connect {server}`, `cancel`,
 `forget`, `settings`, `open_in_sol`, `doors` (the worlds installed here),
@@ -372,7 +396,7 @@ the gallery (above), not in every world.
 
 ## The desktop around the window
 
-- **One Sol tray** (`src/tray.rs`): the first Sol app to start shows a
+- **One Sol tray** (`core/src/tray.rs`): the first Sol app to start shows a
   single Sol icon; the others join it, each as a submenu (Open, the entries
   a world lists in `World::tray`, Quit), and the next takes over when it
   quits. Closing a window hides it while the tray is there.
@@ -395,7 +419,7 @@ the gallery (above), not in every world.
   to confirm them the first time. Neptune's MPRIS (media keys, the
   desktop's player widget) lives in its audio crate. Umbriel has no such
   portal: its keys run `--do` instead (below).
-- **The bar, the launcher, the terminal** (`src/status.rs`): a world's
+- **The bar, the launcher, the terminal** (`core/src/status.rs`): a world's
   `status`, `do`, `find` and `ask` commands, written to a status file and
   answered through its door (`--status`, `--do`, `--find`, another world's
   `questions::ask`), said once in a `desktop::Desktop`; all of it in `docs/world-apps.md`, "The desktop around
@@ -404,9 +428,9 @@ the gallery (above), not in every world.
 ## Quick capture and Undo
 
 Quick capture (one line over the desktop, done by whichever running world
-understands it; `src/capture.rs`, `assets/capture/Capture.qml`) and
+understands it; `core/src/capture.rs`, `assets/capture/Capture.qml`) and
 `Sol.undoable` (a write taken back from its notice; `Commands::undoable`,
-`src/undo.rs`, the shared `undoable` and `restore`) are described, with every world's capture verbs,
+`core/src/undo.rs`, the shared `undoable` and `restore`) are described, with every world's capture verbs,
 in `docs/world-apps.md`.
 
 ## Work is never lost, updates roll back
