@@ -283,17 +283,18 @@ pub fn ask_within(
 
 /// For tests (`testing::FakeDoor`): answers knocks on `world`'s door with
 /// `on_knock` until `stop` is set and the door knocked on once more
-/// ([`wake_door`]).
+/// ([`wake_door`]). The thread it answers on ends with the door closed, so
+/// joining it is waiting for the door to be free again.
 #[cfg(feature = "testing")]
 pub(crate) fn open_door(
     world: &str,
     stop: Arc<std::sync::atomic::AtomicBool>,
     on_knock: Arc<dyn Fn(Knock) -> Answer + Send + Sync>,
-) -> std::io::Result<()> {
+) -> std::io::Result<std::thread::JoinHandle<()>> {
     #[cfg(target_os = "linux")]
     {
         let listener = UnixListener::bind_addr(&address(world, false)?)?;
-        std::thread::spawn(move || {
+        Ok(std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
                 if stop.load(std::sync::atomic::Ordering::SeqCst) {
                     break;
@@ -301,8 +302,7 @@ pub(crate) fn open_door(
                 let on_knock = on_knock.clone();
                 std::thread::spawn(move || answer(stream, &*on_knock));
             }
-        });
-        Ok(())
+        }))
     }
     #[cfg(not(target_os = "linux"))]
     {

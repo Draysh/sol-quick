@@ -21,12 +21,13 @@
 //! own, so a test never reaches an app running on the computer.
 
 use std::{
+    collections::BTreeSet,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc, Condvar, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    time::{Duration, Instant},
+    thread::JoinHandle,
 };
 
 pub use orbit::testing::{
@@ -235,9 +236,11 @@ pub fn assert_copy(ours: &str, theirs: &str) {
     }
 }
 
-/// One door open at a time: tests run side by side, and two fakes of one
-/// world can't share its door.
-static DOORS: Mutex<()> = Mutex::new(());
+/// The worlds whose fake door is open: tests run side by side, and two
+/// fakes of one world can't share its door, so the second waits for the
+/// first to close (fakes of different worlds open at once).
+static OPEN: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+static CLOSED: Condvar = Condvar::new();
 
 /// Another world's app, running as far as this process can tell: its door
 /// answers each `ask`, `do` and `find` with `answer(command, args)` (`Ok`
@@ -247,7 +250,7 @@ pub struct FakeDoor {
     world: String,
     stop: Arc<AtomicBool>,
     asked: Arc<Mutex<Vec<(String, Value)>>>,
-    _one: std::sync::MutexGuard<'static, ()>,
+    door: Option<JoinHandle<()>>,
 }
 
 impl FakeDoor {
@@ -255,7 +258,12 @@ impl FakeDoor {
         world: &str,
         answer: impl Fn(&str, &Value) -> Result<Value, String> + Send + Sync + 'static,
     ) -> Self {
-        let one = DOORS.lock().unwrap_or_else(|e| e.into_inner());
+        let mut open = OPEN.lock().unwrap_or_else(|e| e.into_inner());
+        while open.contains(world) {
+            open = CLOSED.wait(open).unwrap_or_else(|e| e.into_inner());
+        }
+        open.insert(world.to_owned());
+        drop(open);
         let stop = Arc::new(AtomicBool::new(false));
         let asked: Arc<Mutex<Vec<(String, Value)>>> = Arc::default();
         let kept = asked.clone();
@@ -269,20 +277,19 @@ impl FakeDoor {
                     .push((command.clone(), args.clone()));
                 Some(answer(&command, &args).map(|reply| reply.to_string()))
             });
-        // The door of the fake before may take a moment to close.
-        let started = Instant::now();
-        while let Err(e) = open_door(world, stop.clone(), on_knock.clone()) {
-            assert!(
-                started.elapsed() < Duration::from_secs(5),
-                "no door for {world}: {e}"
-            );
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        // The fake before it closed its door before it let go of the world.
+        let door = match open_door(world, stop.clone(), on_knock) {
+            Ok(door) => door,
+            Err(e) => {
+                closed(world);
+                panic!("no door for {world}: {e}");
+            }
+        };
         Self {
             world: world.to_owned(),
             stop,
             asked,
-            _one: one,
+            door: Some(door),
         }
     }
 
@@ -297,7 +304,17 @@ impl Drop for FakeDoor {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::SeqCst);
         wake_door(&self.world);
+        if let Some(door) = self.door.take() {
+            let _ = door.join();
+        }
+        closed(&self.world);
     }
+}
+
+/// The world's fake door is closed: the next fake of it may open.
+fn closed(world: &str) {
+    OPEN.lock().unwrap_or_else(|e| e.into_inner()).remove(world);
+    CLOSED.notify_all();
 }
 
 #[cfg(test)]
@@ -306,28 +323,26 @@ mod tests {
 
     #[test]
     fn a_fake_door_answers_another_worlds_questions() {
-        let door = FakeDoor::open("mercury", |command, args| match command {
+        let door = FakeDoor::open("exoplanet", |command, args| match command {
             "ask" => Ok(serde_json::json!({ "asked": args["id"] })),
             _ => Err("not that".into()),
         });
-        let said = crate::door::ask("mercury", "furigana", serde_json::json!({ "lines": [] }));
+        let said = crate::door::ask("exoplanet", "furigana", serde_json::json!({ "lines": [] }));
         assert_eq!(said, Ok(serde_json::json!({ "asked": "furigana" })));
         assert_eq!(
-            crate::door::tell("mercury", "add-word", None),
+            crate::door::tell("exoplanet", "add-word", None),
             Err(crate::door::Unanswered::No("not that".into()))
         );
         let asked = door.asked();
         assert_eq!(asked.len(), 2);
         assert_eq!(asked[1].0, "do");
         drop(door);
-        // Gone: nobody answers, and the real Mercury was never asked.
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while crate::door::ask("mercury", "furigana", Value::Null)
-            != Err(crate::door::Unanswered::NotRunning)
-        {
-            assert!(Instant::now() < deadline, "the door stays open");
-            std::thread::sleep(Duration::from_millis(20));
-        }
+        // Gone at once: nobody answers (no other test fakes this world), and
+        // no app running here was ever asked.
+        assert_eq!(
+            crate::door::ask("exoplanet", "furigana", Value::Null),
+            Err(crate::door::Unanswered::NotRunning)
+        );
     }
 
     #[test]
@@ -413,12 +428,8 @@ mod tests {
             serde_json::json!({ "id": "pause", "arg": null })
         );
         drop(door);
-        // Nobody there: the asker does without.
-        let deadline = Instant::now() + Duration::from_secs(2);
-        while ask(Now).await != Err(crate::door::Unanswered::NotRunning) {
-            assert!(Instant::now() < deadline, "the door stays open");
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
+        // Nobody there (no other test fakes Neptune): the asker does without.
+        assert_eq!(ask(Now).await, Err(crate::door::Unanswered::NotRunning));
     }
 
     #[test]

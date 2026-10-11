@@ -173,6 +173,8 @@ engine keeps the link), and one with state beside the link takes both
 **QML** (`Sol`, `Format`, `Theme`, components):
 
 - `Sol.fail(title, why)`: a failure as a notice from this world.
+- `Sol.fileUrl(path)`: a file on disk as an address for an Image or a
+  sound, its name encoded (a `#` or `%` in it still reaches the file).
 - `Sol.same(a, b)`, `Sol.update(item, "name", value)` (assigns only when
   it says something new, so nothing redraws for nothing).
 - `Sol.fill(item, "name", command, args, then)`: what this device saw

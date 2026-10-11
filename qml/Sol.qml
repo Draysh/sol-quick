@@ -4,7 +4,7 @@ import Sol.Design
 
 /*
     The screens' side of the connection to Sol: where the app stands
-    (`status`, `paired`, `online`, `unsent`), what changed (`changes`,
+    (`status`, `paired`, `online`, `unsent`), what changed (`changedIn`,
     `settingsVersion`), the app's own updates (`app`), and `call`, which
     runs a command on the Rust side and returns a promise.
 
@@ -33,8 +33,6 @@ QtObject {
     readonly property int keptCount: kept.conflicts + kept.rejected + kept.earlier
     /** Why this device's copy didn't open (`{ problem: "newer" | "damaged" | "other", path, detail }`), or null. */
     readonly property var problem: SolBackend.problem ? JSON.parse(SolBackend.problem) : null
-    /** Bumped whenever documents change, here or on another device. A page reads again with a `Watch` on its own collections instead. */
-    readonly property int changes: SolBackend.changes
     /** Bumped when the world's settings change in Sol. */
     readonly property int settingsVersion: SolBackend.settingsVersion
     readonly property var manifest: JSON.parse(SolBackend.manifest())
@@ -175,18 +173,20 @@ QtObject {
     */
     function follow(model, rows, keyOf, role) {
         const keys = rows.map(keyOf)
-        for (let i = model.count - 1; i >= 0; i--) if (keys.indexOf(model.get(i).key) < 0) model.remove(i)
+        const wanted = Object.create(null)
+        for (const k of keys) wanted[k] = true
+        for (let i = model.count - 1; i >= 0; i--) if (!wanted[model.get(i).key]) model.remove(i)
+        // The model's keys in its order, kept in step with its moves, so a row is found without asking the model.
+        const here = [], has = Object.create(null)
+        for (let i = 0; i < model.count; i++) { const k = model.get(i).key; here.push(k); has[k] = true }
         rows.forEach((r, i) => {
-            const json = JSON.stringify(r)
-            const entry = { key: keys[i], json: json }
+            const k = keys[i], json = JSON.stringify(r)
+            const entry = { key: k, json: json }
             entry[role] = r
-            let at = i
-            while (at < model.count && model.get(at).key !== keys[i]) at++
-            if (at === model.count) model.insert(i, entry)
-            else {
-                if (at !== i) model.move(at, i, 1)
-                if (model.get(i).json !== json) model.set(i, entry)
-            }
+            const at = !has[k] ? -1 : here[i] === k ? i : here.indexOf(k, i)
+            if (at < 0) { model.insert(i, entry); here.splice(i, 0, k); has[k] = true; return }
+            if (at !== i) { model.move(at, i, 1); here.splice(at, 1); here.splice(i, 0, k) }
+            if (model.get(i).json !== json) model.set(i, entry)
         })
     }
 
@@ -217,6 +217,15 @@ QtObject {
             Notices.show({ world: "sol", title: title, body: body, tone: tone })
         }
     }
+
+    /**
+        A file on this computer as an address for an Image, a sound or a
+        script, each part of the path encoded (so a `#`, `%` or space in a
+        name still reaches the file); "" for none.
+
+            Image { source: Sol.fileUrl(path) }
+    */
+    function fileUrl(path) { return path ? "file://" + String(path).split("/").map(encodeURIComponent).join("/") : "" }
 
     /** Opens a web address in the system browser. */
     function openUrl(url) { SolBackend.openUrl(url) }

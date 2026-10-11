@@ -56,7 +56,7 @@ QtObject {
         if (!coming[key]) {
             coming[key] = Sol.call(command, args(key)).then(path => {
                 delete store.coming[key]
-                const url = path ? "file://" + path : ""
+                const url = Sol.fileUrl(path)
                 if (url) { store.files[key] = url; store.written() }
                 return url
             }).catch(() => { delete store.coming[key]; return "" })

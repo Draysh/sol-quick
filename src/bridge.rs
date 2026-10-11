@@ -29,8 +29,6 @@ pub mod qobject {
         /// Why the local copy didn't open (`{ problem, path, detail }`), as
         /// JSON; "" when it did.
         #[qproperty(QString, problem)]
-        /// Bumped whenever documents change, here or on another device.
-        #[qproperty(i32, changes)]
         /// Bumped when the world's settings change in Sol.
         #[qproperty(i32, settings_version, cxx_name = "settingsVersion")]
         /// Whether this copy runs without a window (a moon with its planet).
@@ -183,7 +181,6 @@ pub struct Backend {
     app: QString,
     kept: QString,
     problem: QString,
-    changes: i32,
     settings_version: i32,
     background: bool,
     shot: QString,
@@ -208,7 +205,6 @@ impl Default for Backend {
             app: json(&rt.updates.status()),
             kept: json(&orbit::link::Kept::default()),
             problem: QString::from(rt.problem.as_deref().unwrap_or_default()),
-            changes: 0,
             settings_version: 0,
             background: rt.background,
             shot: QString::from(&std::env::var("SOL_SHOT").unwrap_or_default()),
@@ -330,11 +326,7 @@ impl qobject::SolBackend {
     fn apply(mut self: Pin<&mut Self>, update: Update) {
         match update {
             Update::Status(status) => self.set_status(json(&status)),
-            Update::Changed(collections) => {
-                let n = *self.changes() + 1;
-                self.as_mut().set_changes(n);
-                self.changed(json(&collections));
-            }
+            Update::Changed(collections) => self.changed(json(&collections)),
             Update::Settings => {
                 let n = *self.settings_version() + 1;
                 self.set_settings_version(n);

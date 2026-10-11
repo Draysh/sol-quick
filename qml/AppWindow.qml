@@ -258,7 +258,7 @@ Window {
     // (a screenshot, the window) alone.
     Loader {
         active: SolBackend.drive !== ""
-        source: active ? "file://" + SolBackend.drive : ""
+        source: active ? Sol.fileUrl(SolBackend.drive) : ""
         onLoaded: item.win = win
         onStatusChanged: if (status === Loader.Error) console.warn("SOL_DRIVE: the script didn't load:", SolBackend.drive)
     }

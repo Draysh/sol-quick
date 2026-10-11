@@ -121,12 +121,12 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `keepInView(flick, top, height)`, `typing(item)`, `isRepeater(item)`,
   `chosenAccent` (this device's accent, `sol.<world>`), `mark(c)`, `tint(c, a)`.
 - `Sol`: the connection as the screens see it (`status`, `paired`,
-  `online`, `unsent`, `kept`, `keptCount`, `problem`, `changes`,
+  `online`, `unsent`, `kept`, `keptCount`, `problem`,
   `settingsVersion`, `app`, `manifest`, `preview`, `background`), `call`
   and `callSeen`, and the helpers every
   world shares: `fail`, `same`, `update`, `fill`, `fetch`, `sync`,
   `follow`, `badge`, `openUrl`, `openInSol`, `openWorld`, `doors`, `moons`,
-  `clock`, `undoable(command, args, { title, body, undo?, undone? })` (a
+  `clock`, `fileUrl(path)` (a file's address, each part encoded), `undoable(command, args, { title, body, undo?, undone? })` (a
   write with Undo in its notice: the documents the world's Rust says it
   touches are kept and put back, or a way back of its own), and the
   signals `event(name, data)` and `changedIn(collections)` (what `Watch`
