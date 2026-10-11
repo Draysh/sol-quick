@@ -122,6 +122,7 @@ Window {
     property var saved: ({})
     property bool restored: false
     Component.onCompleted: {
+        shots.read()
         try { saved = JSON.parse(SolBackend.windowState() || "{}") } catch (e) { saved = {} }
         if (saved.width >= minimumWidth && saved.height >= minimumHeight) { width = saved.width; height = saved.height }
         if (saved.maximized) showMaximized()
@@ -263,18 +264,142 @@ Window {
         onStatusChanged: if (status === Loader.Error) console.warn("SOL_DRIVE: the script didn't load:", SolBackend.drive)
     }
 
-    // A picture of the window for review: SOL_SHOT=<file.png> [SOL_SHOT_AFTER=<ms>],
-    // counted from when the window shows what it is for (the Shell, Connect),
-    // not from when it opened, so a first run that fills its sample data
-    // shoots the same page. Beside a SOL_DRIVE script it doesn't quit: the
-    // script ends the run (one that quits sooner leaves no picture).
-    Timer {
-        id: shot
-        interval: SolBackend.shotAfter
-        onTriggered: win.contentItem.grabToImage(result => {
-            result.saveToFile(SolBackend.shot)
+    // Pictures of the window for review: SOL_SHOT=<file.png> (one, of
+    // SOL_SHOT_PATH), or SOL_SHOTS (many, one after another in this run:
+    // `<file.png>=<path?keys>` each, a line or `;` apart). Each opens its
+    // page, scrolls it (`_scroll=N`, `end`), stages what its keys ask for and
+    // is taken once the page is ready: nothing arriving or loading
+    // (Theme.settling), every command answered (Sol.waiting), then 150 ms
+    // without a new frame (or a second, when something keeps moving: a
+    // breathing button, a turning world). SOL_SHOT_AFTER (8 s unless given)
+    // is the most a picture waits; `_after=<ms>` makes one wait at least that
+    // long, for what the rule can't see. The clock starts when the window
+    // shows what it is for (the Shell, Connect), not when it opened. Beside a
+    // SOL_DRIVE script it doesn't quit: the script ends the run.
+    QtObject {
+        id: shots
+        /** `{ png, path }`, in order. */
+        property var list: []
+        property int at: -1
+        /** Where the current picture is: `page`, `scrolled`, `staged`, `taking`. */
+        property string step: ""
+        property var stage: ({})
+        property double since: 0
+        property double calmSince: 0
+        property double lastFrame: 0
+        property Item scrolledPage: null
+        readonly property bool active: at >= 0 && at < list.length
+
+        function read() {
+            const out = []
+            for (const line of SolBackend.shots.split(/[\n;]/)) {
+                const l = line.trim()
+                if (l === "" || l.startsWith("#")) continue
+                const eq = l.indexOf("=")
+                if (eq <= 0) { console.warn("SOL_SHOTS: not <file.png>=<path>:", l); continue }
+                out.push({ png: l.slice(0, eq).trim(), path: l.slice(eq + 1).trim() })
+            }
+            if (!out.length && SolBackend.shot !== "") out.push({ png: SolBackend.shot, path: SolBackend.shotPath })
+            list = out
+            if (out.length) { SolBackend.shot = out[0].png; SolBackend.shotPath = out[0].path }
+            // The frame may have loaded before the window was complete.
+            if (frame.item && frame.sourceComponent !== waiting) Qt.callLater(begin)
+        }
+        function begin() { if (list.length && at < 0) take(0) }
+        function take(i) {
+            at = i
+            const e = list[i]
+            if (i > 0) clear()
+            SolBackend.shot = e.png
+            SolBackend.shotPath = e.path
+            stage = win.goTo(e.path)
+            step = "page"
+            // What was calm stays calm: a page that is already there and settled (the same one,
+            // scrolled elsewhere next) is taken at once; one that changes counts itself busy.
+            since = Date.now()
+            if (i === 0) calmSince = since
+            tick.start()
+        }
+        // What the picture before staged goes, so the next starts from the page alone.
+        function clear() {
+            paletteBox.close(); askBox.finish(false); contextMenu.close(); tourBox.close()
+            if (keptBox.shown) keptBox.close()
+            momentBox.dismiss()
+            win.capturing = false
+            while (Notices.list.count) Notices.dismiss(Notices.list.get(0).key)
+        }
+        function ready() {
+            const t = Date.now()
+            const waitFor = Number(stage._after || 0)
+            if (!SolBackend.shotReady) return t - since >= (step === "page" ? Math.min(1200, SolBackend.shotAfter) : SolBackend.shotAfter)
+            const busy = Theme.settling > 0 || Sol.waiting > 0 || frame.sourceComponent === waiting
+                || (momentBox.showing && !momentBox.calm && momentBox.progress < 0.6) || t - since < waitFor
+            if (busy) { calmSince = t; return false }
+            if (t - calmSince < 150) return false
+            // Frames that never stop are something that keeps moving: then a while longer than the
+            // slowest arrival nothing counts (a rise), or with SOL_SHOT_CALM, when nothing takes time, less.
+            return t - lastFrame >= 150 || t - calmSince >= (SolBackend.shotCalm ? 300 : 1000)
+        }
+        function advance() {
+            if (Date.now() - since >= SolBackend.shotAfter) {
+                console.warn("SOL_SHOT: " + list[at].png + " wasn't ready after " + SolBackend.shotAfter + " ms; taken as it was")
+                return grab()
+            }
+            if (!ready()) return
+            if (step === "page") {
+                step = "scrolled"
+                const p = win.shell ? win.shell.page as Design.Screen : null
+                if (p && (stage._scroll || scrolledPage === p)) {
+                    const max = Math.max(0, p.flickable.contentHeight - p.flickable.height)
+                    p.contentY = stage._scroll === "end" ? max : Math.min(max, Number(stage._scroll || 0))
+                    scrolledPage = stage._scroll ? p : null
+                    calmSince = Date.now()
+                    return
+                }
+            }
+            if (step === "scrolled") {
+                step = "staged"
+                if (win.staging(stage)) { calmSince = Date.now(); return }
+            }
+            if (step === "staged") grab()
+        }
+        function grab() {
+            step = "taking"
+            tick.stop()
+            const png = list[at].png
+            win.contentItem.grabToImage(result => {
+                result.saveToFile(png)
+                const cap = captureLoader.item as Window
+                if (win.capturing && cap) cap.contentItem.grabToImage(r => { r.saveToFile(png.replace(/\.png$/, "") + "-capture.png"); shots.next() })
+                else next()
+            })
+        }
+        function next() {
+            if (at + 1 < list.length) { take(at + 1); return }
+            at = list.length
             if (SolBackend.drive === "") win.quit()
-        })
+        }
+    }
+    Timer { id: tick; interval: 30; repeat: true; onTriggered: shots.advance() }
+    Connections { target: win; enabled: shots.active; function onFrameSwapped() { shots.lastFrame = Date.now() } }
+
+    /** Stages what a picture's `_` keys ask for over its page; true when it staged something. */
+    function staging(stage) {
+        let any = false
+        const did = () => { any = true }
+        if (stage._notice === "button") { did(); Notices.show({ world: win.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } }) }
+        else if (stage._notice) { did(); Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." }) }
+        if (stage._ask) { did(); win.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove") }
+        if (stage._notify) { did(); Sol.call("notify", { title: "A notification", body: "From " + win.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why)) }
+        if (stage._palette) { did(); paletteBox.show(stage._palette === "1" ? "" : stage._palette) }
+        if (stage._kept) { did(); keptBox.open([
+            { seq: 1, why: "conflict", kind: "put", collection: "habits", id: "walk", data: { name: "Walk outside, 30 min" }, theirs: { version: 9, deleted: false, data: { name: "Walk outside" } } },
+            { seq: 2, why: "rejected", kind: "put", collection: "entries", id: "2026-10-10", data: { text: "A very long diary entry" }, message: "a document is at most 1 MiB" },
+            { seq: 3, why: "earlier", kind: "event", data: { summary: "Did “Read”, 4 days in a row" } }]) }
+        if (stage._capture) { did(); win.stagedCapture = stage._capture === "1" ? "" : stage._capture; win.capturing = true }
+        if (stage._tour) { did(); tourBox.show(); tourBox.at = Math.max(0, Math.min(win.tour.length - 1, Number(stage._tour) - 1)) }
+        if (stage._moment) { did(); win.stageMoment(stage._moment) }
+        return any
     }
 
     Loader {
@@ -286,8 +411,9 @@ Window {
         // A new frame (the Shell after pairing) comes up out of the dark.
         onLoaded: {
             opacity = 0; frameIn.restart()
-            if (SolBackend.shot !== "" && sourceComponent !== waiting && !shot.running) shot.start()
+            if (sourceComponent !== waiting) shots.begin()
         }
+        Settling { when: frameIn.running }
         NumberAnimation { id: frameIn; target: frame; property: "opacity"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
     }
     // Notices drop in at the top of the pages: over the frame, not in it,
@@ -316,8 +442,6 @@ Window {
     }
     Tour { id: tourBox; world: win.world; cards: win.tour; go: path => win.shell && win.shell.go(path); onClosed: if (!Sol.preview) tourPrefs.toured = true }
     Moment { id: momentBox }
-    // A staged moment waits for the first page and its data.
-    Timer { id: momentLater; property string spec: ""; interval: 1200; onTriggered: win.stageMoment(spec) }
     ContextMenu { id: contextMenu }
     KeptAside { id: keptBox }
     Ask { id: askBox }
@@ -374,29 +498,12 @@ Window {
             shortcuts: win.shortcuts
             status: LinkStatus { width: parent.width; compact: theShell.rail; online: Sol.online; unsent: Sol.unsent; busy: win.busy; warn: win.warn }
             footer: Loader { width: parent.width; sourceComponent: win.footer }
-            // `_scroll=N` in the shot path: scrolls the page once its data is there.
-            property real shotScroll: 0
-            Timer { id: scrollLater; interval: 1800; onTriggered: { const p = theShell.page as Design.Screen; if (p) p.contentY = theShell.shotScroll } }
+            // The doors are the world's: another world (the gallery's, a picture's `_world`) has its own.
+            onWorldChanged: Sol.doors(win.world).then(d => theShell.doors = d)
             Component.onCompleted: {
                 Sol.doors(win.world).then(d => theShell.doors = d)
                 // A page asked for before the window was up.
                 if (SolBackend.openPath !== "") win.goTo(SolBackend.openPath, theShell)
-                if (SolBackend.shotPath === "") return
-                // `/title?key=x` opens the page with its params; `_`-keys stage the picture.
-                const stage = win.goTo(SolBackend.shotPath, theShell)
-                if (stage._notice === "button") Notices.show({ world: win.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } })
-                else if (stage._notice) Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." })
-                if (stage._ask) win.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove")
-                if (stage._notify) Sol.call("notify", { title: "A notification", body: "From " + win.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why))
-                if (stage._palette) paletteBox.show(stage._palette === "1" ? "" : stage._palette)
-                if (stage._kept) keptBox.open([
-                    { seq: 1, why: "conflict", kind: "put", collection: "habits", id: "walk", data: { name: "Walk outside, 30 min" }, theirs: { version: 9, deleted: false, data: { name: "Walk outside" } } },
-                    { seq: 2, why: "rejected", kind: "put", collection: "entries", id: "2026-10-10", data: { text: "A very long diary entry" }, message: "a document is at most 1 MiB" },
-                    { seq: 3, why: "earlier", kind: "event", data: { summary: "Did “Read”, 4 days in a row" } }])
-                if (stage._capture) { win.stagedCapture = stage._capture === "1" ? "" : stage._capture; win.capturing = true }
-                if (stage._tour) Qt.callLater(() => { tourBox.show(); tourBox.at = Math.max(0, Math.min(win.tour.length - 1, Number(stage._tour) - 1)) })
-                if (stage._moment) { momentLater.spec = stage._moment; momentLater.restart() }
-                if (stage._scroll) { theShell.shotScroll = Number(stage._scroll); scrollLater.restart() }
             }
         }
     }

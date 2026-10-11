@@ -118,8 +118,12 @@ replaced: don't use them.
 | Variable | What it does |
 | --- | --- |
 | `SOL_PREVIEW` | The Shell without pairing, on a throwaway copy (`/tmp/sol-preview-<world>`) filled with sample data the first time; its own socket, so it runs beside the installed app. On with any value, even `0` |
-| `SOL_SHOT=<png>` | A picture of the window `SOL_SHOT_AFTER` ms (2500 unless set) after it shows the Shell (or Connect), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
-| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, 1.8 s in), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, 1.2 s in) |
+| `SOL_SHOT=<png>` | A picture of the window once its page is ready (below), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
+| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
+| `SOL_SHOTS=<list>` | Many pictures in one run, one after another, then the app quits: `<png>=<path?keys>` each (as `SOL_SHOT` and `SOL_SHOT_PATH`), a line or `;` apart, or the name of a file holding them (`#` starts a comment). Each opens its page, scrolls, stages its keys, waits until ready and is taken; what the one before staged (dialogs, the palette, notices, a moment, quick capture) is put away first. `scripts/shots.sh` runs a world with a list on a hidden display. A `_problem` picture goes first (the Shell then loads for the rest); a world's own keys that it reads once at start (Neptune's `_vinyl`, Triton's `_dj`) work in the first picture only |
+| `SOL_SHOT_AFTER=<ms>` | The most a picture waits for its page to be ready: 8000 unless set; one that times out is taken anyway and says so in the journal (`SOL_SHOT: … wasn't ready`) |
+| `SOL_SHOT_READY=0` | The old way: each picture `SOL_SHOT_AFTER` ms in, ready or not |
+| `SOL_SHOT_CALM=1` | Pictures without the arrivals: the Theme's durations are 0, so nothing has to settle and a page is ready at once (about 4× faster). Text that never faded in is drawn with coloured edges (sub-pixel), unlike on screen, so use it for layout, not for the last look |
 | `SOL_QML_LIVE=1` | A preview reads the kit's and the world's QML from their checkouts, so an edited `.qml` shows without a build (`docs/world-apps.md`, "Live QML"); `scripts/hidden.sh` turns it on unless set, `0` looks at the compiled QML |
 | `SOL_FPS` | The frames really painted each second, in the journal (0 while nothing moves). On with any value |
 | `SOL_DRIVE=<file.qml>` | A script loaded into the window (handed `win`) that drives it end to end, and ends the run with `Qt.quit()` |
@@ -287,10 +291,22 @@ paths, added to `lines` in `Icon.qml` and to the list here.
 | Watching and listening | `library`, `compass` (discover), `telescope`, `sparkles` (a season), `star` (picks), `heart` (favourites), `bookmark`, `eye`, `orbit` (a galaxy), `film`, `tv`, `music`, `disc` (an album), `user` (an artist), `list`, `playlist`, `queue`, `radio`, `antenna` (stations) |
 | Actions | `pause`, `skip`, `skip-back`, `shuffle`, `repeat`, `volume`, `mute`, `download` (export), `upload` (import), `refresh`, `trash`, `more`, `link`, `external`, `info`, `alert` |
 
+**The ready rule** (when a picture is taken): the window shows the Shell
+or Connect; nothing is still taking its place (`Theme.settling`: Settle,
+Card, Chart, a Screen's and a PageHead's arrival, the Shell's page change
+and hero, a Picture asked of its store, loading or fading in, the Tour, a
+Moment coming or going); every command has replied (`Sol.waiting`); and
+then 150 ms without a new frame. A page where something never stops moving
+(a primary button's breath, a turning world, a busy sweep) keeps painting,
+so there it is a second with nothing settling (longer than any arrival
+not counted). A component of a world's own with a long arrival or a timer
+before its staging counts it with `Settling { when: anim.running }`.
+
 **Primitives**: `Ticks` (the focus mark, rounded with what it marks:
 `radius`), `Rounded` (an image's picture with rounded corners, cut in a
 shader: what Picture and the flying hero draw with), `Settle` (arrive when
-seen, a stagger apart), `Underline` (a field's line and its focus light),
+seen, a stagger apart), `Settling` (a picture for review waits while
+`when` holds), `Underline` (a field's line and its focus light),
 `Caret` (the text cursor), `Grain`.
 
 **Assets** (`assets/`, in the module's resources): the fonts (Outfit,
@@ -378,7 +394,12 @@ answered by the gallery's own `ask`).
 ```sh
 scripts/hidden.sh -- cargo run --example gallery   # by hand: a preview, no Sol, no network
 scripts/gallery-shots.sh /tmp/shots               # after a kit change: every page night and day, the journal (a build only when needed)
+scripts/shots.sh terra /tmp/t today=/ end='/?_scroll=end'   # a world's pages, in one run (builds nothing)
 ```
+
+`gallery-shots.sh` takes its pictures in four runs (night, day, less
+motion, narrow), each one launch taking a list (`SOL_SHOTS`); the gallery's
+own keys follow each picture of a run.
 
 Its QML (`examples/gallery/qml/`) and the kit's are read from this
 checkout, so `gallery-shots.sh` builds only when something besides `.qml`

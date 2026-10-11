@@ -78,11 +78,9 @@ Window {
         // Who is running, before anything is typed (a line typed by then wins).
         Sol.call("capture", { line: "" }).then(o => { if (cap.asked === 0) cap.offers = o }).catch(() => { })
         if (host && host.stagedCapture) { field.text = host.stagedCapture; ask() }
+        // `_capture=<line>` in a picture's path: the app takes this window's picture beside its own.
         field.forceActiveFocus()
-        // `_capture=<line>` with SOL_SHOT: a picture of this window beside the app's own.
-        if (host && host.stagedCapture !== undefined && SolBackend.shot !== "" && SolBackend.shotPath.indexOf("_capture") >= 0) picture.start()
     }
-    Timer { id: picture; interval: 1800; onTriggered: cap.contentItem.grabToImage(r => r.saveToFile(SolBackend.shot.replace(/\.png$/, "") + "-capture.png")) }
 
     Rectangle {
         id: panel

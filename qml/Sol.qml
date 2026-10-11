@@ -42,6 +42,8 @@ QtObject {
 
     property int nextId: 1
     property var pending: ({})
+    /** How many commands haven't replied yet: a picture for review waits for them. */
+    property int waiting: 0
 
     // QML's JavaScript has promises but no `finally`; every screen uses it.
     Component.onCompleted: {
@@ -57,6 +59,7 @@ QtObject {
         const id = nextId++
         return new Promise((resolve, reject) => {
             pending[id] = { resolve: resolve, reject: reject }
+            waiting++
             SolBackend.call(id, command, JSON.stringify(args || {}))
         })
     }
@@ -76,6 +79,7 @@ QtObject {
             pending[id] = { resolve: resolve, reject: reject, recalled: last => {
                 try { use(JSON.parse(last), true, false) } catch (e) { }
             } }
+            waiting++
             SolBackend.callSeen(id, key, command, JSON.stringify(args || {}))
         }).then(r => { use(r.reply, false, r.same); return r.reply })
     }
@@ -205,6 +209,7 @@ QtObject {
             const p = sol.pending[id]
             if (!p) return
             delete sol.pending[id]
+            sol.waiting--
             const reply = ok ? (body === "" || body === "null" ? null : JSON.parse(body)) : null
             if (!ok) p.reject(body)
             else if (p.recalled) p.resolve({ reply: reply, same: !!p.same })

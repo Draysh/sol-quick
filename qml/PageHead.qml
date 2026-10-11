@@ -59,6 +59,7 @@ Item {
         textShift.x = dir === "in" ? 16 : dir === "back" ? -10 : 0
         headIn.start()
     }
+    Settling { when: headIn.running }
     ParallelAnimation {
         id: headIn
         NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }

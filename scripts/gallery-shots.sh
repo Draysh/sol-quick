@@ -11,14 +11,12 @@
 # .qml file was added or removed (the module lists them), or with --build.
 #
 # With names (e.g. `night-controls day-panels`), only the pictures whose
-# names start with one of them. Every picture is taken on a hidden display
-# (scripts/hidden.sh, one for the whole batch), one after another: no window
-# ever opens on the person's desktop.
+# names start with one of them. The pictures are taken in a few runs of the
+# gallery (night, day, with less motion, narrow), each on a hidden display
+# of its own (scripts/hidden.sh) and taking its pictures one after another
+# as each page is ready (SOL_SHOTS): no window ever opens on the person's
+# desktop.
 set -euo pipefail
-
-if [[ ${WAYLAND_DISPLAY:-} != hidden ]]; then
-    exec "$(dirname "$0")/hidden.sh" -- "$0" "$@"
-fi
 
 build=
 if [[ ${1:-} == --build ]]; then build=1; shift; fi
@@ -28,6 +26,7 @@ only=("$@")
 mkdir -p "$out"
 out=$(cd "$out" && pwd)
 cd "$(dirname "$0")/.."
+kit=$(pwd)
 
 bin=$(cargo metadata --format-version 1 --no-deps 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['target_directory'])")/debug/examples/gallery
 # The .qml files the last build compiled into the module, beside the binary.
@@ -38,7 +37,7 @@ if [[ -z $build ]] && ! qml_files | cmp -s - "$listed"; then build=1; fi
 if [[ -z $build ]] && [[ -n $(find build.rs Cargo.toml Cargo.lock src core cpp assets shaders examples/gallery/main.rs ../orbit/src \
     -newer "$bin" -not -name '*.qml' -print -quit 2>/dev/null) ]]; then build=1; fi
 if [[ -n $build ]]; then
-    "$(dirname "$0")/capped" cargo build --example gallery
+    scripts/capped cargo build --example gallery
     qml_files >"$listed"
 else
     echo "Only .qml changed since the last build: reading it from the checkout, no build."
@@ -54,62 +53,84 @@ wanted() {
     return 1
 }
 
-# shoot <name> <light> <path> [VAR=value…]
+# shoot <name> <path>: one more picture for the run being gathered.
+batch=() names=()
 shoot() {
-    local name=$1 light=$2 path=$3
-    shift 3
-    wanted "$name" || return 0
-    local png=$out/$name.png
-    rm -f "$png"
-    # Once more if the picture didn't come (a window the desktop never showed).
+    wanted "$1" || return 0
+    rm -f "$out/$1.png" "$out/$1-capture.png"
+    batch+=("$out/$1.png=$2")
+    names+=("$1")
+}
+# run [VAR=value…]: takes the gathered pictures in one run of the gallery;
+# once more for any that didn't come (a window the desktop never showed).
+run() {
+    [ ${#batch[@]} -eq 0 ] && return 0
+    local todo=("${batch[@]}") left n
     for _ in 1 2; do
-        env SOL_LIGHT="$light" SOL_SHOT="$png" SOL_SHOT_AFTER=4500 SOL_SHOT_PATH="$path" "$@" \
-            timeout 30 "$bin" >/dev/null 2>&1 || true
-        [ -s "$png" ] && break
+        local list
+        list=$(IFS=';'; echo "${todo[*]}")
+        env "$@" SOL_SHOTS="$list" scripts/capped scripts/hidden.sh -- \
+            timeout $(( 20 + ${#todo[@]} * 10 )) "$bin" >/dev/null 2>&1 || true
+        left=()
+        for e in "${todo[@]}"; do [ -s "${e%%=*}" ] || left+=("$e"); done
+        [ ${#left[@]} -eq 0 ] && break
+        todo=("${left[@]}")
     done
-    if [ -s "$png" ]; then echo "  $name"; else echo "  $name: no picture"; fi
+    for n in "${names[@]}"; do
+        if [ -s "$out/$n.png" ]; then echo "  $n"; else echo "  $n: no picture"; fi
+    done
+    batch=() names=()
 }
 
-worlds=(terra luna saturn titan mercury neptune triton sol)
+# Mercury and Sol, which have no moons, last: a Sheet whose world gains a moon while it shows
+# places the moon's link wrong (only the gallery changes its world while running).
+worlds=(terra luna saturn titan neptune triton mercury sol)
 echo "Pictures in $out:"
 for light in night day; do
-    for w in "${worlds[@]}"; do shoot "$light-worlds-$w" "$light" "/?_world=$w"; done
-    shoot "$light-worlds-lower" "$light" "/?_world=terra&_scroll=1100"
-    shoot "$light-controls" "$light" "/controls"
-    shoot "$light-controls-lower" "$light" "/controls?_scroll=900"
-    shoot "$light-panels" "$light" "/panels"
-    shoot "$light-panels-lower" "$light" "/panels?_scroll=1000"
-    shoot "$light-panels-end" "$light" "/panels?_scroll=2300"
-    shoot "$light-panels-long" "$light" "/panels?_scroll=5000"
-    shoot "$light-overlays" "$light" "/overlays"
-    shoot "$light-overlays-menu" "$light" "/overlays?_menu=1"
+    # First: the problem takes the place of the Shell, which then loads for the rest.
+    if [[ $light == night ]]; then shoot "night-problem-newer" "/?_problem=newer"; else shoot "day-problem-damaged" "/?_problem=damaged"; fi
+    for w in "${worlds[@]}"; do shoot "$light-worlds-$w" "/?_world=$w"; done
+    shoot "$light-worlds-lower" "/?_world=terra&_scroll=1100"
+    shoot "$light-controls" "/controls"
+    shoot "$light-controls-lower" "/controls?_scroll=900"
+    shoot "$light-panels" "/panels"
+    shoot "$light-panels-lower" "/panels?_scroll=1000"
+    shoot "$light-panels-end" "/panels?_scroll=2300"
+    shoot "$light-panels-long" "/panels?_scroll=5000"
+    shoot "$light-overlays" "/overlays"
+    shoot "$light-overlays-menu" "/overlays?_menu=1"
+    if [[ $light == night ]]; then
+        # The states one picture can't hold, at night only.
+        shoot "night-controls-field" "/controls?_focus=field"
+        shoot "night-controls-textarea" "/controls?_focus=textarea"
+        shoot "night-overlays-palette" "/overlays?_palette=1"
+        shoot "night-overlays-ask" "/overlays?_ask=1"
+        shoot "night-overlays-notice" "/overlays?_notice=1"
+        shoot "night-overlays-notice-button" "/overlays?_notice=button"
+        shoot "night-overlays-kept" "/overlays?_kept=1"
+        shoot "night-overlays-moment" "/overlays?_moment=1"
+        # Quick capture: its own window's picture lands beside, as <name>-capture.png.
+        shoot "night-overlays-capture" "/overlays?_capture=walk"
+        shoot "night-overlays-tour" "/overlays?_tour=1"
+        # Last: the open list stays open over what comes after.
+        shoot "night-controls-select" "/controls?_focus=select"
+    else
+        shoot "day-overlays-moment" "/overlays?_moment=1"
+        shoot "day-overlays-kept" "/overlays?_kept=1"
+        shoot "day-overlays-tour" "/overlays?_tour=2"
+    fi
+    run SOL_LIGHT="$light"
 done
-# The states one picture can't hold, at night only.
-shoot "night-controls-field" night "/controls?_focus=field"
-shoot "night-controls-textarea" night "/controls?_focus=textarea"
-shoot "night-controls-select" night "/controls?_focus=select"
-shoot "night-overlays-palette" night "/overlays?_palette=1"
-shoot "night-overlays-ask" night "/overlays?_ask=1"
-shoot "night-overlays-notice" night "/overlays?_notice=1"
-shoot "night-overlays-notice-button" night "/overlays?_notice=button"
-shoot "night-overlays-kept" night "/overlays?_kept=1"
-shoot "night-overlays-moment" night "/overlays?_moment=1"
-shoot "day-overlays-moment" day "/overlays?_moment=1"
-shoot "night-overlays-moment-calm" night "/overlays?_moment=1" SOL_CALM=1 SOL_SHOT_AFTER=2000
-# Quick capture: its own window's picture lands beside, as <name>-capture.png.
-shoot "night-overlays-capture" night "/overlays?_capture=walk"
-shoot "day-overlays-kept" day "/overlays?_kept=1"
-shoot "night-overlays-tour" night "/overlays?_tour=1"
-shoot "day-overlays-tour" day "/overlays?_tour=2"
-shoot "night-problem-newer" night "/?_problem=newer"
-shoot "day-problem-damaged" day "/?_problem=damaged"
+shoot "night-overlays-moment-calm" "/overlays?_moment=1"
+run SOL_LIGHT=night SOL_CALM=1
 # Narrow: the sidebar as a rail, one column.
-shoot "narrow-worlds" night "/?_world=saturn" QT_SCALE_FACTOR=3
-shoot "narrow-controls" night "/controls" QT_SCALE_FACTOR=3
+shoot "narrow-worlds" "/?_world=saturn"
+shoot "narrow-controls" "/controls"
+run SOL_LIGHT=night QT_SCALE_FACTOR=3
 
 echo "The journal since $start:"
 if journalctl --user -S "$start" | grep 'gallery\[' \
-    | grep -v 'not-there' | grep -E 'TypeError|ReferenceError|Cannot assign|Unable to assign|[Bb]inding loop|\.qml:[0-9]+|failed to load'; then
+    | grep -v 'not-there' | grep -E 'TypeError|ReferenceError|Cannot assign|Unable to assign|[Bb]inding loop|\.qml:[0-9]+|failed to load|SOL_SHOT'; then
     exit 1
 fi
 echo "  nothing from the QML"

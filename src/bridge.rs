@@ -33,11 +33,22 @@ pub mod qobject {
         #[qproperty(i32, settings_version, cxx_name = "settingsVersion")]
         /// Whether this copy runs without a window (a moon with its planet).
         #[qproperty(bool, background)]
-        /// `SOL_SHOT=<file.png>`: save a picture of the window after `shotAfter` ms and quit.
+        /// `SOL_SHOT=<file.png>`: save a picture of the window once its page is
+        /// ready, or after `shotAfter` ms at the latest, and quit. While a
+        /// batch (`shots`) runs, the picture being taken now.
         #[qproperty(QString, shot)]
         #[qproperty(i32, shot_after, cxx_name = "shotAfter")]
-        /// `SOL_SHOT_PATH=/settings`: the page to open before the picture.
+        /// `SOL_SHOT_PATH=/settings`: the page to open before the picture
+        /// (in a batch, the current picture's).
         #[qproperty(QString, shot_path, cxx_name = "shotPath")]
+        /// `SOL_SHOTS`: many pictures in one run, `<png>=<path>` each, one a
+        /// line or `;` apart (or a file holding them).
+        #[qproperty(QString, shots)]
+        /// `SOL_SHOT_READY=0`: shoot after `shotAfter` ms, not when the page is ready.
+        #[qproperty(bool, shot_ready, cxx_name = "shotReady")]
+        /// `SOL_SHOT_CALM=1`: pictures without the arrivals: everything takes
+        /// its place at once, so a picture waits for nothing to move.
+        #[qproperty(bool, shot_calm, cxx_name = "shotCalm")]
         /// `SOL_PREVIEW`: the Shell without pairing, on a throwaway local copy.
         #[qproperty(bool, preview)]
         /// The app sits in the tray: closing the window only hides it.
@@ -186,6 +197,9 @@ pub struct Backend {
     shot: QString,
     shot_after: i32,
     shot_path: QString,
+    shots: QString,
+    shot_ready: bool,
+    shot_calm: bool,
     preview: bool,
     tray: bool,
     fps: bool,
@@ -198,6 +212,19 @@ pub struct Backend {
 impl Default for Backend {
     fn default() -> Self {
         let rt = app::runtime();
+        let shots = shot_list();
+        // The first of many pictures is the one to start with, as if it were the only one,
+        // so the window comes up as that picture wants it (a `_problem` never loads the Shell).
+        let first = shots
+            .split(['\n', ';'])
+            .map(str::trim)
+            .find(|l| !l.is_empty() && !l.starts_with('#'))
+            .and_then(|l| l.split_once('='))
+            .map(|(png, path)| (png.trim().to_owned(), path.trim().to_owned()));
+        let (shot, shot_path) = first.unwrap_or_else(|| {
+            let var = |name| std::env::var(name).unwrap_or_default();
+            (var("SOL_SHOT"), var("SOL_SHOT_PATH"))
+        });
         Self {
             world: QString::from(rt.link.world()),
             status: json(&rt.link.status()),
@@ -207,12 +234,15 @@ impl Default for Backend {
             problem: QString::from(rt.problem.as_deref().unwrap_or_default()),
             settings_version: 0,
             background: rt.background,
-            shot: QString::from(&std::env::var("SOL_SHOT").unwrap_or_default()),
+            shot: QString::from(&shot),
             shot_after: std::env::var("SOL_SHOT_AFTER")
                 .ok()
                 .and_then(|s| s.parse().ok())
-                .unwrap_or(2500),
-            shot_path: QString::from(&std::env::var("SOL_SHOT_PATH").unwrap_or_default()),
+                .unwrap_or(8000),
+            shot_path: QString::from(&shot_path),
+            shots: QString::from(&shots),
+            shot_ready: std::env::var("SOL_SHOT_READY").map_or(true, |v| v != "0"),
+            shot_calm: std::env::var("SOL_SHOT_CALM").is_ok_and(|v| v != "0"),
             preview: rt.preview,
             tray: rt.tray.load(Ordering::Relaxed),
             fps: std::env::var_os("SOL_FPS").is_some(),
@@ -222,6 +252,16 @@ impl Default for Backend {
             open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
         }
     }
+}
+
+/// `SOL_SHOTS`: the list itself, or what the file it names holds.
+fn shot_list() -> String {
+    let list = std::env::var("SOL_SHOTS").unwrap_or_default();
+    let file = std::path::Path::new(list.trim());
+    if !list.contains('=') && file.is_file() {
+        return std::fs::read_to_string(file).unwrap_or_default();
+    }
+    list
 }
 
 /// A screen's command, started: its reply as `(ok, JSON or why not)`. A

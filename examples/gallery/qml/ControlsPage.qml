@@ -30,6 +30,9 @@ Screen {
     Timer { id: keysLater; interval: 700; onTriggered: page.giveKeys() }
     Connections { target: page.Window.window; function onActiveChanged() { if (page.Window.window.active) keysLater.restart() } }
     onVisibleChanged: if (visible) keysLater.restart()
+    // The next picture of a batch may ask for another control.
+    onFocusOnChanged: keysLater.restart()
+    Settling { when: keysLater.running }
     Component.onCompleted: { keysLater.restart(); failing.flip() }
 
     property int pressed: 0

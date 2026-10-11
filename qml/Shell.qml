@@ -67,7 +67,8 @@ Item {
     property bool keys: false
 
     // The accent: the world's own colour, or the one chosen for this device; the photo's colours to choose from.
-    function accent() { Theme.world = Theme.chosenAccent !== "" ? Theme.chosenAccent : w.color }
+    // The world's own colour from `world` itself: when the world changes, `w` may not have followed yet.
+    function accent() { Theme.world = Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color }
     Tone { source: shell.w.image; onPicksChanged: Theme.picks = picks }
     Component.onCompleted: { accent(); go(home) }
     onWorldChanged: accent()
@@ -176,6 +177,7 @@ Item {
         }
         Rounded { anchors.fill: parent; image: flyerImage; radius: flyer.radius }
     }
+    Settling { when: flight.running || land.running || landing.running || leave.running }
     SequentialAnimation {
         id: flight
         ParallelAnimation {

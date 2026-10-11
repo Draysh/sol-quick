@@ -39,7 +39,8 @@ FocusScope {
     visible: opacity > 0
     opacity: open ? 1 : 0
     enabled: open
-    Behavior on opacity { NumberAnimation { duration: Theme.calm ? Theme.fade : Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+    Settling { when: tourFade.running }
+    Behavior on opacity { NumberAnimation { id: tourFade; duration: Theme.calm ? Theme.fade : Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
 
     /** Opens the tour at its first card. */
     function show() {

@@ -112,6 +112,8 @@ QtObject {
     readonly property color accent: mark(world)
     /** The window is up and the person is there: things that breathe or drift run only then. Set by AppWindow. */
     property bool alive: true
+    /** How many things are still taking their place (arriving, loading): a picture for review waits until none is. Settling counts them. */
+    property int settling: 0
     /** Colours from the world's photograph, for choosing an accent. Set by Shell. */
     property var picks: []
 
@@ -168,11 +170,12 @@ QtObject {
     // switches, a settle for something taking its place, and a rise for a
     // body appearing. Things that arrive together arrive a stagger apart;
     // what drifts (clouds, a slow glow) takes a drift.
-    readonly property int fade: 240
-    readonly property int lock: 120
-    readonly property int settle: 420
-    readonly property int rise: 900
-    readonly property int stagger: 28
+    // For pictures taken with SOL_SHOT_CALM, all of them nothing: everything is in its place at once.
+    readonly property int fade: SolBackend.shotCalm ? 0 : 240
+    readonly property int lock: SolBackend.shotCalm ? 0 : 120
+    readonly property int settle: SolBackend.shotCalm ? 0 : 420
+    readonly property int rise: SolBackend.shotCalm ? 0 : 900
+    readonly property int stagger: SolBackend.shotCalm ? 0 : 28
     readonly property int drift: 12000
 
     /** A plain ease: cubic-bezier(0.2, 0.7, 0.2, 1). */

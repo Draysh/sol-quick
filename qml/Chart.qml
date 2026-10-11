@@ -86,6 +86,7 @@ Item {
     property var forget: null
     Component.onCompleted: forget = Theme.whenSeen(root, () => arrive.start())
     Component.onDestruction: if (forget) forget()
+    Settling { when: arrive.running }
     NumberAnimation { id: arrive; target: root; property: "grow"; from: 0; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
 
     /** The column under the pointer, or -1. */

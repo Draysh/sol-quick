@@ -167,6 +167,8 @@ Item {
         }
     }
 
+    Settling { when: arrive.running }
+
     // A thin scrollbar, only while the pane moves.
     Rectangle {
         anchors.right: parent.right

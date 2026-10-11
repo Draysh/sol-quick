@@ -81,6 +81,7 @@ FocusScope {
 
     Keys.onPressed: event => { event.accepted = true; root.dismiss() }
 
+    Settling { when: arrive.running || leave.running }
     NumberAnimation { id: arrive; target: root; property: "opacity"; to: 1; duration: root.calm ? Theme.fade : 700; easing.type: Easing.OutCubic }
     SequentialAnimation {
         id: leave

@@ -50,6 +50,7 @@ Item {
     property var forget: null
     Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; arrive.start() })
     Component.onDestruction: if (forget) forget()
+    Settling { when: arrive.running }
     SequentialAnimation {
         id: arrive
         PauseAnimation { duration: root.late ? 0 : Theme.delay(root.index) }

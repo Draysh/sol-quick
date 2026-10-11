@@ -56,6 +56,8 @@ Item {
     property string shown: ""
     /** It had to be fetched (from the store, or from the network): it fades in slowly. */
     property bool fetched: false
+    /** Asked of the store, and not answered yet. */
+    property bool coming: false
 
     implicitWidth: 100
     implicitHeight: width / ratio
@@ -69,6 +71,7 @@ Item {
     Component.onCompleted: fetch()
     function fetch() {
         retried = ""
+        coming = false
         if (!store) {
             shown = url
             fetched = /^https?:/.test(url)
@@ -78,7 +81,8 @@ Item {
         shown = from.known(k)
         fetched = shown === "" && k !== ""
         // Only the answer to what is asked now, not to a key asked before.
-        if (fetched) from.get(k).then(u => { if (k === root.key && from === root.store) root.shown = u })
+        coming = fetched
+        if (fetched) from.get(k).then(u => { if (k === root.key && from === root.store) { root.shown = u; root.coming = false } })
     }
     /** A file known from an earlier run may have gone since: asked for again, once. */
     property string retried: ""
@@ -88,7 +92,8 @@ Item {
         retried = k
         from.lost(k)
         shown = ""
-        from.get(k).then(u => { if (root.retried === k && k === root.key) root.shown = u })
+        coming = true
+        from.get(k).then(u => { if (root.retried === k && k === root.key) { root.shown = u; root.coming = false } })
     }
 
     // The quiet panel while it comes, and under a photograph; never behind a logo's
@@ -129,7 +134,7 @@ Item {
         smooth: true
         mipmap: root.mipmap
         opacity: status === Image.Ready ? (root.dim ? 0.45 : 1) : 0
-        Behavior on opacity { NumberAnimation { duration: root.fadeIn; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on opacity { NumberAnimation { id: stillIn; duration: root.fadeIn; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         scale: root.lift && root.hovered ? 1.04 : 1
         Behavior on scale { NumberAnimation { duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
     }
@@ -144,10 +149,12 @@ Item {
         sourceSize.width: root.sourceWidth
         smooth: true
         opacity: status === Image.Ready ? (root.dim ? 0.45 : 1) : 0
-        Behavior on opacity { NumberAnimation { duration: root.fadeIn; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on opacity { NumberAnimation { id: movingIn; duration: root.fadeIn; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
         scale: root.lift && root.hovered ? 1.04 : 1
         Behavior on scale { NumberAnimation { duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
     }
+    // On its way: asked of the store, loading, or fading in.
+    Settling { when: root.coming || root.image.status === Image.Loading || stillIn.running || movingIn.running }
     // The picture itself, with its corners: the image above stays hidden and lends it its
     // texture, fade and lift.
     Rounded {

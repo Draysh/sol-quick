@@ -41,6 +41,10 @@ Screen {
     Timer { id: menuLater; interval: 900; onTriggered: page.win.menu.showUnder(menuButton, page.entries) }
     Timer { id: momentLater; interval: 600; onTriggered: page.playMoment() }
     Component.onCompleted: { if (menuOpen) menuLater.start(); if (momentNow) momentLater.start() }
+    // Asked for again by the next picture of a batch.
+    onMenuOpenChanged: if (menuOpen) menuLater.start()
+    onMomentNowChanged: if (momentNow) momentLater.start()
+    Settling { when: menuLater.running || momentLater.running }
 
     // A moment's scene: a world drifting up behind the words, and its rings lit.
     Component {

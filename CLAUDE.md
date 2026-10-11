@@ -168,7 +168,8 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   X.Y.Z)`: `orbit::updates` reads it when it tries an update);
   SIGTERM/SIGINT quit like the tray's Quit.
 - **Environment**: `SOL_PREVIEW`, `SOL_SHOT`, `SOL_SHOT_AFTER`,
-  `SOL_SHOT_PATH` (and its `_` keys), `SOL_FPS`, `SOL_DRIVE`, `SOL_LIGHT`,
+  `SOL_SHOT_PATH` (and its `_` keys), `SOL_SHOTS`, `SOL_SHOT_READY`,
+  `SOL_SHOT_CALM`, `SOL_FPS`, `SOL_DRIVE`, `SOL_LIGHT`,
   `SOL_CALM`, `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
 - **Live QML** (`src/live.rs`, `cpp/live.h`; what it is for:
   `docs/world-apps.md`, "Live QML"): with `SOL_QML_LIVE=1` a preview maps
@@ -249,6 +250,15 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   warnings`, `cargo test --all-features` (both crates: the workspace's
   default members; `--all-features` adds the stand-in Navidrome). While
   iterating on core, `cargo test -p sol-quick-core` builds no Qt.
+- **Pictures wait for ready** (AppWindow's `shots`): `Theme.settling`
+  (every `Settling`: Settle, Card, Chart, Screen, PageHead, Shell, Picture,
+  Tour, Moment, the frame) and `Sol.waiting` (commands not yet answered)
+  at 0, then 150 ms without a frame, or a second when frames never stop. A
+  new arrival longer than a second, or a timer before something shows,
+  adds a `Settling`, or pictures catch it half-way. `SolBackend.shot` and
+  `shotPath` are the current picture's (a batch writes them), so a
+  binding on them follows each picture; something read once at start sees
+  only the first.
 - After any change here, the gallery: `scripts/gallery-shots.sh <folder>`
   (`examples/gallery`, every component on four pages, night and day, two
   narrow, and the focus, menu, palette, dialog and notice states, then

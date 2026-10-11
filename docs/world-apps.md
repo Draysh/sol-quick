@@ -625,6 +625,11 @@ the app and its tests):
   `cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
   && cargo test` (every member's tests).
 - Shots of every page in `Main.qml`'s `pages` that the change touches, one
-  detail page, and the journal, before and after (`../../docs/agents.md`).
+  detail page, and the journal, before and after: one
+  `../scripts/shots.sh <world> <folder> <name>=<path>…` call each
+  (`../../docs/agents.md`). A world's own staging key with a timer before
+  it stages (Neptune's `_vinyl`) counts the wait with `Settling { when:
+  timer.running }`, so the picture waits for it (the ready rule: the kit's
+  README, "Environment").
 - A change to the kit is checked in the kit's gallery, not by sweeping the
   worlds; a world is looked at only when its own screens use what changed.
