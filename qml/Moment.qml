@@ -18,6 +18,12 @@ import Sol.Design
     `scene` is a Component whose root has `property var moment`: it reads
     `moment.progress` (0 → 1 over the moment, 1 at once with less motion),
     `moment.facts` (what `play` was given) and `moment.calm`.
+
+    In the Yozora look (`Theme.yozora`) a moment is a scene from a film:
+    the page's still (or `ground` in the spec) fills the window, darkened
+    and pushed slowly in, black bars close in at the top and the bottom,
+    and a HUD line runs along the top (the world, `hud` from the spec);
+    MomentCaption sets its words as the film's title and subtitles.
 */
 FocusScope {
     id: root
@@ -35,6 +41,10 @@ FocusScope {
     /** The moments waiting for the window to come to the front. */
     property var waiting: []
     property Item before: null
+    /** The look's still behind the scene: the spec's `ground`, else the page's. */
+    property string still: ""
+    /** The look's letterbox, 0 (open) → 1 (closed in to the scene). */
+    readonly property real bars: !Theme.yozora ? 0 : calm ? 1 : Math.min(1, progress * 7)
 
     anchors.fill: parent
     z: 200
@@ -44,8 +54,9 @@ FocusScope {
 
     /**
         Plays a moment once for its `occasion` (or every time, without one).
-        `{ occasion, scene, facts, length, chime, world }` (`world`: a moon
-        the app carries, whose `moments` keep the occasion). Resolves true
+        `{ occasion, scene, facts, length, chime, world, hud, ground }`
+        (`world`: a moon the app carries, whose `moments` keep the
+        occasion; `hud` and `ground`: the Yozora look's HUD line and still). Resolves true
         when it will play, false when the occasion has been shown before.
     */
     function play(spec) {
@@ -70,6 +81,7 @@ FocusScope {
     function begin(spec) {
         before = root.Window.activeFocusItem
         current = spec
+        if (Theme.yozora) { const w = root.Window.window as AppWindow; still = spec.ground || (w && w.shell ? (w.shell as Shell).groundSource : "") }
         progress = calm ? 1 : 0
         scene.sourceComponent = spec.scene
         root.forceActiveFocus()
@@ -101,12 +113,72 @@ FocusScope {
 
     // The page goes dark under the scene.
     Rectangle { anchors.fill: parent; color: Theme.tint(Theme.veil, 0.96) }
+    // The look's film: the still, darkened, coming slowly closer as the moment plays.
+    Item {
+        anchors.fill: parent
+        visible: Theme.yozora && root.still !== ""
+        clip: true
+        Image {
+            anchors.fill: parent
+            source: Theme.yozora ? root.still : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            scale: 1.02 + 0.05 * root.progress
+        }
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop { position: 0; color: Theme.tint(Theme.hud.ground, 0.62) }
+                GradientStop { position: 0.6; color: Theme.tint(Theme.hud.ground, 0.48) }
+                GradientStop { position: 1; color: Theme.tint(Theme.hud.ground, 0.78) }
+            }
+        }
+        // A shade down the left, where the title stands.
+        Rectangle {
+            width: parent.width * 0.6; height: parent.height
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0; color: Theme.tint(Theme.hud.ground, 0.55) }
+                GradientStop { position: 1; color: "transparent" }
+            }
+        }
+    }
     Loader {
         id: scene
         anchors.fill: parent
         onLoaded: if (item && item.hasOwnProperty("moment")) item.moment = root
     }
+    // The letterbox, and the HUD line along its top bar.
+    readonly property real barHeight: Math.max(36, Math.min(height * 0.15, (height - width / 2.39) / 2))
+    Rectangle { visible: Theme.yozora; width: parent.width; height: root.barHeight * root.bars; color: "#000000" }
+    Rectangle { visible: Theme.yozora; y: parent.height - height; width: parent.width; height: root.barHeight * root.bars; color: "#000000" }
+    Row {
+        visible: Theme.yozora
+        x: Theme.s5
+        y: Math.max(Theme.s3, (root.barHeight - height) / 2)
+        spacing: Theme.s3
+        opacity: Math.max(0, root.bars * 2 - 1)
+        readonly property var world: Worlds.get(Theme.worldId)
+        Text {
+            text: [Theme.jpOf(Theme.worldId), parent.world ? parent.world.name : "", root.current ? root.current.hud || "" : ""].filter(t => t !== "").join("  ·  ")
+            font.family: Theme.fontMono; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold
+            font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
+            color: Theme.hudQuiet
+        }
+    }
     Text {
+        visible: Theme.yozora
+        anchors.right: parent.right; anchors.rightMargin: Theme.s5
+        y: Math.max(Theme.s3, (root.barHeight - height) / 2)
+        text: "Any key to go on"
+        font.family: Theme.fontMono; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold
+        font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
+        color: Theme.hudQuiet
+        opacity: root.progress > 0.25 || root.calm ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.rise } }
+    }
+    Text {
+        visible: !Theme.yozora
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom; anchors.bottomMargin: Theme.s4
         text: "Any key to go on"

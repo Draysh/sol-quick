@@ -61,6 +61,11 @@ pub mod qobject {
         #[qproperty(QString, light)]
         /// `SOL_CALM=1`: this run with less motion, whatever the device's setting says.
         #[qproperty(bool, calm)]
+        /// `SOL_LOOK=yozora`: a look to try for this run (`Theme.look`); "" is the apps' own.
+        #[qproperty(QString, look)]
+        /// The look's pictures on this computer (`~/.local/share/sol-yozora/`), as a JSON list of
+        /// file names; `[]` without a look or without the folder (`Theme.yozoraArt`).
+        #[qproperty(QString, look_art, cxx_name = "lookArt")]
         /// The page to open first (`--open /title?key=x`, or asked for while starting).
         #[qproperty(QString, open_path, cxx_name = "openPath")]
         /// `SOL_TRACE`: the window writes its timings (`trace`) for `scripts/measure.sh`.
@@ -249,6 +254,8 @@ pub struct Backend {
     drive: QString,
     light: QString,
     calm: bool,
+    look: QString,
+    look_art: QString,
     open_path: QString,
     trace_on: bool,
     moons: QString,
@@ -296,6 +303,8 @@ impl Default for Backend {
             drive: QString::from(&std::env::var("SOL_DRIVE").unwrap_or_default()),
             light: QString::from(&std::env::var("SOL_LIGHT").unwrap_or_default()),
             calm: std::env::var_os("SOL_CALM").is_some(),
+            look: QString::from(&std::env::var("SOL_LOOK").unwrap_or_default()),
+            look_art: QString::from(&look_art()),
             open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
             trace_on: std::env::var_os("SOL_TRACE").is_some(),
             moons: QString::from("{}"),
@@ -707,4 +716,25 @@ impl qobject::SolBackend {
     pub fn set_badge(&self, count: i32, what: &QString) {
         crate::tray::badge(count.max(0) as u32, &what.to_string());
     }
+}
+
+/// The pictures a look tried with `SOL_LOOK` stands on, as a JSON list of file names: the
+/// `.jpg` and `.png` files in `~/.local/share/sol-yozora/`, read once as the window opens.
+fn look_art() -> String {
+    if std::env::var("SOL_LOOK").unwrap_or_default().is_empty() {
+        return "[]".into();
+    }
+    let Some(folder) = dirs::data_dir().map(|d| d.join("sol-yozora")) else {
+        return "[]".into();
+    };
+    let mut files: Vec<String> = std::fs::read_dir(folder)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "jpg" || x == "png"))
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+    files.sort();
+    serde_json::to_string(&files).unwrap_or_else(|_| "[]".into())
 }

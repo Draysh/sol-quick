@@ -5,6 +5,7 @@
 # person's desktop: no window, no tray icon, no notification, no sound.
 #
 #   scripts/hidden.sh [--size 1440x1000] -- <command> [args…]
+#   SOL_HIDDEN_SIZE=1920x1080 scripts/shots.sh …   (the size for a script that runs this one)
 #   scripts/hidden.sh -- env SOL_PREVIEW=1 SOL_SHOT=/tmp/x.png ./target/debug/terra
 #
 # Use it for every screenshot, drive and preview run. A preview in here
@@ -14,7 +15,7 @@
 set -euo pipefail
 export SOL_QML_LIVE=${SOL_QML_LIVE:-1}
 
-size=1440x1000
+size=${SOL_HIDDEN_SIZE:-1440x1000}
 if [[ ${1:-} == --size ]]; then size=$2; shift 2; fi
 [[ ${1:-} == -- ]] && shift
 [[ $# -gt 0 ]] || { echo "usage: $0 [--size WxH] -- <command> [args…]" >&2; exit 64; }

@@ -1,6 +1,7 @@
 import QtQuick
 
-/* A hairline with a playhead. It fills to its value as it appears, and follows the value after. */
+/* A hairline with a playhead. It fills to its value as it appears, and follows the value after.
+   In the Yozora look, a row of slanted ticks (SlantTicks) instead. */
 Item {
     id: root
 
@@ -23,7 +24,15 @@ Item {
         width: parent.width
         spacing: Theme.s2
 
+        SlantTicks {
+            visible: Theme.yozora
+            width: parent.width
+            height: 7
+            count: Math.max(6, Math.min(24, Math.round(width / 18)))
+            value: root.shown
+        }
         Item {
+            visible: !Theme.yozora
             width: parent.width
             height: 13
             Rectangle { y: 6; width: parent.width; height: 1; color: Theme.tint(Theme.ink, 0.2) }

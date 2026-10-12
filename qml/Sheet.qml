@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 
 /*
     The band across the top of a world's first screen: the lit body, its
@@ -10,6 +11,13 @@ import QtQuick
 
     `drift` is the pane's scroll: the bodies sink a little slower than the
     band, so the sheet has depth.
+
+    In the Yozora look it is a title card over the world's still instead:
+    a HUD line, the page's Japanese (`jp`, the world's name in Japanese
+    unless given) in the title serif, the callout as the English under
+    it, what sits under the name, and the facts on glass; Mercury's has a
+    line written down the right (`vertical`). The HUD line is the world,
+    the day and the hour unless the page says what is on (`hud`, `hudJp`).
 
         Sheet { world: "terra"; callout: ["Walk = done"]; rows: [[{ label: "Streak", value: "12 days" }], [{ label: "Sol", value: "in sync" }]] }
 */
@@ -27,6 +35,13 @@ Item {
     /** Extra content under the name, such as the screen's main action. */
     default property alias under: underRow.data
     property real drift: 0
+    /** The title in Japanese, for the Yozora look: "続きから。". The world's name in Japanese when not given. */
+    property string jp: ""
+    /** The HUD line over the title in the Yozora look, and its Japanese: "Now playing · 3 of 11", "再生中". The world, the day and the hour when "". */
+    property string hud: ""
+    property string hudJp: ""
+    /** A line written down the right, top to bottom, for the Yozora look (Mercury's flavour shows one). */
+    property string vertical: Theme.yozora && Theme.hud.motif === "shrine" ? "今日も一歩ずつ" : ""
     /** Faint rings round the world, one for each (Mercury: a week of reviews in a row, up to 12). */
     property int rings: 0
     /** 0 at rest, 1 shrunk to a bar; the Screen drives it when the Sheet is pinned. */
@@ -70,11 +85,69 @@ Item {
             opacity: Math.max(0, (root.collapse - 0.6) / 0.4)
             z: 2
             Item { width: 24; height: 24; anchors.verticalCenter: parent.verticalCenter; Body { world: root.world; disc: 24; animated: false } }
-            Text { text: root.name !== "" ? root.name : root.w.name; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.font; font.weight: Theme.weightName; font.pixelSize: Theme.textM; font.letterSpacing: Theme.track(0.12, Theme.textM); font.capitalization: Font.AllUppercase; color: Theme.textBright }
-            Text { visible: root.rows.length > 0 && root.rows[0].length > 0 && width >= 80; text: root.rows.length ? root.rows[0].map(r => r.label + " " + r.value).join(" · ") : ""; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.font; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
+            Text { text: root.name !== "" ? root.name : root.w.name; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.weight: Theme.weightName; font.pixelSize: Theme.textM; font.letterSpacing: Theme.track(0.12, Theme.textM); font.capitalization: Font.AllUppercase; color: Theme.textBright }
+            Text { visible: root.rows.length > 0 && root.rows[0].length > 0 && width >= 80; text: root.rows.length ? root.rows[0].map(r => r.label + " " + r.value).join(" · ") : ""; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
         }
 
-        Rectangle { anchors.fill: parent; color: Theme.deep }
+        Rectangle { visible: !Theme.yozora; anchors.fill: parent; color: Theme.deep }
+        // Shrunk to a bar in the Yozora look, it is glass.
+        HudGlass { visible: Theme.yozora && root.collapse > 0.05; opacity: Math.min(1, root.collapse * 2); anchors.fill: parent; cuts: [0, 0, 0, 0] }
+
+        // The Yozora look's title card: the HUD line, the Japanese, the English under it.
+        Column {
+            id: hero
+            visible: Theme.yozora
+            x: Theme.margin(root.width)
+            width: parent.width - x * 2 - (tategaki.visible ? tategaki.width + Theme.s4 : 0)
+            y: Math.max(Theme.s3, (band.height - height - (underBox.visible ? underBox.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
+            opacity: Math.max(0, 1 - root.collapse * 1.6)
+            spacing: Theme.s1
+            // A soft dark glow behind the words, so they read on a bright still (Terra's noon).
+            layer.enabled: visible
+            layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.hud.ground; shadowOpacity: 1; shadowBlur: 1; shadowScale: 1.02; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
+            HudLabel {
+                text: root.hud !== "" ? root.hud : [root.name !== "" ? root.name : root.w.name, Qt.formatDate(Worlds.now, "ddd d MMM"), Qt.formatTime(Worlds.now, "HH:mm")].join(" · ")
+                jp: root.hudJp
+                color: Theme.hudAccent
+                size: Theme.textS - 1
+            }
+            Text {
+                id: heroTitle
+                width: parent.width
+                text: root.jp !== "" ? root.jp : Theme.jpOf(root.world)
+                elide: Text.ElideRight
+                readonly property real size: Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
+                font.family: Theme.fontTitle; font.weight: Font.Black; font.pixelSize: size
+                // A long title (a song's, a station's) shrinks to its line before it is cut short.
+                fontSizeMode: Text.HorizontalFit; minimumPixelSize: 40
+                font.letterSpacing: -size * 0.03
+                color: Theme.hudText
+            }
+            Text {
+                visible: text !== ""
+                width: parent.width
+                // The callout's "Walk = done" read as a sentence's parts: "Walk: done · Read: 20 min".
+                text: root.callout.map(l => String(l).replace(/\s*=\s*/, ": ")).join(" · ")
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+                font.family: Theme.fontTitle; font.pixelSize: Math.round(Theme.textLede * 0.8); font.weight: Font.Medium
+                color: Theme.tint(Theme.hudText, 0.92)
+            }
+        }
+        // Mercury's line, written down the right.
+        Text {
+            id: tategaki
+            visible: Theme.yozora && root.vertical !== "" && !root.portrait
+            x: band.width - Theme.margin(root.width) - width
+            y: Theme.s4
+            opacity: Math.max(0, 1 - root.collapse * 1.6)
+            text: root.vertical.split("").join("\n")
+            horizontalAlignment: Text.AlignHCenter
+            lineHeight: 1.05
+            font.family: Theme.fontTitle; font.pixelSize: 22; font.weight: Font.Medium
+            color: Theme.tint(Theme.hud.washi || Theme.hudText, 0.85)
+        }
 
         // The frame (16:9, or the phone's) spans the band's width, and the band shows its middle;
         // past the width where the band stops growing, the frame widens instead (`v`).
@@ -84,8 +157,8 @@ Item {
             height: root.v * root.frameH
             y: band.height / 2 - height / 2 - root.drift * 0.18 - root.lift
             opacity: 1 - root.collapse
-            // Shrunk to the bar, the bodies are gone: nothing of them draws or moves.
-            visible: root.collapse < 1
+            // Shrunk to the bar, the bodies are gone: nothing of them draws or moves (nor in the Yozora look).
+            visible: root.collapse < 1 && !Theme.yozora
             scale: 1 - root.collapse * 0.15
             transformOrigin: Item.Top
             // A slow drift when the scene comes (or the window does), so it breathes, then rests.
@@ -122,8 +195,9 @@ Item {
         // The name in its reticle, and what sits under it.
         Column {
             id: center
-            x: parent.width / 2 - width / 2
-            y: band.height / 2 - root.reticle / 2 - root.lift
+            // Under the title card on the left in the Yozora look.
+            x: Theme.yozora ? hero.x - (width - underBox.width) / 2 : parent.width / 2 - width / 2
+            y: Theme.yozora ? hero.y + hero.height + Theme.s3 : band.height / 2 - root.reticle / 2 - root.lift
             spacing: Theme.s2
             opacity: Math.max(0, 1 - root.collapse * 1.6)
             scale: 1 - root.collapse * 0.3
@@ -131,6 +205,7 @@ Item {
             width: Math.max(root.reticle, nameText.implicitWidth + 40)
 
             Reticle {
+                visible: !Theme.yozora
                 size: root.reticle
                 tilt: root.w.tilt
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -152,6 +227,7 @@ Item {
                 }
             }
             Settle {
+                id: underBox
                 wait: Theme.rise / 2
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: underRow.implicitWidth
@@ -218,7 +294,7 @@ Item {
         // The callout: a leader from the body and what comes next.
         Item {
             id: calloutBox
-            visible: !root.portrait && root.callout.length > 0 && root.collapse < 0.5
+            visible: !root.portrait && root.callout.length > 0 && root.collapse < 0.5 && !Theme.yozora
             // Where the world puts it, kept inside the band (a narrow pane leaves less room
             // beside the name than the frame does).
             readonly property real edge: Theme.margin(root.width)
@@ -285,7 +361,7 @@ Item {
         }
 
         // On a few days a year, a comet crosses.
-        Comet { anchors.fill: parent; z: 3; opacity: Math.max(0, 1 - root.collapse * 2) }
+        Comet { visible: !Theme.yozora; anchors.fill: parent; z: 3; opacity: Math.max(0, 1 - root.collapse * 2) }
 
         Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
     }
@@ -317,10 +393,11 @@ Item {
         readonly property bool single: cols === 1
         readonly property var blocks: root.rows.slice(0, single || !root.portrait ? 3 : 2)
         // DataRows' type, to measure the facts with.
-        FontMetrics { id: labelFont; font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
-        FontMetrics { id: valueFont; font.family: Theme.font; font.weight: Theme.weightName; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
+        FontMetrics { id: labelFont; font.family: Theme.fontCaps; font.weight: Theme.weightLabel; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
+        FontMetrics { id: valueFont; font.family: Theme.fontCaps; font.weight: Theme.weightName; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
 
-        Rectangle { anchors.fill: parent; color: Theme.deep }
+        Rectangle { visible: !Theme.yozora; anchors.fill: parent; color: Theme.deep }
+        HudGlass { visible: Theme.yozora; anchors.fill: parent; cuts: [0, 0, 0, 0] }
         Item {
             id: stripRow
             x: strip.margin; y: Theme.s2

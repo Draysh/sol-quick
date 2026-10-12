@@ -6,7 +6,9 @@ import QtQuick
     small still scene (the world, faint, on a thin orbit, with the page's
     own glyph as its moon), a line in the world's own voice, a quiet line
     on what fills it, and at most one way to start. Nothing moves: it is a
-    picture, not an animation.
+    picture, not an animation. In the Yozora look the scene is the glyph
+    in a diamond, and the world's navigator says the line too (its page's
+    `emptySay`).
 
         Empty { width: parent.width; icon: "bed"; line: "A quiet sky so far."; hint: "Nights appear here as you log them on Tonight." }
         Empty { compact: true; icon: "star"; line: "No stars yet."; action: "Rate something"; onActed: … }
@@ -31,6 +33,20 @@ Item {
     implicitHeight: compact ? Math.max(scene.height, words.implicitHeight) : scene.height + Theme.s3 + words.implicitHeight
     height: implicitHeight
 
+    // The navigator says the line while it shows (the Yozora look).
+    readonly property var page: Theme.yozora ? Theme.screenOf(root) : null
+    readonly property string says: line !== "" ? line + (hint !== "" ? " " + hint : "") : hint
+    function tell() {
+        const s = root.page
+        if (!s || !s.hasOwnProperty("emptySay")) return
+        if (root.visible && root.says !== "") s.emptySay = root.says
+        else if (s.emptySay === root.says) s.emptySay = ""
+    }
+    onVisibleChanged: tell()
+    onSaysChanged: tell()
+    Component.onCompleted: tell()
+    Component.onDestruction: { const s = root.page; if (s && s.hasOwnProperty("emptySay") && s.emptySay === root.says) s.emptySay = "" }
+
     // The scene: a faint orbit, the world at its middle, the glyph as a moon on it.
     Item {
         id: scene
@@ -40,8 +56,18 @@ Item {
 
         readonly property real rx: width / 2 - 6
         readonly property real ry: height / 2 - 10
+        // The Yozora look's scene: the glyph in a diamond, in the world's light.
+        Rectangle {
+            visible: Theme.yozora
+            anchors.centerIn: parent
+            width: root.compact ? 30 : 46; height: width; rotation: 45; antialiasing: true
+            color: Theme.tint(Theme.hudAccent, 0.1)
+            border.width: 1.5; border.color: Theme.tint(Theme.hudAccent, 0.8)
+        }
+        Icon { visible: Theme.yozora; anchors.centerIn: parent; name: root.icon || "sparkles"; size: root.compact ? 14 : 20; stroke: 1.4; color: Theme.hudAccent }
         Canvas {
             id: orbit
+            visible: !Theme.yozora
             anchors.fill: parent
             opacity: 0.55
             onPaint: {
@@ -57,6 +83,7 @@ Item {
             Connections { target: Theme; function onDayChanged() { orbit.requestPaint() } }
         }
         Body {
+            visible: !Theme.yozora
             world: root.world
             disc: root.compact ? 22 : 38
             animated: false
@@ -65,7 +92,7 @@ Item {
         }
         // The moon: the page's glyph, up on the right of the orbit, on a disc of the pane's sky.
         Rectangle {
-            visible: root.icon !== ""
+            visible: root.icon !== "" && !Theme.yozora
             readonly property real a: -0.85
             width: root.compact ? 22 : 30; height: width; radius: width / 2
             x: scene.width / 2 + scene.rx * Math.cos(a) - width / 2
@@ -74,8 +101,8 @@ Item {
             Icon { anchors.centerIn: parent; name: root.icon; size: root.compact ? 14 : 18; stroke: 1.2; color: Theme.textQuiet }
         }
         // A star or two, still.
-        Rectangle { x: 4; y: scene.height - 12; width: 2; height: 2; radius: 1; color: Theme.textFaint }
-        Rectangle { x: scene.width - 10; y: scene.height - 6; width: 1.5; height: 1.5; radius: 1; color: Theme.textFaint }
+        Rectangle { visible: !Theme.yozora; x: 4; y: scene.height - 12; width: 2; height: 2; radius: 1; color: Theme.textFaint }
+        Rectangle { visible: !Theme.yozora; x: scene.width - 10; y: scene.height - 6; width: 1.5; height: 1.5; radius: 1; color: Theme.textFaint }
     }
 
     Column {

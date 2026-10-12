@@ -55,7 +55,7 @@ Item {
         return (s && s.format ? s.format(v) : root.format(v)) + (s && s.unit ? s.unit : "")
     }
     // The axis labels' type, to measure them: each sits under its column, kept inside the chart.
-    FontMetrics { id: axisFont; font.family: Theme.font; font.pixelSize: Theme.textXs - 1; font.letterSpacing: Theme.track(Theme.trackRows, Theme.textXs) }
+    FontMetrics { id: axisFont; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs - 1; font.letterSpacing: Theme.track(Theme.trackRows, Theme.textXs) }
     function labelWidth(i) { return Math.ceil(axisFont.advanceWidth(String(labels[i]).toUpperCase())) + 1 }
     function labelLeft(i) { const w = labelWidth(i); return Math.max(0, Math.min(plot.width - w, xOf(i) - w / 2)) }
     /**
@@ -140,7 +140,7 @@ Item {
             anchors.bottomMargin: 3
             text: root.read(0, root.ceiling)
             visible: !root.empty
-            font.family: Theme.font; font.pixelSize: Theme.textXs - 1
+            font.family: Theme.fontCaps; font.pixelSize: Theme.textXs - 1
             color: Theme.textQuiet
         }
         // No values yet: says so, where the bars or the line would be.
@@ -278,7 +278,7 @@ Item {
                 visible: !!root.axisShown[index]
                 x: root.labelLeft(index)
                 text: root.labels[index]
-                font.family: Theme.font; font.pixelSize: Theme.textXs - 1
+                font.family: Theme.fontCaps; font.pixelSize: Theme.textXs - 1
                 font.letterSpacing: Theme.track(Theme.trackRows, Theme.textXs)
                 font.capitalization: Font.AllUppercase
                 color: root.at === index ? Theme.text : Theme.textQuiet
@@ -304,7 +304,7 @@ Item {
             spacing: 3
             Text {
                 text: root.at >= 0 ? root.labels[root.at] : ""
-                font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
+                font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
                 font.letterSpacing: Theme.track(Theme.trackRows, Theme.textXs); font.capitalization: Font.AllUppercase
                 color: Theme.textQuiet
             }

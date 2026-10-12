@@ -133,6 +133,7 @@ replaced: don't use them.
 | `SOL_DRIVE=<file.qml>` | A script loaded into the window (handed `win`) that drives it end to end, and ends the run with `Qt.quit()` |
 | `SOL_LIGHT=night\|day` | This run's light, whatever the device's setting says |
 | `SOL_CALM` | This run with less motion (moments short and still), whatever the device's setting says |
+| `SOL_LOOK=yozora` | A look to try for this run (`Theme.look`, below): Yozora, every page over a still from the world's film; `yozora:<world>` wears that world's flavour (the gallery) |
 | `SOL_FAKE_NAVIDROME=off` | A music world's preview without the stand-in Navidrome (`navidrome::preview()` answers none), to see its pages unconnected |
 | `QT_SCALE_FACTOR` | Qt's own: `1.5` to check fractional scaling; a large one (3) also makes a narrow window |
 
@@ -228,7 +229,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   section (no way back), and comes back on the tab it was left on; the
   palette offers the page's other tabs ("Show Timeline").
 - `Tabs`: uppercase words in a row, one of them on, along a hairline
-  (`line`) or as plain choices: `options: [{ value, label, count?, hint? }]`,
+  (`line`) or as plain choices: `options: [{ value, label, count?, hint?, jp? }]`
+  (`jp` before the label in the Yozora look),
   `value`, `chosen(value)`; the line slides to the next one (moved and
   scaled, at once with less motion), and a row wider than its room
   scrolls sideways.
@@ -290,7 +292,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   leads the label with a hairline glyph, for the few actions a glyph makes
   quicker to find, such as Export, Import, Play next, Refresh), `Chip`,
   `Check` (optimistic, `fail()`; `weight` 1–3 rings the box for a streak of 7, 30, 100 days, `weightOf(days)`), `Toggle`, `Slider`, `Field`, `TextArea`
-  (`large` for writing at length, `single` when Enter goes on), `Select`,
+  (`large` for writing at length, `single` when Enter goes on, `ink` and
+  `ruled` for writing in ink on a ruled page), `Select`,
   `Editable`, `MoonLink`.
 - `Key`: a key for one page (quiet while you type, or while a menu, dialog
   or the palette is open).
@@ -308,7 +311,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `MenuArea` (a thing's right-click, laid over its row) and `MoreButton`
   (the ⋯ that opens the same menu under itself): see Menus below.
 - `Moment` (one per window, `win.moment.play({ occasion, scene, facts,
-  chime, length })`) and `MomentCaption`, a scene's words; `Tour` (one per
+  chime, length, hud, ground })`) and `MomentCaption`, a scene's words
+  (`jp`, `subtitleJp` and `subtitle` in the Yozora look); `Tour` (one per
   window, `win.tourSheet`, filled from `AppWindow.tour`): both in
   `docs/world-apps.md` ("Moments", "The first run").
 - `SkyPage` (a world's `/sky`: the map and a card per constellation, from
@@ -327,6 +331,49 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Glass` (the pages behind, blurred and bent, cut to its `radius`; `from`
   blurs another item, as pairing does) and `GlassPanel` (glass with a
   hairline and `Theme.radius` corners: what the overlays sit on).
+- **Yozora (夜空)**, a look to try (`SOL_LOOK=yozora`, `Theme.look`,
+  `Theme.yozora`; `../../docs/yozora.md` is its spec and how it is built):
+  an anime film's night over every page of every world. While it is on,
+  the Theme's tokens take the world's flavour (`Theme.hud`, from
+  `yozoraOf(world)`: Saturn's dusk, Mercury's shrine, Neptune's neon,
+  Terra's noon; a moon wears its planet's), corners are square, there is
+  no day and no grain, and capitals are set in the mono face
+  (`Theme.fontCaps`), so the kit's components follow by themselves. The
+  Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
+  one of the world's stills turned over by section, `Theme.groundsOf`, a
+  moon's own when it has some, `Theme.ownGroundsOf`, graded, the shade
+  deeper round the title on a bright flavour, its `pool`; without a still,
+  the world's drawn sky) and blurs it once
+  (`Shell.groundBlur`); every `HudGlass` (Card, HudPanel, PageHead, the
+  rail, the footer, the Sky's night) reads the part under it, with the
+  flavour's motif drawn in the same shader (`hud.frag`: Mercury's waves,
+  Neptune's neon edge and scanlines, Terra's daylight). Overlays
+  (GlassPanel) blur the pages live. The rail is numbered, a section's `jp`
+  before its name; PageHead, Card, HudPanel and Sheet take a `jp` (the
+  title in Japanese) and head with `HudLabel` (mono capitals, a Japanese
+  tag, the flavour's mark: a diamond, a `HudSeal`, neon slashes, a sun;
+  Neptune's sets the `jp` first as a lit sign instead); the Sheet is a
+  title card (`jp`, the callout under it, `vertical` for a line written
+  down the right, `hud` and `hudJp` for its HUD line). Neptune's flavour
+  adds rain and a neon glow to the ground (the flavour's `rain` and
+  `haze`) and `HudGlitch`, which Screen plays as a page arrives: a scan
+  line and a few torn bands for a quarter of a second. The primary Button is a parallelogram
+  (as `AngledButton`), a round one a diamond, Progress is `SlantTicks`,
+  chips are mono pills, Display's figures mono. `Navigator` (in the rail's
+  foot, while the rows leave room; small, it grows into what room there
+  is) is the world's character, saying the
+  page's `Screen.say`, its Empty's line (`Screen.emptySay`), a greeting on
+  the first page, or what the section is for. A `Moment` is a film's scene:
+  the page's still darkened behind it, black bars, a HUD line, and
+  MomentCaption as its title card and subtitles. HudGlass's motif
+  `"washi"` (with a paper `tint`) is a sheet of paper: fibres and a faint
+  asanoha lattice. `HudSeal` (`round`, `tilt`) is a seal or a stamp
+  card's round stamp. The pictures live outside
+  every repository (`~/.local/share/sol-yozora/`, fetched by
+  `scripts/yozora-art.sh`; the bridge lists them, `Theme.yozoraArt`); the
+  look draws its own skies and leaves the navigator out without them.
+  `SOL_LOOK=yozora:mercury` wears one world's flavour in any app (the
+  gallery).
 
 **Display**
 
@@ -390,12 +437,13 @@ generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's ow
 loaded by URL from outside the compiled module (they import
 `org.kde.layershell`, which may be missing). **Shaders**
 (`shaders/`): the body's lighting, the glass, the rounded picture
-(`picture.frag`, Rounded's) and a star's light and arc (`light.frag`,
-`arc.frag`, StarLight's and StarArc's), committed as `.qsb`; after changing one, from
+(`picture.frag`, Rounded's), a star's light and arc (`light.frag`,
+`arc.frag`, StarLight's and StarArc's) and Yozora's cut glass (`hud.frag`,
+HudGlass's), committed as `.qsb`; after changing one, from
 `shaders/`:
 
 ```sh
-for f in body glass picture light arc; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
+for f in body glass picture light arc hud; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
 ```
 
 ## Writing a screen
@@ -482,6 +530,8 @@ Terra.
 scripts/hidden.sh -- cargo run --example gallery   # by hand: a preview, no Sol, no network
 scripts/gallery-shots.sh /tmp/shots               # after a kit change: every page night and day, the journal (a build only when needed)
 scripts/shots.sh terra /tmp/t today=/ end='/?_scroll=end'   # a world's pages, in one run (builds nothing)
+SOL_HIDDEN_SIZE=1920x1080 scripts/shots.sh …       # the hidden display at another size (hidden.sh's --size)
+scripts/yozora-art.sh                             # the Yozora look's stills and navigators, into ~/.local/share/sol-yozora (this computer only)
 ```
 
 `gallery-shots.sh` takes its pictures in four runs (night, day, less

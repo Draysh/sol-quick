@@ -77,6 +77,8 @@ Design.Screen {
                 required property var modelData
                 title: modelData.title
                 readonly property var stars: page.sky ? page.sky.stars.filter(s => s.constellation === c.modelData.id) : []
+                // In the Yozora look each is headed as a constellation, with how many of its stars are lit.
+                jp: Theme.yozora ? "星座 " + c.stars.filter(s => s.lit).length + "/" + c.stars.length : ""
                 Design.Words { width: parent.width; visible: text !== ""; quiet: true; small: true; text: c.modelData.story }
                 Repeater {
                     model: c.stars

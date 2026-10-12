@@ -27,6 +27,11 @@ FocusScope {
     /** What it is, for a screen reader, when no label shows (the question is above it). */
     property string name: ""
     property alias edit: edit
+    /** The colour of what is written: the theme's text, or ink on paper (Terra's notebook in the Yozora look). */
+    property color ink: Theme.text
+    /** A rule under every line, as on a notebook's page, in this colour; with one the underline gives way to it. Transparent for none. */
+    property color ruled: "transparent"
+    readonly property bool inked: !Qt.colorEqual(ink, Theme.text)
     signal accepted()
 
     implicitWidth: large ? 320 : 240
@@ -59,9 +64,9 @@ FocusScope {
                 font.family: root.jp ? Theme.fontJp : Theme.font
                 font.pixelSize: root.large ? Theme.textL : Theme.textM
                 font.weight: Theme.weightValue
-                color: root.enabled ? Theme.text : Theme.textFaint
-                selectionColor: Theme.text
-                selectedTextColor: Theme.space
+                color: root.enabled ? root.ink : root.inked ? Theme.tint(root.ink, 0.62) : Theme.textFaint
+                selectionColor: root.ink
+                selectedTextColor: root.inked ? "#ffffff" : Theme.space
                 wrapMode: TextEdit.Wrap
                 textFormat: TextEdit.PlainText
                 focus: true
@@ -71,17 +76,29 @@ FocusScope {
                 // Tab moves on, as in every other field; plain text has no use for a tab.
                 Keys.onTabPressed: event => { const n = edit.nextItemInFocusChain(true); if (n) n.forceActiveFocus(Qt.TabFocusReason); event.accepted = true }
                 Keys.onBacktabPressed: event => { const n = root.nextItemInFocusChain(false); if (n) n.forceActiveFocus(Qt.BacktabFocusReason); event.accepted = true }
-                cursorDelegate: Caret { cursorVisible: edit.cursorVisible; at: edit.cursorPosition }
+                cursorDelegate: Caret { cursorVisible: edit.cursorVisible; at: edit.cursorPosition; color: root.inked ? root.ink : Theme.textBright }
+            }
+            // The page's rules: one under each line the box holds, written or not.
+            Repeater {
+                model: root.ruled.a > 0 ? Math.max(1, Math.floor(parent.height / metrics.lineSpacing)) : 0
+                delegate: Rectangle {
+                    required property int index
+                    x: 0
+                    y: edit.y + (index + 1) * metrics.lineSpacing + 1
+                    width: parent.width
+                    height: 1
+                    color: root.ruled
+                }
             }
             Text {
                 anchors.fill: edit
                 text: root.placeholder
                 visible: edit.text === "" && !edit.inputMethodComposing
                 font: edit.font
-                color: Theme.textFaint
+                color: root.inked ? Theme.tint(root.ink, 0.62) : Theme.textFaint
                 wrapMode: Text.Wrap
             }
-            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: edit.activeFocus; hovered: hover.hovered }
+            Underline { visible: root.ruled.a === 0; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: edit.activeFocus; hovered: hover.hovered }
             HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 

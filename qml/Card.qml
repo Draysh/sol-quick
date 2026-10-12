@@ -3,7 +3,9 @@ import QtQuick
 /*
     A group: a panel raised off the night, its title in the world's light
     over a hairline, and two corner ticks that lock on to it under the
-    pointer. Give it a width; it is as tall as what it holds. A card that
+    pointer (in the Yozora look: glass with a corner cut, its title a HUD
+    label with its `jp`, brackets under the pointer). Give it a width; it
+    is as tall as what it holds. A card that
     is a thing (a title, a deck, a station) has a `menu`: right-click it,
     or the ⋯ in its head.
 
@@ -14,6 +16,8 @@ Item {
     id: root
 
     property string title: ""
+    /** Its title in Japanese, after the English in the Yozora look: "続きから". */
+    property string jp: ""
     /** Shows the world's glyph next to the title. */
     property string world: ""
     /** Shows an "Open" link in the header. */
@@ -87,8 +91,18 @@ Item {
         }
     }
 
-    // The panel: a step lighter than the pane, lit a little from above.
+    // The panel: a step lighter than the pane, lit a little from above; in the Yozora look,
+    // glass over the still with its top-right corner cut, and brackets in the light under the pointer.
+    HudGlass { visible: Theme.yozora; anchors.fill: parent; cuts: [0, Theme.hudCut, 0, 0]; glow: over.hovered ? 1 : 0 }
+    HudBrackets {
+        visible: Theme.yozora
+        anchors.fill: parent
+        cuts: [0, Theme.hudCut, 0, 0]
+        color: Theme.tint(Theme.hudAccent, over.hovered ? 0.9 : 0)
+        Behavior on color { ColorAnimation { duration: Theme.fade } }
+    }
     Rectangle {
+        visible: !Theme.yozora
         anchors.fill: parent
         radius: root.radius
         gradient: Gradient {
@@ -100,11 +114,12 @@ Item {
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
     }
     // Under the title, a hairline from edge to edge: the head, then the body.
-    Rectangle { visible: head.visible; x: 1; y: head.y + head.height + 13; width: parent.width - 2; height: 1; color: Theme.line }
+    Rectangle { visible: head.visible; x: Theme.yozora ? 20 : 1; y: head.y + head.height + 13; width: parent.width - (Theme.yozora ? 40 : 2); height: 1; color: Theme.line }
     HoverHandler { id: over }
 
     Item {
         id: ticks
+        visible: !Theme.yozora
         anchors.fill: parent
         opacity: 0
         /** How far past the corners they sit: a few pixels under the pointer, the same on any card. */
@@ -133,12 +148,15 @@ Item {
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
-            WorldGlyph { id: glyph; visible: root.world !== ""; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
+            WorldGlyph { id: glyph; visible: root.world !== "" && !Theme.yozora; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
             // A long title elides before the Open link.
+            readonly property real room: head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0) - (more.visible ? more.width - 8 + Theme.s3 : 0)
             Label {
+                visible: !Theme.yozora
                 text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, Math.min(implicitWidth, head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0) - (more.visible ? more.width - 8 + Theme.s3 : 0)))
+                width: Math.max(0, Math.min(implicitWidth, parent.room))
             }
+            HudLabel { visible: Theme.yozora && root.title !== ""; anchors.verticalCenter: parent.verticalCenter; text: root.title; jp: root.jp; room: parent.room }
         }
 
         Item {

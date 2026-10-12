@@ -50,7 +50,7 @@ Item {
             // Held to less than it wants (a narrow sheet), the name elides.
             width: Math.max(0, Math.min(implicitWidth, root.width - 8 - 22 - row.spacing))
             elide: Text.ElideRight
-            font.family: Theme.font
+            font.family: Theme.fontCaps
             font.weight: Theme.weightValue
             font.pixelSize: Theme.textXs
             font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs)

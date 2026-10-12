@@ -2,7 +2,7 @@ import QtQuick
 
 /* A label: what something is. Semibold capitals. */
 Text {
-    font.family: Theme.font
+    font.family: Theme.fontCaps
     font.weight: Theme.weightLabel
     font.pixelSize: Theme.textXs
     font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs)

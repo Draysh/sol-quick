@@ -28,7 +28,7 @@ Item {
     }
     Rectangle {
         anchors.fill: parent
-        color: line.invalid ? Theme.danger : Theme.textBright
+        color: line.invalid ? Theme.danger : Theme.yozora ? Theme.hudAccent : Theme.textBright
         transform: Scale { origin.x: 0; xScale: line.lit ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
     }
 }

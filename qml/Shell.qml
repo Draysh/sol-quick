@@ -130,7 +130,9 @@ Item {
     // A moon's pages are in the moon's own colour.
     function accent() {
         const of = here >= 0 && history[here] ? worldOf(history[here].path) : world
-        Theme.world = of !== world ? Worlds.get(of).color : Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color
+        Theme.worldId = world
+        // In the Yozora look every page, a moon's too, wears the flavour's own light.
+        Theme.world = Theme.yozora ? Theme.hudAccent : of !== world ? Worlds.get(of).color : Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color
         // And in its own voice.
         Sounds.world = of
     }
@@ -453,15 +455,92 @@ Item {
     }
 
     // ---- The frame ----------------------------------------------------------
-    Rectangle { anchors.fill: parent; color: Theme.space }
+    Rectangle { anchors.fill: parent; color: Theme.space; visible: !Theme.yozora }
+    /** Under everything in the Yozora look (`Theme.look`): the page's still in the world's grade, which HudGlass blurs; null otherwise. */
+    readonly property Item ground: groundLoader.item
+    /** The ground blurred once for the whole window: every HudGlass on a page reads the part under it. */
+    readonly property Item groundBlur: groundBlurLoader.item
+    /** The world's stills on this computer (`Theme.groundsOf`). */
+    readonly property var stills: Theme.yozora ? Theme.groundsOf(world) : []
+    /**
+        The still under the page on screen: its own `ground` (a title's key art), else
+        one of the world's stills, the same for every page of a section (a moon's
+        group counts on from its planet's, or stands on the moon's own stills when
+        it has some), so going from section to section turns the stills over.
+    */
+    readonly property string groundSource: {
+        if (!Theme.yozora) return ""
+        const screen = page as Design.Screen
+        if (screen && screen.ground !== "") return screen.ground
+        // A page opened from another stands on the still of the section it came from.
+        let row = null
+        for (let i = here; i >= 0; i--) {
+            row = rows.find(r => r.path === history[i].path) || null
+            if (row) break
+        }
+        // A moon with stills of its own (Luna's evening) stands on them, counted from its first section.
+        const moon = row && row.world && row.world !== world ? Theme.ownGroundsOf(row.world) : []
+        if (moon.length) return moon[(row.top - rows.find(r => r.world === row.world).top) % moon.length]
+        if (!stills.length) return ""
+        return stills[(row ? row.top : 0) % stills.length]
+    }
+    /**
+        What the world's navigator says (the Yozora look's Navigator, in the
+        sidebar's foot): the page's own `say`, its empty state's line, a
+        greeting on the first page, else what the section is for.
+    */
+    readonly property string navigatorLine: {
+        if (!Theme.yozora) return ""
+        const screen = page as Design.Screen
+        if (screen && screen.say !== "") return screen.say
+        if (screen && screen.emptySay !== "") return screen.emptySay
+        if (path === home) {
+            const h = Worlds.now.getHours()
+            return "おかえり。" + (h < 5 ? "Still up? " : h < 12 ? "Good morning. " : h < 18 ? "Good afternoon. " : "Good evening. ") + "Here is where you left off."
+        }
+        const row = rows[currentRow]
+        return row && row.hint ? row.hint + "." : ""
+    }
+    Loader {
+        id: groundLoader
+        anchors.fill: parent
+        active: Theme.yozora
+        sourceComponent: DuskGround { source: shell.groundSource }
+    }
+    Loader {
+        id: groundBlurLoader
+        anchors.fill: parent
+        active: Theme.yozora
+        // Drawn only into the panels that read it: a quarter of the pixels, blurred, redrawn
+        // only when the ground changes (a still fading in), never while it rests.
+        sourceComponent: MultiEffect {
+            visible: false
+            source: groundPicture
+            blurEnabled: true
+            blur: 0.9
+            blurMax: 48
+            autoPaddingEnabled: false
+            layer.enabled: true
+            ShaderEffectSource {
+                id: groundPicture
+                anchors.fill: parent
+                visible: false
+                live: true
+                sourceItem: shell.ground
+                textureSize: Qt.size(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)))
+            }
+        }
+    }
 
-    Sidebar { id: side; frame: shell }
+    // In the Yozora look the sidebar floats on its own glass, clear of the window's edges.
+    readonly property real sideInset: Theme.yozora && !rail ? Theme.s4 : 0
+    Sidebar { id: side; frame: shell; x: shell.sideInset; y: shell.sideInset; height: parent.height - shell.sideInset * 2 }
 
     // The pane: the pages, and a footer that is always there.
     Item {
         id: pane
-        x: side.width
-        width: parent.width - side.width
+        x: side.x + side.width
+        width: parent.width - x
         height: parent.height
         clip: true
 
@@ -471,7 +550,8 @@ Item {
             height: parent.height - footSlot.height
         }
         // Behind the footer, outside it, so the footer's height follows what is in it.
-        Rectangle { anchors.fill: footSlot; color: Theme.deep }
+        Rectangle { visible: !Theme.yozora; anchors.fill: footSlot; color: Theme.deep }
+        Design.HudGlass { visible: Theme.yozora && footSlot.height > 0; anchors.fill: footSlot; cuts: [0, 0, 0, 0] }
         Item {
             id: footSlot
             anchors.bottom: parent.bottom

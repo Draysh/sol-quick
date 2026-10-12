@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
+import QtQuick.Shapes
 
 /*
     Hairlines and capitals. `primary` is the only filled shape on a screen:
@@ -10,7 +11,9 @@ import QtQuick.Effects
     hairline glyph before its label (`Icon` names), for the few actions a
     glyph makes quicker to find. Its corners are `Theme.radiusM` (a round
     one is a circle). Focus locks two corner ticks on; a press gives a
-    little; while busy, a hairline sweeps along the bottom.
+    little; while busy, a hairline sweeps along the bottom. In the Yozora
+    look the words are in the mono face, the primary is a parallelogram
+    in the world's light and a round one a diamond.
 
         Button { text: "Log it"; variant: "primary"; busy: saving; onClicked: save() }
 */
@@ -35,8 +38,11 @@ Item {
 
     /** Its padding either side of the label, both together. */
     readonly property real pad: quiet ? 20 : 32
+    /** The Yozora look's primary: a parallelogram, its top leaning this far past its foot. */
+    readonly property bool angled: Theme.yozora && primary
+    readonly property real lean: angled ? Math.round(Theme.control * 0.36) : 0
     readonly property real iconRoom: icon !== "" ? glyph.size + (text !== "" ? Theme.s2 : 0) : 0
-    readonly property real natural: round ? Theme.control : iconRoom + (text !== "" ? label.implicitWidth : 0) + pad
+    readonly property real natural: round ? Theme.control : iconRoom + (text !== "" ? label.implicitWidth : 0) + pad + lean
     // The property a container gives its children's room in (see `room`). Read by name,
     // since it is on that container, not on every Item.
     readonly property string roomKey: "childRoom"
@@ -90,7 +96,7 @@ Item {
     RectangularShadow {
         anchors.fill: face
         radius: face.radius
-        visible: root.primary && root.enabled
+        visible: root.primary && root.enabled && !root.angled
         blur: (root.hovered ? 56 : 40) + root.breath * 8
         spread: 0
         color: Theme.tint(Theme.world, (root.hovered ? 0.5 : 0.3) + root.breath * 0.06)
@@ -101,6 +107,7 @@ Item {
     Rectangle {
         id: face
         anchors.fill: parent
+        visible: !root.angled && !root.diamond
         radius: root.round ? height / 2 : Theme.radiusM
         // The main action keeps its fill while it works, a little dimmed.
         color: root.primary && root.busy && root.enabled ? Theme.tint(Theme.text, 0.55)
@@ -115,6 +122,36 @@ Item {
             : root.round ? Theme.tint(Theme.ink, 0.35) : Theme.tint(Theme.ink, 0.4)
         Behavior on color { ColorAnimation { duration: Theme.fade } }
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
+    }
+
+    // A round one is a diamond in the Yozora look.
+    readonly property bool diamond: Theme.yozora && round
+    Rectangle {
+        visible: root.diamond
+        anchors.fill: parent
+        rotation: 45
+        scale: 0.72
+        antialiasing: true
+        color: face.color
+        border.width: face.border.width
+        border.color: face.border.color
+    }
+
+    // The Yozora look's primary: a parallelogram in the world's light.
+    Shape {
+        visible: root.angled
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+            strokeWidth: root.activeFocus ? 1 : 0
+            strokeColor: root.activeFocus ? Theme.hudText : "transparent"
+            fillColor: !root.live ? Theme.tint(Theme.hudAccent, root.busy && root.enabled ? 0.55 : 0.25) : root.hovered ? Qt.lighter(Theme.hudAccent, 1.1) : Theme.hudAccent
+            startX: root.lean; startY: 0.5
+            PathLine { x: root.width - 0.5; y: 0.5 }
+            PathLine { x: root.width - root.lean; y: root.height - 0.5 }
+            PathLine { x: 0.5; y: root.height - 0.5 }
+            PathLine { x: root.lean; y: 0.5 }
+        }
     }
 
     Row {
@@ -135,15 +172,15 @@ Item {
             id: label
             visible: root.text !== ""
             text: root.text
-            width: Math.max(0, Math.min(implicitWidth, root.width - root.pad - root.iconRoom))
+            width: Math.max(0, Math.min(implicitWidth, root.width - root.pad - root.iconRoom - root.lean))
             elide: Text.ElideRight
-            font.family: Theme.font
-            font.weight: Theme.weightLabel
+            font.family: Theme.fontCaps
+            font.weight: Theme.yozora ? Font.Bold : Theme.weightLabel
             font.pixelSize: Theme.textXs
             font.letterSpacing: Theme.track(0.16, Theme.textXs)
             font.capitalization: Font.AllUppercase
             color: !root.enabled ? Theme.textFaint
-                : root.primary ? Theme.space
+                : root.primary ? (root.angled && !root.live ? Theme.hudText : Theme.space)
                 : root.busy ? Theme.textQuiet
                 : root.quiet ? (root.hovered ? Theme.textBright : Theme.textQuiet)
                 : Theme.text

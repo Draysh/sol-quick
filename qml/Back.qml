@@ -38,7 +38,7 @@ Item {
         id: face
         anchors.fill: parent
         radius: Theme.radiusM
-        color: Theme.space
+        color: Theme.yozora ? Theme.deep : Theme.space
         border.width: 1
         border.color: mouse.containsMouse ? Theme.lineStrong : root.floating ? Theme.lineStrong : Theme.lineMid
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
@@ -59,7 +59,7 @@ Item {
             text: root.label
             width: Math.min(implicitWidth, 240)
             elide: Text.ElideRight
-            font.family: Theme.font
+            font.family: Theme.fontCaps
             font.weight: Theme.weightLabel
             font.pixelSize: Theme.textXs
             font.letterSpacing: Theme.track(0.16, Theme.textXs)

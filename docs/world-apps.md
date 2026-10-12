@@ -81,7 +81,10 @@ update.pub        the key release files are signed with
   a lot; `span: 2` or `"row"` for a feature card). One `primary` button per screen. The Settings page has
   `SolCard`, `DeviceCard`, `SettingsCard`, `ExportCard` and `AppUpdates`
   on a masonry `Grid`, then `MoonSettings` (each carried moon's part
-  under its name; see "Moons").
+  under its name; see "Moons"). For the Yozora look, a look being tried
+  (`SOL_LOOK=yozora`, `../../docs/yozora.md`), a world adds only words: a
+  section's `jp` (its name in Japanese), a PageHead's, Card's or Sheet's
+  `jp`, and a page's `say` (what its navigator says there).
 
 ## Data goes through the Link
 
@@ -500,7 +503,10 @@ function of an argument giving one or a promise of one), and
 `_moment=<name>` (or `<name>:<arg>`) in a shot path plays it, without its
 occasion: Terra's `sunrise`, Saturn's `finished:<key>`, Mercury's
 `perfect` and `milestone`, the template's `first`. The template's
-`FirstLine.qml` is the smallest example.
+`FirstLine.qml` is the smallest example. In the Yozora look a moment is a
+film's scene over the page's still: give its MomentCaption `jp` (the title
+in Japanese), `subtitleJp` and `subtitle` (a line said at the foot), and
+the spec a `hud` ("Review · 復習"); Mercury's `PerfectScene` does.
 
 ## The Sky
 

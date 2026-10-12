@@ -27,6 +27,15 @@ Settle {
     property bool door: false
     /** A page under a section: a step in from the section's row. */
     property bool child: false
+    /** The Yozora look (`Theme.look`): its number in the mono face for its mark, and a wash in the world's light while current. */
+    property bool hud: false
+    /** Its name in Japanese, before the English in that look: "書庫". */
+    property string jp: ""
+    /** A carried moon's row: its number in the world's second light. */
+    property bool moon: false
+    /** The number it shows in that look: its place, from 01. */
+    readonly property string number: (place + 1 < 10 ? "0" : "") + (place + 1)
+    readonly property bool numbered: hud && !door && !rail
     signal clicked()
 
     readonly property bool iconed: row.icon !== "" && row.world === ""
@@ -36,19 +45,43 @@ Settle {
     height: Theme.control
 
     Rectangle {
+        visible: !row.hud
         anchors.fill: parent
         radius: Theme.radiusM
         color: row.current ? Theme.surfaceHover : rowMouse.containsMouse ? Theme.surface : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.fade } }
+    }
+    // The Yozora look's wash: amber from the left, fading out to the right.
+    Rectangle {
+        visible: row.hud
+        anchors.fill: parent
+        opacity: row.current ? 1 : rowMouse.containsMouse ? 0.45 : 0
+        Behavior on opacity { NumberAnimation { duration: Theme.fade } }
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: Theme.tint(Theme.hudAccent, 0.24) }
+            GradientStop { position: 0.7; color: Theme.tint(Theme.hudAccent, 0.03) }
+            GradientStop { position: 1; color: Theme.tint(Theme.hudAccent, 0) }
+        }
     }
     Row {
         anchors.verticalCenter: parent.verticalCenter
         // One binding, not an anchor that comes and goes: a released anchor
         // leaves the row where it was put (off by a few pixels after the
         // sidebar starts as a rail for a moment).
-        x: row.rail ? (row.width - width) / 2 : row.child ? 12 + Theme.s4 : 12
+        x: row.rail ? (row.width - width) / 2 : (row.child ? Theme.s4 : 0) + (row.hud ? 18 : 12)
         spacing: row.iconed ? 10 : 12
+        Text {
+            visible: row.numbered
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.number
+            font.family: Theme.fontMono; font.pixelSize: Theme.textXs; font.weight: Font.Bold
+            font.letterSpacing: Theme.track(0.08, Theme.textXs)
+            color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
+            Behavior on color { ColorAnimation { duration: Theme.fade } }
+        }
         Item {
+            visible: !row.numbered
             width: row.markSize; height: row.markSize
             anchors.verticalCenter: parent.verticalCenter
             WorldGlyph { visible: row.world !== ""; world: row.world || "sol"; size: 10 }
@@ -75,16 +108,25 @@ Settle {
                 Behavior on border.color { ColorAnimation { duration: Theme.lock } }
             }
         }
+        Text {
+            id: jpText
+            visible: row.hud && row.jp !== "" && !row.rail
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.jp
+            font.family: Theme.fontTitle; font.pixelSize: Theme.textS; font.weight: Font.Bold
+            color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
+            Behavior on color { ColorAnimation { duration: Theme.fade } }
+        }
         Column {
             visible: !row.rail
             anchors.verticalCenter: parent.verticalCenter
             spacing: 1
             Text {
                 text: row.label
-                width: Math.min(implicitWidth, row.width - (row.door ? 34 : 60 + (row.iconed ? 4 : 0) + (badge.visible ? 28 : 0) + (row.child ? Theme.s4 : 0)))
+                width: Math.min(implicitWidth, row.width - (row.door ? 34 : 60 + (row.iconed ? 4 : 0) + (badge.visible ? 28 : 0) + (row.child ? Theme.s4 : 0) + (jpText.visible ? jpText.width + 12 : 0)))
                 elide: Text.ElideRight
-                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
-                color: row.current || rowMouse.containsMouse ? Theme.textBright : row.door ? Theme.text : Theme.textQuiet
+                font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: row.hud && row.current ? Theme.weightName : Theme.weightValue
+                color: row.current || rowMouse.containsMouse ? Theme.textBright : row.door ? Theme.text : row.hud ? Theme.hudQuiet : Theme.textQuiet
                 transform: Translate { x: !row.door && rowMouse.containsMouse ? 2 : 0; Behavior on x { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
                 Behavior on color { ColorAnimation { duration: Theme.fade } }
             }

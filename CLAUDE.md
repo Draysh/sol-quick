@@ -47,7 +47,8 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 - A shader: edit `shaders/<name>.frag`, rebuild the `.qsb` with the
   command in `README.md` (they are committed; the build only packs them).
   Uniform names must match the properties of `Body.qml` / `Glass.qml` /
-  `Rounded.qml` / `StarLight.qml` / `StarArc.qml`.
+  `Rounded.qml` / `StarLight.qml` / `StarArc.qml` / `HudGlass.qml` (and
+  `Navigator.qml`, whose portrait frame is drawn by `hud.frag` too).
 - Corners: `Theme.radiusS` / `radiusM` / `radius` / `radiusL` (4, 6, 10,
   14; README has where each goes), never a literal. Something drawn over
   a rounded thing (a hover fill, a hairline frame, a badge in its corner,
@@ -100,7 +101,9 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   Loader, a moon's settings part, otherwise warns as the app quits);
   `Theme.whenSeen` finds the nearest Flickable (`contentY`,
   `contentHeight`, `contentItem`); `Theme.screenOf` the nearest Screen.
-- **`Window.window as AppWindow`**: Glass reads `backdrop`; Card,
+- **`Window.window as AppWindow`**: Glass reads `backdrop`; HudGlass `shell.ground` and
+  `shell.groundBlur` (a page's glass in the Yozora look reads the one blurred ground, not the
+  frame it sits in; GlassPanel's, over the pages, blurs `backdrop` live); Card,
   MenuArea and MoreButton `menu.openAt`; Key `ask.current`, `commandPalette.open`, `menu.open`;
   DeviceCard `widget`, `widgetsHere`, `widgetPrefs.*`, `widgetName`;
   `assets/widget/DesktopWidget.qml` `host.widget`, `host.widgetPrefs.corner`;
@@ -144,7 +147,18 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `Moon.module` for live QML. A problem `"elsewhere"` (its own app still
   holds its copy) shows on its pages. The moon's crate's `qml` is a link
   to the repository's `qml/`, so the module's files keep `qml/<File>.qml`.
-- **Singletons written from outside**: `Theme.world` (Shell, DeviceCard),
+- **The Yozora look** (`../../docs/yozora.md`): every token that changes with it is
+  `yozora ? … : <as before>`, so with the look off nothing moves by a pixel (check the
+  gallery night and day against a "before"). The Shell picks the ground (`groundSource`:
+  the page's `Screen.ground`, else `Theme.groundsOf(world)` by the section's `top`, or a
+  moon's own stills, `Theme.ownGroundsOf(moon)`, counted from its first section) and
+  the navigator's line (`navigatorLine`: `Screen.say`, `Screen.emptySay` (written by a
+  showing `Empty`), a greeting, the row's `hint`); PageHead reads the Shell's `history`
+  and `rows` for its number and a section's `jp`; SidebarRow takes `jp` and `moon`. The
+  bridge's `lookArt` lists `~/.local/share/sol-yozora/` once at start, only with
+  `SOL_LOOK` set; nothing in the kit or a world may ship those pictures.
+- **Singletons written from outside**: `Theme.world` and `Theme.worldId` (Shell; `world`
+  also DeviceCard),
   `Theme.picks` (Shell's Tone), `Theme.alive` (AppWindow), `Worlds.surfaces`
   (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
   body shader's last two uniforms).
@@ -210,7 +224,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 - **Environment**: `SOL_PREVIEW`, `SOL_SHOT`, `SOL_SHOT_AFTER`,
   `SOL_SHOT_PATH` (and its `_` keys), `SOL_SHOTS`, `SOL_SHOT_READY`,
   `SOL_SHOT_CALM`, `SOL_FPS`, `SOL_DRIVE`, `SOL_LIGHT`,
-  `SOL_CALM`, `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
+  `SOL_CALM`, `SOL_LOOK`, `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
 - **Live QML** (`src/live.rs`, `cpp/live.h`; what it is for:
   `docs/world-apps.md`, "Live QML"): with `SOL_QML_LIVE=1` a preview maps
   `qrc:/qt/qml/Sol/Design/qml/<File>.qml` to this checkout's `qml/` and

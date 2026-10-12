@@ -142,9 +142,12 @@ Rectangle {
     border.width: 1
     border.color: Theme.line
     gradient: Gradient {
-        GradientStop { position: 0; color: Qt.tint("#05060a", Theme.tint(Theme.world, field.tinge)) }
-        GradientStop { position: 1; color: Qt.tint("#0a0b12", Theme.tint(Theme.world, field.tinge + 0.04)) }
+        GradientStop { position: 0; color: Theme.yozora ? Theme.tint(Theme.hud.ground, 0.62) : Qt.tint("#05060a", Theme.tint(Theme.world, field.tinge)) }
+        GradientStop { position: 1; color: Theme.yozora ? Theme.tint(Theme.hud.ground, 0.8) : Qt.tint("#0a0b12", Theme.tint(Theme.world, field.tinge + 0.04)) }
     }
+    // In the Yozora look the night is glass over the still, darkened, its corners bracketed.
+    HudGlass { visible: Theme.yozora; z: -1; anchors.fill: parent; cuts: [0, 0, 0, 0]; motif: "" }
+    HudBrackets { visible: Theme.yozora; z: 5; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.8) }
 
     // Far dust, drawn once, drifting a little as the sky moves.
     Canvas {

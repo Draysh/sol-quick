@@ -10,7 +10,10 @@ import Sol.Design
     missing, dimmed and lifted, a long grid and list sifted by a field, and
     a masonry grid of uneven cards with a feature card across two columns
     (Again grows one, and the cards under it glide to their new places).
-    The pictures are the kit's own photographs.
+    In the Yozora look a card more shows its own pieces (HudLabel,
+    HudSeal square and round, AngledButton, SlantTicks, HudPanel, a ruled
+    TextArea in ink). The pictures are the
+    kit's own photographs.
 */
 Screen {
     id: page
@@ -96,6 +99,31 @@ Screen {
                         Words { anchors.verticalCenter: parent.verticalCenter; text: row.modelData }
                     }
                 }
+            }
+        }
+        // The Yozora look's own pieces (SOL_LOOK=yozora): only while it is on.
+        Card {
+            visible: Theme.yozora
+            title: "Yozora"
+            jp: "夜空"
+            HudLabel { text: "A HUD label"; jp: "見出し" }
+            Row {
+                spacing: Theme.s3
+                HudSeal { text: "学" }
+                HudSeal { text: "済"; size: 28 }
+                HudSeal { text: "良"; size: 28; round: true; tilt: 8; color: Theme.hudAccent; paper: Theme.hud.ink || Theme.hud.ground }
+                AngledButton { text: "Play"; icon: "play" }
+                AngledButton { text: "Details"; outline: true; light: Theme.hudSecond }
+            }
+            SlantTicks { width: parent.width; value: page.round % 2 ? 0.3 : 0.7 }
+            HudPanel { width: parent.width; title: "A HudPanel"; jp: "硝子"; aside: "03"; brackets: Theme.hudSecond
+                Words { width: parent.width; quiet: true; text: "Glass over the still, its corner cut, brackets in the second light." } }
+            // Writing in ink on a ruled page (Terra's notebook).
+            Rectangle {
+                width: parent.width
+                height: ruledArea.height + Theme.s3 * 2
+                color: "#fbf8ee"
+                TextArea { id: ruledArea; x: Theme.s3; y: Theme.s3; width: parent.width - Theme.s3 * 2; large: true; minLines: 3; name: "Today"; ink: "#14233f"; ruled: Theme.tint("#5b8fd6", 0.4); text: "Swam in the lake after work; the light came through the trees in stripes." }
             }
         }
     }

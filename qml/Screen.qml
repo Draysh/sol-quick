@@ -34,6 +34,12 @@ Item {
     property bool filters: false
     /** This page's own actions, `{ label, hint, keys, icon, run }`, in the palette (Ctrl+K) after the window's, and on the `?` sheet: "Rate 8", "Bury this card". */
     property var actions: []
+    /** Key art for the whole window behind this page (a file or web address), where the look draws one (`Theme.look`). */
+    property string ground: ""
+    /** What the world's navigator says on this page in the Yozora look: a hint, a sentence or two; "" for the page's empty state or what its section is for. */
+    property string say: ""
+    /** The line of the empty state on show, for the navigator (Empty sets it). */
+    property string emptySay: ""
     /** The Sheet pinned over the page, shrinking as it scrolls, if there is one. */
     property Item pinned: null
 
@@ -57,7 +63,7 @@ Item {
     readonly property real margin: Theme.margin(width)
     /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left.
         The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
-    function reveal(dir) { flick.reveal(dir); revealHead(dir) }
+    function reveal(dir) { flick.reveal(dir); revealHead(dir); glitch.play() }
     /** The header's words settle in with the page, when it can (a PageHead). */
     function revealHead(dir) { for (const h of headSlot.children) if (typeof h.reveal === "function") h.reveal(dir) }
     /** Scrolls the page by `dy` pixels (the keys' arrows and pages), eased like a wheel notch. */
@@ -154,7 +160,7 @@ Item {
         // The screen settles into the pane as it opens, and again when the Shell comes back to it.
         opacity: 0
         transform: Translate { id: shift; y: 6; x: 0 }
-        Component.onCompleted: { arrive.start(); screen.revealHead("up") }
+        Component.onCompleted: { arrive.start(); screen.revealHead("up"); glitch.play() }
         function reveal(dir) {
             arrive.stop(); flick.opacity = 0
             shift.y = dir === "in" || dir === "back" ? 0 : 6
@@ -170,6 +176,9 @@ Item {
     }
 
     Settling { when: arrive.running }
+
+    // Neptune's glitch in the Yozora look, as the page arrives; nothing otherwise.
+    HudGlitch { id: glitch; anchors.fill: parent; z: 15 }
 
     // A thin scrollbar, only while the pane moves.
     Rectangle {

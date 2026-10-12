@@ -41,49 +41,53 @@ QtObject {
     function setCalm(on) { prefs.motion = on ? "less" : "full" }
     /** The hour, for "sun"; kept by Worlds' clock. */
     readonly property int hour: Worlds.now.getHours()
-    readonly property bool day: mode === "day"
+    // The Yozora look has no day: each world's grade is its own light.
+    readonly property bool day: !yozora && (mode === "day"
         || (mode === "sun" && hour >= 7 && hour < 19)
-        || (mode === "system" && Qt.styleHints.colorScheme === Qt.ColorScheme.Light)
+        || (mode === "system" && Qt.styleHints.colorScheme === Qt.ColorScheme.Light))
 
     /** The sky: a deep blue-black at night, never pure black, so what is raised off it shows; a pale cool sky by day. */
-    readonly property color night: day ? "#eef1f5" : "#0c0e13"
+    readonly property color night: yozora ? hud.ground : day ? "#eef1f5" : "#0c0e13"
     /** The pane, where the work is: the sky with a touch of the world's own colour. */
-    readonly property color space: Qt.tint(night, tint(world, day ? 0.07 : 0.05))
+    readonly property color space: yozora ? hud.ground : Qt.tint(night, tint(world, day ? 0.07 : 0.05))
     /** The chrome (sidebar, the band and toolbars over a page): a step deeper than the pane. */
-    readonly property color deep: day ? Qt.darker(space, 1.05) : Qt.darker(space, 1.45)
+    readonly property color deep: yozora ? tint(hud.ground, 0.86) : day ? Qt.darker(space, 1.05) : Qt.darker(space, 1.45)
     /** A panel raised off the pane (a card): a step lighter, lit a little from above. */
-    readonly property color raised: Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.7) : Qt.rgba(1, 1, 1, 0.035))
-    readonly property color raisedTop: Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.9) : Qt.rgba(1, 1, 1, 0.06))
+    readonly property color raised: yozora ? hud.glass : Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.7) : Qt.rgba(1, 1, 1, 0.035))
+    readonly property color raisedTop: yozora ? tint(hud.glass, Math.min(1, hud.glass.a + 0.06)) : Qt.tint(space, day ? Qt.rgba(1, 1, 1, 0.9) : Qt.rgba(1, 1, 1, 0.06))
     // Corners, on one scale, so a thing inside another rounds with it (an
     // inner corner is about the outer one less the room between them).
     // Pills (a round button, a switch, a count) stay pills; hairlines stay square.
     /** Small marks: a checkbox, a skeleton's line, a chart's bar, the pairing code's box. */
-    readonly property int radiusS: 4
+    // The Yozora look has square corners: its panels cut one at 45° instead.
+    readonly property int radiusS: yozora ? 0 : 4
     /** Controls and pictures in lists: a button, a chip, the way back, a menu row's light, a poster, a cover, a still. */
-    readonly property int radiusM: 6
+    readonly property int radiusM: yozora ? 0 : 6
     /** A panel's corners: a card, and the glass under a menu, a list, a hint, a notice and the palette. */
-    readonly property int radius: 10
+    readonly property int radius: yozora ? 0 : 10
     /** A big surface on its own: the dialog, the shortcuts sheet, the desktop widget. */
-    readonly property int radiusL: 14
+    readonly property int radiusL: yozora ? 0 : 14
     /** The colour light things are drawn in over the sky: white at night, black by day. Overlays use it at a low alpha. */
     readonly property color ink: day ? "#000000" : "#ffffff"
+    /** The hairlines' and surfaces' colour: the ink, or in the look its flavour's edge. */
+    readonly property color edgeInk: yozora ? hud.edge : ink
     /** What dims the window under a dialog and tints glass: black at night, the sky by day. */
-    readonly property color veil: day ? night : "#000000"
+    readonly property color veil: yozora ? hud.ground : day ? night : "#000000"
 
-    readonly property color surface: tint(ink, day ? 0.045 : 0.04)
-    readonly property color surfaceHover: tint(ink, day ? 0.08 : 0.07)
-    readonly property color line: tint(ink, day ? 0.09 : 0.07)
-    readonly property color lineMid: tint(ink, day ? 0.15 : 0.12)
-    readonly property color lineStrong: tint(ink, day ? 0.36 : 0.36)
+    readonly property color surface: yozora ? tint(edgeInk, 0.06) : tint(ink, day ? 0.045 : 0.04)
+    readonly property color surfaceHover: yozora ? tint(edgeInk, 0.12) : tint(ink, day ? 0.08 : 0.07)
+    readonly property color line: yozora ? tint(edgeInk, 0.2) : tint(ink, day ? 0.09 : 0.07)
+    readonly property color lineMid: yozora ? tint(edgeInk, 0.32) : tint(ink, day ? 0.15 : 0.12)
+    readonly property color lineStrong: yozora ? tint(edgeInk, 0.55) : tint(ink, day ? 0.36 : 0.36)
     readonly property color tick: tint(ink, 0.6)
 
-    readonly property color text: day ? "#1b1f27" : "#e6e8ed"
+    readonly property color text: yozora ? hud.text : day ? "#1b1f27" : "#e6e8ed"
     readonly property color textBright: day ? "#07080b" : "#ffffff"
-    readonly property color textValue: day ? "#3b414d" : "#c3c7cf"
-    readonly property color textQuiet: day ? "#666d7b" : "#8b919d"
-    readonly property color textFaint: day ? "#a6abb5" : "#4f5561"
+    readonly property color textValue: yozora ? Qt.tint(hud.quiet, tint(hud.text, 0.5)) : day ? "#3b414d" : "#c3c7cf"
+    readonly property color textQuiet: yozora ? hud.quiet : day ? "#666d7b" : "#8b919d"
+    readonly property color textFaint: yozora ? hud.faint : day ? "#a6abb5" : "#4f5561"
     /** A heading in the world's light: a panel's title (by day, the world's colour deepened to read on paper). */
-    readonly property color textWorld: day ? Qt.tint(text, tint(Qt.darker(world, 2.2), 0.75)) : Qt.tint(text, tint(world, 0.55))
+    readonly property color textWorld: yozora ? hud.accent : day ? Qt.tint(text, tint(Qt.darker(world, 2.2), 0.75)) : Qt.tint(text, tint(world, 0.55))
 
     readonly property color danger: day ? "#d9493a" : "#ff6b5a"
     readonly property color dangerText: day ? "#b8352a" : "#ff8a7a"
@@ -118,7 +122,7 @@ QtObject {
     property var picks: []
 
     /** `color` at `alpha`. */
-    function tint(c, alpha) { return Qt.rgba(c.r, c.g, c.b, alpha) }
+    function tint(c, alpha) { const k = typeof c === "string" ? Qt.color(c) : c; return Qt.rgba(k.r, k.g, k.b, alpha) }
 
     // ---- Type: one family, weight does the work ----------------------------
     readonly property FontLoader outfit: FontLoader { source: "../assets/fonts/Outfit-Variable.ttf" }
@@ -146,6 +150,138 @@ QtObject {
 
     /** Letter spacing in pixels for a tracking in em at a size. */
     function track(em, size) { return em * size }
+
+    // ---- Yozora (夜空): a look to try ------------------------------------------
+    /**
+        A look tried for this run only (`SOL_LOOK`), "" for the apps' own.
+        "yozora" is an anime film's night: every page over a still from a
+        Makoto Shinkai film (`~/.local/share/sol-yozora/`, never shipped)
+        under the world's grade, its panels glass with one corner cut, HUD
+        labels in a mono face, a navigator who says the page's line. The
+        tokens below take the look's values while it is on, so every
+        component follows; `SOL_LOOK=yozora:mercury` tries one world's
+        flavour in another app (the gallery).
+    */
+    readonly property string look: SolBackend.look
+    readonly property bool yozora: look === "yozora" || look.indexOf("yozora:") === 0
+    /** The window's world, by id: the app's own, set by the Shell (the gallery's changes as it shows each). */
+    property string worldId: SolBackend.world
+    /** The world whose flavour the look takes: the one named after `yozora:`, else the window's (a moon's, its planet's). */
+    readonly property string lookWorld: look.indexOf("yozora:") === 0 ? look.slice(7) : worldId
+    /**
+        Each planet's flavour (its moons take their planet's), for the
+        look: `ground` (the dark under everything, and words on a light),
+        `glass` (a panel's tint) and `edge` (its hairline, used at a few
+        alphas), `accent` and `second` (its two lights), `text`, `quiet`,
+        `faint` (words on glass), `sky` (the drawn sky without a still, top
+        to bottom), `hold` (how much of the ground lies over a whole still)
+        and `grade` (laid over it, top to bottom, as [r, g, b, a]), `shade`
+        (the left shade's strength), `pool` (how much deeper it lies round
+        the title, top left, on a bright still), `stars`, `rain` (streaks of rain over
+        the still, 0 to 1), `haze` (a neon glow low on the right), `jp`
+        (its name in Japanese) and `glyph` (one kanji, the rail's diamond),
+        `navigator` (the name of the character who says the page's line),
+        `motif` (what its panels carry: "dusk", "shrine", "neon" or
+        "summer"), `seal` (Mercury's vermilion), `paper` and `ink` (Terra's
+        notebook) and `film` (whose stills).
+    */
+    readonly property var yozoraLooks: ({
+        saturn: {
+            id: "saturn", navigator: "Suzume", hold: 0.28, motif: "dusk", film: "Suzume", jp: "土星", glyph: "土",
+            ground: "#0b0e2a", glass: Qt.rgba(9 / 255, 11 / 255, 34 / 255, 0.66), edge: "#c8d0ff",
+            accent: "#ffc07e", second: "#7fe3ff", seal: "#f07a6a",
+            text: "#f2f4ff", quiet: "#c8d0ff", faint: "#8e98d8",
+            sky: ["#0b0e2a", "#2b2468", "#8a3c7e", "#f07a6a", "#ffc07e"], stars: true, shade: 0.78,
+            grade: [[1, 0.75, 0.49, 0.16], [0.36, 0.24, 0.55, 0.22], [0.17, 0.14, 0.41, 0.5], [0.043, 0.055, 0.165, 0.86], [0.043, 0.055, 0.165, 0.96]]
+        },
+        mercury: {
+            id: "mercury", navigator: "Mitsuha", hold: 0.3, motif: "shrine", film: "Your Name", jp: "水星", glyph: "水",
+            ground: "#07081c", glass: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.7), edge: "#ffe6d6",
+            accent: "#ff8fa8", second: "#ffd58a", seal: "#e2412e", washi: "#fff4da",
+            text: "#fff8ee", quiet: "#e9dccf", faint: "#a99a9e",
+            sky: ["#05061a", "#121848", "#2e1e4e", "#7a2a3c", "#c94a35"], stars: true, shade: 0.8,
+            grade: [[0.89, 0.25, 0.18, 0.12], [0.03, 0.03, 0.11, 0.3], [0.03, 0.03, 0.11, 0.5], [0.027, 0.031, 0.11, 0.86], [0.027, 0.031, 0.11, 0.96]]
+        },
+        neptune: {
+            id: "neptune", navigator: "Lucy", hold: 0.34, motif: "neon", film: "Weathering With You", jp: "海王星", glyph: "海",
+            ground: "#0a1426", glass: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.72), edge: "#8fe7ff",
+            accent: "#ff4a5a", second: "#8fe7ff", seal: "#ff4a5a",
+            text: "#eef6ff", quiet: "#b9cbe8", faint: "#7590b4",
+            sky: ["#040814", "#0a1730", "#14284f", "#3a1c46", "#a32a48"], stars: false, shade: 0.8, rain: 1, haze: "#ff4a5a",
+            grade: [[0.56, 0.9, 1, 0.1], [0.04, 0.08, 0.15, 0.42], [0.04, 0.08, 0.15, 0.56], [0.039, 0.078, 0.149, 0.86], [0.039, 0.078, 0.149, 0.96]]
+        },
+        terra: {
+            id: "terra", navigator: "Hina", hold: 0.04, motif: "summer", film: "Weathering With You and 5 Centimeters per Second", jp: "地球", glyph: "地",
+            ground: "#14233f", glass: Qt.rgba(14 / 255, 40 / 255, 86 / 255, 0.62), edge: "#e9f4ff",
+            accent: "#9be07a", second: "#fff3a6", seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f",
+            text: "#ffffff", quiet: "#e2edff", faint: "#a9c3e6",
+            sky: ["#1f6fd6", "#4a90e2", "#8fbdf0", "#cfe4fa", "#eef6ff"], stars: false, shade: 0.72, pool: 0.42,
+            grade: [[0.62, 0.77, 0.94, 0.1], [0.08, 0.14, 0.25, 0.08], [0.08, 0.14, 0.25, 0.22], [0.078, 0.137, 0.247, 0.5], [0.078, 0.137, 0.247, 0.74]]
+        }
+    })
+    /** A world's flavour in the look: its own, or its planet's for a moon; Saturn's for any other. */
+    function yozoraOf(id) {
+        const w = Worlds.get(id)
+        const planet = w && w.parent ? w.parent : id
+        return yozoraLooks[planet] || yozoraLooks.saturn
+    }
+    /** Every world's name in Japanese, a moon's too: "タイタン". */
+    readonly property var yozoraNames: ({ sol: "太陽", terra: "地球", luna: "月", saturn: "土星", titan: "タイタン", mercury: "水星", neptune: "海王星", triton: "トリトン" })
+    function jpOf(id) { return yozoraNames[id] || yozoraOf(id).jp }
+    /** The flavour this window wears (see `yozoraOf`). */
+    readonly property var hud: yozoraOf(lookWorld)
+    /** Its name: "saturn", "mercury", "neptune" or "terra". */
+    readonly property string flavour: hud.id
+    /** The ground under everything, and the drawn sky without a still, top to bottom. */
+    readonly property color dusk: hud.ground
+    readonly property var duskSky: hud.sky
+    /** A glass panel's tint and its hairline. */
+    readonly property color hudGlass: hud.glass
+    readonly property color hudLine: tint(hud.edge, 0.2)
+    /** The flavour's two lights: its accent (the rail's bar, a primary, a panel's brackets) and a second for what comes second. */
+    readonly property color hudAccent: hud.accent
+    readonly property color hudSecond: hud.second
+    /** Saturn's two lights, by name: amber and cyan. */
+    readonly property color hudAmber: "#ffc07e"
+    readonly property color hudCyan: "#7fe3ff"
+    /** Words on the art and on glass: bright, held back, and faint. */
+    readonly property color hudText: "#ffffff"
+    readonly property color hudQuiet: Qt.rgba(1, 1, 1, 0.72)
+    readonly property color hudFaint: Qt.rgba(1, 1, 1, 0.45)
+    /** The corner a panel has cut away (45°), and the arm of its brackets. */
+    readonly property int hudCut: 18
+    readonly property int hudBracket: 12
+    /** Titles: a heavy Japanese serif. HUD labels and figures: a mono face, upper case, tracked wide. */
+    readonly property string fontTitle: "Noto Serif CJK JP"
+    readonly property string fontMono: "JetBrains Mono"
+    /** The face for words set in capitals (labels, buttons, tabs, quiet facts): the mono face in the look, else the sans. */
+    readonly property string fontCaps: yozora ? fontMono : font
+    readonly property real trackHud: 0.22
+    readonly property int textHero: 112
+    readonly property int textLede: 26
+    readonly property int textFigure: 38
+    /**
+        The look's pictures on this computer (`~/.local/share/sol-yozora/`,
+        fetched by `scripts/yozora-art.sh`): the stills a world's pages stand
+        on (`<planet>-ground-<n>.jpg`) and its navigator's portrait
+        (`<planet>-mascot.jpg`). Empty lists and "" when they aren't there.
+    */
+    readonly property var yozoraArt: { try { return JSON.parse(SolBackend.lookArt || "[]") } catch (e) { return [] } }
+    function groundsOf(id) {
+        const pre = "/" + yozoraOf(id).id + "-ground-"
+        return yozoraArt.filter(f => f.indexOf(pre) >= 0).sort().map(f => fileUrl(f))
+    }
+    /** A moon's own stills (`<moon>-ground-<n>.jpg`: Luna's evening), which its pages stand on instead of its planet's; [] when it has none. */
+    function ownGroundsOf(id) {
+        const pre = "/" + id + "-ground-"
+        return yozoraArt.filter(f => f.indexOf(pre) >= 0).sort().map(f => fileUrl(f))
+    }
+    function fileUrl(path) { return "file://" + String(path).split("/").map(encodeURIComponent).join("/") }
+    function mascotOf(id) {
+        const name = "/" + yozoraOf(id).id + "-mascot."
+        const f = yozoraArt.find(p => p.indexOf(name) >= 0)
+        return f ? fileUrl(f) : ""
+    }
 
     // ---- Spacing steps -----------------------------------------------------
     readonly property int s1: 4

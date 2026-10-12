@@ -2,7 +2,7 @@ import QtQuick
 
 /* Quiet capitals: dates, units, secondary facts. */
 Text {
-    font.family: Theme.font
+    font.family: Theme.fontCaps
     font.weight: Theme.weightValue
     font.pixelSize: Theme.textXs
     font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs)

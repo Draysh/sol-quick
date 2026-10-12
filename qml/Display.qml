@@ -17,11 +17,12 @@ Text {
     property real shown: 0
     property bool first: true
 
-    font.family: Theme.font
-    font.weight: Theme.weightDisplay
+    // In the Yozora look a figure is the HUD's: the mono face, a little heavier.
+    font.family: Theme.yozora ? Theme.fontMono : Theme.font
+    font.weight: Theme.yozora ? Font.Medium : Theme.weightDisplay
     property int size: 44
     font.pixelSize: size
-    font.letterSpacing: Theme.track(0.04, size)
+    font.letterSpacing: Theme.track(Theme.yozora ? -0.02 : 0.04, size)
     color: Theme.text
     text: format(shown)
 

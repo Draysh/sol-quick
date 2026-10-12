@@ -59,7 +59,7 @@ Item {
         id: time
         x: panel.radius; y: parent.height - 2
         width: parent.width - panel.radius * 2; height: 1
-        color: root.error ? Theme.danger : Theme.lineStrong
+        color: root.error ? Theme.danger : Theme.yozora ? Theme.hudAccent : Theme.lineStrong
         transform: Scale { id: left; origin.x: 0; xScale: 1 }
         // The line is the time: when it has run out, the notice goes.
         NumberAnimation {
