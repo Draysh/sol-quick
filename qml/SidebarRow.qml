@@ -4,8 +4,8 @@ import QtQuick
     One row of the Shell's sidebar: a section (its icon, or a small mark
     without one; its name; a count) or, with `door`, a door to another app
     (its world's glyph, its name and under it what it is for). On the rail
-    only the icon or the mark shows, and the hint names the row. The
-    Sidebar lays them out.
+    only the icon or the mark shows, and the hint names the row. A `child`
+    (a page under a section) sits a step in. The Sidebar lays them out.
 */
 Settle {
     id: row
@@ -25,6 +25,8 @@ Settle {
     property bool current: false
     /** A door: its name rests brighter and stays put on hover. */
     property bool door: false
+    /** A page under a section: a step in from the section's row. */
+    property bool child: false
     signal clicked()
 
     readonly property bool iconed: row.icon !== "" && row.world === ""
@@ -44,7 +46,7 @@ Settle {
         // One binding, not an anchor that comes and goes: a released anchor
         // leaves the row where it was put (off by a few pixels after the
         // sidebar starts as a rail for a moment).
-        x: row.rail ? (row.width - width) / 2 : 12
+        x: row.rail ? (row.width - width) / 2 : row.child ? 12 + Theme.s4 : 12
         spacing: row.iconed ? 10 : 12
         Item {
             width: row.markSize; height: row.markSize
@@ -79,7 +81,7 @@ Settle {
             spacing: 1
             Text {
                 text: row.label
-                width: Math.min(implicitWidth, row.width - (row.door ? 34 : 60 + (row.iconed ? 4 : 0) + (badge.visible ? 28 : 0)))
+                width: Math.min(implicitWidth, row.width - (row.door ? 34 : 60 + (row.iconed ? 4 : 0) + (badge.visible ? 28 : 0) + (row.child ? Theme.s4 : 0)))
                 elide: Text.ElideRight
                 font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
                 color: row.current || rowMouse.containsMouse ? Theme.textBright : row.door ? Theme.text : Theme.textQuiet

@@ -9,7 +9,7 @@
 mod start;
 
 pub use sol_quick_core::app::*;
-pub use start::run;
+pub use start::{run, run_with};
 
 /// The Qt this binary was built with (`build.rs`).
 pub(crate) const BUILT_QT: &str = env!("SOL_QT_VERSION");

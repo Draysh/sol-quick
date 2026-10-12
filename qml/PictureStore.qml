@@ -20,6 +20,8 @@ QtObject {
 
     /** The world's command that fetches a picture and answers with its path on disk. */
     property string command: ""
+    /** The world whose command it is: a moon the app carries, or "" for its own. */
+    property string world: ""
     /** What `command` is asked for a key: `{ path: key }` unless given. */
     property var args: key => ({ path: key })
     /** A name to remember the files under between runs (`SolBackend.remember`); "" remembers them for this run only. */
@@ -54,7 +56,7 @@ QtObject {
         if (!key) return Promise.resolve("")
         if (files[key]) return Promise.resolve(files[key])
         if (!coming[key]) {
-            coming[key] = Sol.call(command, args(key)).then(path => {
+            coming[key] = Sol.callIn(world, command, args(key)).then(path => {
                 delete store.coming[key]
                 const url = Sol.fileUrl(path)
                 if (url) { store.files[key] = url; store.written() }

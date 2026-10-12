@@ -63,7 +63,45 @@ pub mod qobject {
         #[qproperty(bool, calm)]
         /// The page to open first (`--open /title?key=x`, or asked for while starting).
         #[qproperty(QString, open_path, cxx_name = "openPath")]
+        /// `SOL_TRACE`: the window writes its timings (`trace`) for `scripts/measure.sh`.
+        #[qproperty(bool, trace_on, cxx_name = "traceOn")]
+        /// The moons this app carries, as JSON by id: `{ luna: { name,
+        /// status, unsent, kept, problem, settingsVersion } }`, each as the
+        /// app's own are above.
+        #[qproperty(QString, moons)]
         type SolBackend = super::Backend;
+
+        /// `call` for a world this app carries (`luna`); "" is the app's own.
+        #[qinvokable]
+        #[cxx_name = "callIn"]
+        fn call_in(
+            self: Pin<&mut Self>,
+            world: &QString,
+            id: i32,
+            command: &QString,
+            args: &QString,
+        );
+
+        /// `callSeen` for a world this app carries.
+        #[qinvokable]
+        #[cxx_name = "callSeenIn"]
+        fn call_seen_in(
+            self: Pin<&mut Self>,
+            world: &QString,
+            id: i32,
+            key: &QString,
+            command: &QString,
+            args: &QString,
+        );
+
+        /// One timing line for `scripts/measure.sh`, with the time since the start.
+        #[qinvokable]
+        fn trace(&self, what: &QString);
+
+        /// A carried world's manifest, as JSON ("" for none).
+        #[qinvokable]
+        #[cxx_name = "manifestOf"]
+        fn manifest_of(&self, world: &QString) -> QString;
 
         /// Runs a command; the reply arrives as `replied(id, ok, body)`.
         #[qinvokable]
@@ -140,11 +178,6 @@ pub mod qobject {
         #[qsignal]
         fn activate(self: Pin<&mut Self>);
 
-        /// A moon's planet has closed: without a window open, the moon leaves too.
-        #[qsignal]
-        #[cxx_name = "planetGone"]
-        fn planet_gone(self: Pin<&mut Self>);
-
         /// Open a page another app asked for (`/title?key=x`), and come up.
         #[qsignal]
         #[cxx_name = "openRequested"]
@@ -169,6 +202,16 @@ pub mod qobject {
         #[qsignal]
         #[cxx_name = "worldEvent"]
         fn world_event(self: Pin<&mut Self>, name: QString, data: QString);
+
+        /// A carried world's own event (`sol_quick::emit_in`): its id, a name and JSON.
+        #[qsignal]
+        #[cxx_name = "eventIn"]
+        fn event_in(self: Pin<&mut Self>, world: QString, name: QString, data: QString);
+
+        /// Documents changed in a carried world: its id and the collections, as a JSON list.
+        #[qsignal]
+        #[cxx_name = "changedIn"]
+        fn changed_in(self: Pin<&mut Self>, world: QString, collections: QString);
     }
 
     impl cxx_qt::Threading for SolBackend {}
@@ -178,7 +221,7 @@ pub mod qobject {
 use core::pin::Pin;
 use std::sync::atomic::Ordering;
 
-use cxx_qt::Threading;
+use cxx_qt::{CxxQtType, Threading};
 use cxx_qt_lib::QString;
 use orbit::link::Update;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
@@ -207,6 +250,10 @@ pub struct Backend {
     light: QString,
     calm: bool,
     open_path: QString,
+    trace_on: bool,
+    moons: QString,
+    /// What `moons` says, kept to change one world's part at a time.
+    moon_state: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Default for Backend {
@@ -250,6 +297,9 @@ impl Default for Backend {
             light: QString::from(&std::env::var("SOL_LIGHT").unwrap_or_default()),
             calm: std::env::var_os("SOL_CALM").is_some(),
             open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
+            trace_on: std::env::var_os("SOL_TRACE").is_some(),
+            moons: QString::from("{}"),
+            moon_state: serde_json::Map::new(),
         }
     }
 }
@@ -267,7 +317,17 @@ fn shot_list() -> String {
 /// A screen's command, started: its reply as `(ok, JSON or why not)`. A
 /// command that panics still answers, so the screen's promise settles.
 fn run(command: &QString, args: &QString) -> impl Future<Output = (bool, String)> + use<> {
+    run_in("", command, args)
+}
+
+/// The same for `world` (a moon the app carries; "" for its own).
+fn run_in(
+    world: &str,
+    command: &QString,
+    args: &QString,
+) -> impl Future<Output = (bool, String)> + use<> {
     let rt = app::runtime();
+    let world = world.to_owned();
     let command = command.to_string();
     let args = args.to_string();
     let args = match serde_json::from_str(&args) {
@@ -280,13 +340,33 @@ fn run(command: &QString, args: &QString) -> impl Future<Output = (bool, String)
             serde_json::Value::Null
         }
     };
-    let future = rt.commands.call(rt.link.clone(), &command, args);
+    let future = rt
+        .world(&world)
+        .map(|(link, commands, _)| commands.call(link.clone(), &command, args));
+    let traced = rt.preview && std::env::var_os("SOL_TRACE").is_some();
     async move {
-        match rt.tokio.spawn(future).await {
+        let Some(future) = future else {
+            return (false, format!("this app doesn't carry {world}"));
+        };
+        let at = std::time::Instant::now();
+        let reply = match rt.tokio.spawn(future).await {
             Ok(Ok(json)) => (true, json),
             Ok(Err(why)) => (false, why),
             Err(_) => (false, format!("{command} failed inside the app")),
+        };
+        if traced {
+            let w = if world.is_empty() {
+                rt.app.world
+            } else {
+                world.as_str()
+            };
+            app::trace(&format!(
+                "command {w}:{command} {}ms {}b",
+                at.elapsed().as_millis(),
+                reply.1.len()
+            ));
         }
+        reply
     }
 }
 
@@ -305,7 +385,6 @@ impl cxx_qt::Initialize for qobject::SolBackend {
             move |message| {
                 let _ = qt.queue(move |mut me| match message {
                     ToWindow::Activate => me.activate(),
-                    ToWindow::PlanetGone => me.planet_gone(),
                     ToWindow::Quit => me.quit_requested(),
                     ToWindow::Tray(up) => me.set_tray(up),
                     ToWindow::Event(name, data) => me
@@ -313,9 +392,18 @@ impl cxx_qt::Initialize for qobject::SolBackend {
                         .world_event(QString::from(&name), QString::from(&data)),
                     ToWindow::Open(path) => me.open_requested(QString::from(&path)),
                     ToWindow::Capture => me.capture_requested(),
+                    ToWindow::EventIn(world, name, data) => me.event_in(
+                        QString::from(&world),
+                        QString::from(&name),
+                        QString::from(&data),
+                    ),
                 });
             }
         });
+        // Each carried moon is followed the same way, into `moons`.
+        for c in &rt.carried {
+            follow_moon(c, qt.clone());
+        }
         // Subscribed before reading anything, so nothing between is missed.
         let mut updates = rt.link.subscribe();
         rt.tokio.spawn(async move {
@@ -362,7 +450,110 @@ impl cxx_qt::Initialize for qobject::SolBackend {
     }
 }
 
+/// Follows a carried moon's link: its status, unsent writes, kept writes and
+/// settings into `moons`, its changes as `changedIn`.
+fn follow_moon(c: &'static app::Carried, qt: cxx_qt::CxxQtThread<qobject::SolBackend>) {
+    let rt = app::runtime();
+    let world = c.world.clone();
+    let mut updates = c.link.subscribe();
+    {
+        let (world, problem) = (world.clone(), c.problem.clone());
+        let name = c.name.clone();
+        let _ = qt.queue(move |me| {
+            let problem = problem
+                .and_then(|p| serde_json::from_str(&p).ok())
+                .unwrap_or(serde_json::Value::Null);
+            me.set_moon(
+                &world,
+                &[
+                    ("name", name.into()),
+                    ("problem", problem),
+                    ("settingsVersion", 0.into()),
+                ],
+            );
+        });
+    }
+    rt.tokio.spawn(async move {
+        let link = &c.link;
+        let status = serde_json::to_value(link.status()).unwrap_or_default();
+        let kept = serde_json::to_value(link.kept().await.unwrap_or_default()).unwrap_or_default();
+        let unsent = link.unsent().await.unwrap_or(0);
+        {
+            let world = world.clone();
+            let _ = qt.queue(move |me| {
+                me.set_moon(
+                    &world,
+                    &[
+                        ("status", status),
+                        ("kept", kept),
+                        ("unsent", unsent.into()),
+                    ],
+                );
+            });
+        }
+        loop {
+            let mut batch = Vec::new();
+            match updates.recv().await {
+                Ok(update) => batch.push(update),
+                Err(RecvError::Lagged(_)) => {
+                    batch.push(Update::Status(link.status()));
+                    batch.push(Update::Changed(Vec::new()));
+                }
+                Err(RecvError::Closed) => return,
+            }
+            while let Ok(update) = updates.try_recv() {
+                batch.push(update);
+            }
+            let unsent = link.unsent().await.unwrap_or(0);
+            let world = world.clone();
+            let _ = qt.queue(move |mut me| {
+                let mut fields = vec![("unsent", unsent.into())];
+                for update in batch {
+                    match update {
+                        Update::Status(s) => {
+                            fields.push(("status", serde_json::to_value(s).unwrap_or_default()))
+                        }
+                        Update::Kept(k) => {
+                            fields.push(("kept", serde_json::to_value(k).unwrap_or_default()))
+                        }
+                        Update::Settings => {
+                            let n = me
+                                .rust()
+                                .moon_state
+                                .get(&world)
+                                .and_then(|w| w["settingsVersion"].as_i64())
+                                .unwrap_or(0);
+                            fields.push(("settingsVersion", (n + 1).into()));
+                        }
+                        Update::Changed(collections) => me
+                            .as_mut()
+                            .changed_in(QString::from(&world), json(&collections)),
+                        Update::App(_) => {}
+                    }
+                }
+                me.set_moon(&world, &fields);
+            });
+        }
+    });
+}
+
 impl qobject::SolBackend {
+    /// Sets some of a carried world's part of `moons`.
+    fn set_moon(mut self: Pin<&mut Self>, world: &str, fields: &[(&str, serde_json::Value)]) {
+        let text = {
+            let mut me = self.as_mut().rust_mut();
+            let entry = me
+                .moon_state
+                .entry(world.to_owned())
+                .or_insert_with(|| serde_json::json!({}));
+            for (k, v) in fields {
+                entry[*k] = v.clone();
+            }
+            serde_json::to_string(&me.moon_state).unwrap_or_default()
+        };
+        self.set_moons(QString::from(&text));
+    }
+
     fn apply(mut self: Pin<&mut Self>, update: Update) {
         match update {
             Update::Status(status) => self.set_status(json(&status)),
@@ -425,6 +616,69 @@ impl qobject::SolBackend {
 
     pub fn manifest(&self) -> QString {
         QString::from(app::runtime().manifest_json.as_str())
+    }
+
+    pub fn call_in(
+        self: Pin<&mut Self>,
+        world: &QString,
+        id: i32,
+        command: &QString,
+        args: &QString,
+    ) {
+        let rt = app::runtime();
+        let qt = self.qt_thread();
+        let reply = run_in(&world.to_string(), command, args);
+        rt.tokio.spawn(async move {
+            let (ok, body) = reply.await;
+            let _ = qt.queue(move |me| me.replied(id, ok, QString::from(&body)));
+        });
+    }
+
+    pub fn call_seen_in(
+        self: Pin<&mut Self>,
+        world: &QString,
+        id: i32,
+        key: &QString,
+        command: &QString,
+        args: &QString,
+    ) {
+        let rt = app::runtime();
+        let world = world.to_string();
+        let Some((_, _, dir)) = rt.world(&world) else {
+            return self.call_in(&QString::from(&world), id, command, args);
+        };
+        let dir = dir.to_owned();
+        let qt = self.qt_thread();
+        let reply = run_in(&world, command, args);
+        let key = key.to_string();
+        rt.tokio.spawn(async move {
+            let first = qt.clone();
+            let (ok, body, same) = crate::seen::through(dir, key, reply, move |kept| {
+                let _ = first.queue(move |me| me.recalled(id, QString::from(&kept)));
+            })
+            .await;
+            let _ = qt.queue(move |mut me| {
+                if same {
+                    me.as_mut().repeated(id);
+                }
+                me.replied(id, ok, QString::from(&body))
+            });
+        });
+    }
+
+    pub fn trace(&self, what: &QString) {
+        app::trace(&what.to_string());
+    }
+
+    pub fn manifest_of(&self, world: &QString) -> QString {
+        let world = world.to_string();
+        let rt = app::runtime();
+        QString::from(
+            rt.carried
+                .iter()
+                .find(|c| c.world == world)
+                .map_or("", |c| c.manifest_json.as_str()),
+        )
     }
 
     pub fn open_url(&self, url: &QString) {

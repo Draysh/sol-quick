@@ -79,6 +79,9 @@ In `core/src/`:
 | `door.rs` | What comes through the door: `--do`, `--find` (`Do`, `Query`, `Found`), another world asked (`ask`, `tell`, `Question`, `Unanswered`) |
 | `questions.rs` | The questions worlds ask each other, typed (`Furigana`, `Say`, `Level`, `AddWord`, `Now`, `Duck`, `Pause`), and `ask` / `tell` for them |
 | `moments.rs` | Moments played once per occasion for the person (`first_time`, kept in the world's `moments` collection) |
+| `sky.rs` | The Sky: a world's milestones as constellations (`Constellation`, `Star`, `steps`), lit once each into the world's `sky` collection (`record`, `lit`, `show`, `view`, the layout), comets (`comet_on`, `comet`, `catch_comet`) and the real sky (`events_on`, `tonight`: full moons, the Perseids, Saturn's opposition) |
+| `kept.rs` | `kept::<T>(&link, "cards")`: a collection read once and kept (shared, `Arc`) until a write or a change from Sol touches it; for commands that each read the same big collection |
+| `app.rs` (`Moon`, `Carried`, `emit_in`) | A moon carried in a planet's app: `sol_quick::run_with(world, vec![moon])` runs it in the planet's process with its own link, door, status and commands (the shared ones on its link); `Runtime::world(id)`; `emit_in(world, …)` tells a carried world's pages |
 | `commands.rs` | `Commands` (the registry: `add`, `undoable`, `creates`, `names`; over the link, `engine(&ENGINE)` or `over(…)`), `doc`, `say` |
 | `undo.rs` | Undo: the documents a write changes, kept under a token (`keep`, `take`) and put back (`restore`) |
 | `status.rs` | The status file for the bar (`refresh`) and `--status` |
@@ -97,7 +100,9 @@ the writes kept aside (`kept`, `keep_mine {seq}`, `drop_kept {seq}`,
 path); `export_world` (every document of the world's own collections to
 `Downloads/sol-<world>-<stamp>.json`, a preview's `downloads/` instead; replies `{ path, documents }`) and
 `moment {occasion}` (true the first time, for the person: recorded in the
-world's `moments`), `undoable {command, args}` (the world's write run
+world's `moments`), `comet` (today's comet day, or null), `catch_comet
+{day}` (its star in the Sky), `sky_tonight` (the real sky's events for
+this world today, each lit as a star once), `undoable {command, args}` (the world's write run
 with the documents it touches kept: `{ result, undo }`, `undo` a token or
 null) and `restore {undo}` (Undo: those documents put back as they were;
 the world's own collections only), `capture {line, world?}` (quick capture: every running world's
@@ -107,9 +112,8 @@ would do; without, the same written through the link; replies a plan,
 `{ world, exported_at, added, replaced, same, skipped, collections: [{
 collection, label, added, replaced, same }] }`), `pick_file {title, filter?:
 {label, globs}}` (a file from the desktop's picker, the portal: its path,
-null when closed, an error where there is no portal); `start_fresh` when the
-local copy didn't open; and for a moon,
-`with_planet` and `set_with_planet {on}`. They are added
+null when closed, an error where there is no portal); and `start_fresh` when the
+local copy didn't open. They are added
 after the world's own, so a world command with one of these names is
 replaced: don't use them.
 
@@ -119,7 +123,7 @@ replaced: don't use them.
 | --- | --- |
 | `SOL_PREVIEW` | The Shell without pairing, on a throwaway copy (`/tmp/sol-preview-<world>`) filled with sample data the first time; its own socket, so it runs beside the installed app. On with any value, even `0` |
 | `SOL_SHOT=<png>` | A picture of the window once its page is ready (below), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
-| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
+| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through; `_moment=star`, the kit's own: a star lighting), `_comet=1` (a comet held mid-way across the Sheet), `_sky=full-moon\|perseids\|opposition` (that night of the real sky on the Sheet), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
 | `SOL_SHOTS=<list>` | Many pictures in one run, one after another, then the app quits: `<png>=<path?keys>` each (as `SOL_SHOT` and `SOL_SHOT_PATH`), a line or `;` apart, or the name of a file holding them (`#` starts a comment). Each opens its page, scrolls, stages its keys, waits until ready and is taken; what the one before staged (dialogs, the palette, notices, a moment, quick capture) is put away first. `scripts/shots.sh` runs a world with a list on a hidden display. A `_problem` picture goes first (the Shell then loads for the rest); a world's own keys that it reads once at start (Neptune's `_vinyl`, Triton's `_dj`) work in the first picture only |
 | `SOL_SHOT_AFTER=<ms>` | The most a picture waits for its page to be ready: 8000 unless set; one that times out is taken anyway and says so in the journal (`SOL_SHOT: … wasn't ready`) |
 | `SOL_SHOT_READY=0` | The old way: each picture `SOL_SHOT_AFTER` ms in, ready or not |
@@ -180,20 +184,54 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `started()` (the moment to start the app's own work: once paired, at
   once in preview; not again on an offline/online flip), `tour` (the
   first-run tour's three cards, below), and `moments` (the scenes a
-  picture can stage with `_moment=<name>`).
+  picture can stage with `_moment=<name>`). It keeps a `CarriedMoons` (the
+  moons' sections, pages, palette rows, moments and overlays merged with
+  the world's) and a `WindowShots` (pictures for review, what their `_`
+  keys stage, `SOL_FPS` and `SOL_TRACE`).
 - `Shell`: the sidebar and the pane, history and the way back (a page
   opened from another has one, a section opened with params from another
-  page too), the keys, the hero flight (`go(path, params, { item, url })`).
+  page too), the keys, the hero flight (`go(path, params, { item, url })`),
+  `retab(params)` (the page on screen takes new params in the same step
+  of the history: a tab chosen), `sectionOf(path)`, `isSection(path)`,
+  `aliases` (paths that moved, still reachable: `AppWindow { aliases: ({
+  "/calendar": "/schedule?tab=calendar" }) }`; links, other apps, quick
+  capture and `--open` may name the old path, and its params go under the
+  ones asked with). A section's tab may be a page of its own: `pages: ({
+  "/schedule": calendar, "/schedule?tab=timeline": timeline })`, each with
+  the same PageHead `tabs`; choosing a tab puts its page in that step of
+  the history (settling in as a section does) and each keeps its scroll.
 - `Sidebar` (the Shell's own, with `SidebarRow` for sections and doors).
-  A section is `{ path, label, hint, icon?, badge? }`: its `icon` (an
-  `Icon` name) stands where the small dot would, quiet at rest and bright
-  when current or under the pointer, and alone on the rail; doors keep
-  their world's glyph. The palette's "Go to" rows lead with it too.
+  A section is `{ path, label, hint, icon?, badge?, children?, tabs? }`:
+  its `icon` (an `Icon` name) stands where the small dot would, quiet at
+  rest and bright when current or under the pointer, and alone on the
+  rail; doors keep their world's glyph. The palette's "Go to" rows lead
+  with it too. `children: [{ path, label, hint?, icon? }]` are pages under
+  it: one row that opens out to them (a step in) while it or one of them
+  is open and folds again otherwise, settling as it goes, as a carried
+  moon's group does; Ctrl+1…9 count only the sections, and the palette
+  names a child with its section ("Go to Activity · History", a moon's
+  rows with the moon: "Go to Titan · History"). `tabs: [{ id, label }]`
+  lets the palette reach a section's tabs from anywhere ("Go to Schedule
+  · Calendar").
 - `Screen`: a page in the pane (`header`, `filter`/`filters`, `hero`,
   `scrollBy`, `wheel(event)`, `notch`, `pageStep`, `actions`: the page's
   own rows in the palette and on the `?` sheet, "Rate 8", "Bury this card").
 - `PageHead`: a working page's toolbar (title, a quiet line, actions, the
-  way back, `editable`).
+  way back, `editable`, `tabs`). With `tabs: [{ id, label, count?, hint? }]`
+  and `tab: page.params.tab || ""`, the tabs run along its foot, the one
+  that is on drawn over its hairline; choosing one puts it in the page's
+  path (`/schedule?tab=calendar`, through `Shell.retab`, no new step), so
+  Back, links and the palette reach it. The page reads `current` (the tab
+  showing: `tab`, or the first) or `params.tab`; `tabChosen(id)` follows a
+  choice, `choose(id)` makes one. A section opened with only its tab (or
+  `part`, the part of it to show: `/settings?part=titan`) is still the
+  section (no way back), and comes back on the tab it was left on; the
+  palette offers the page's other tabs ("Show Timeline").
+- `Tabs`: uppercase words in a row, one of them on, along a hairline
+  (`line`) or as plain choices: `options: [{ value, label, count?, hint? }]`,
+  `value`, `chosen(value)`; the line slides to the next one (moved and
+  scaled, at once with less motion), and a row wider than its room
+  scrolls sideways.
 - `Sheet`: the band across a world's first screen, pinned and shrinking;
   `rings` draws faint rings round the world (Mercury: a week of reviews each).
 - `Back`: the way back, by name (Space or Enter from the keys).
@@ -202,9 +240,14 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 **Panels**
 
-- `Card` (a raised panel with a title; `menu` on right-click), `Grid`
-  (cards in auto-fit columns), `Callout` (a dotted leader and a short
-  list, in a Sheet).
+- `Card` (a raised panel with a title; `menu`: its right-click and a ⋯
+  in its head, see Menus below; `span`: 1, 2 or `"row"` of a Grid's
+  columns), `Grid` (cards in auto-fit columns, row by row; `masonry: true`
+  puts each card into the shortest column instead, for pages of cards of
+  very different heights: Settings, Today, Taste, Discover). When a grid
+  places its cards again (one grows, hides or shows) they glide to their
+  new places (not the first time, not while the width changes, not with
+  less motion). `Callout` (a dotted leader and a short list, in a Sheet).
 - Lists as long as a library, where only what is in sight is made and the
   page scrolls them like anything else: `LongGrid` (tiles of at least
   `min` across, `tileHeight` tall, on a GridView that uses its tiles again;
@@ -221,7 +264,21 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   aside), `SettingsCard`, `DeviceCard`, `AppUpdates` (with an update that
   was rolled back), `ExportCard` (export everything to Downloads, import
   a file after saying what it adds and replaces; what goes inside it sits
-  below its buttons), and `WithPlanet` for a moon.
+  below its buttons); `SolCard`, `SettingsCard` and `ExportCard` take
+  `world` for a moon the app carries.
+- Carried moons: `Moon` (a moon's sections, pages, palette rows, moments
+  and overlays, listed in `AppWindow { moons }`), `SolWorld` (one world's
+  connection, from `Sol.of(world)` or `Sol.near(item)`: the same members
+  as `Sol`), `WorldSettings` (a world's own device settings, in its own
+  file), `Screen.world`, `Watch.world`, `PictureStore.world`; `Sol.carried`,
+  `callIn`, `callSeenIn`, `fillIn`, `fetchIn`, `undoableIn`, `failIn`,
+  `pathOf`, `go`. A `Moon` may declare `settings` (a Component: its cards
+  as a part of the planet's Settings page) and `aliases` (its own paths
+  that moved); `MoonSettings` on the planet's Settings page shows each
+  moon's part under its name and role (`/<moon>/settings` opens the page
+  scrolled there), and a moon without a `/sky` page has its sky as a tab
+  of the planet's `SkyPage` (`/<moon>/sky`). See `docs/world-apps.md`,
+  "Moons".
 - `KeptAside`: the writes kept on this device instead of sent (a conflict
   with both copies, a change Sol couldn't take, changes from an earlier
   pairing), with the choice for each and "Save a copy"; the window has one
@@ -242,14 +299,31 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 - `ContextMenu` (one per window: `win.menu`), `CommandPalette` (Ctrl+K)
   (an entry or command may lead with an `icon`, for common actions; a
-  menu's other labels line up after it),
+  menu's other labels line up after it; an entry with `items`, a list or
+  a function returning one, nests: one "Rate…" with its numbers inside,
+  which the palette shows as one row that opens its own list),
   `Ask` (`win.ask.name(…)`, `win.ask.confirm(…)`), `Hint`, `Notice` (made
   by the window from `Notices.list`), `Shortcuts` (`?`: the Shell's keys,
   the app's, and the palette's actions here, the window's and the page's).
+- `MenuArea` (a thing's right-click, laid over its row) and `MoreButton`
+  (the ⋯ that opens the same menu under itself): see Menus below.
 - `Moment` (one per window, `win.moment.play({ occasion, scene, facts,
   chime, length })`) and `MomentCaption`, a scene's words; `Tour` (one per
   window, `win.tourSheet`, filled from `AppWindow.tour`): both in
   `docs/world-apps.md` ("Moments", "The first run").
+- `SkyPage` (a world's `/sky`: the map and a card per constellation, from
+  the world's `sky` command; in an app that carries moons without a Sky of
+  their own, a tab per world, `/sky?tab=titan`, each from its own `sky`), `SkyMap` (the sky drawn, to wander and
+  zoom), `StarField` (what every star map stands on, the Sky's, Mercury's
+  path and Titan's galaxy: the night and its dust, the view (`cx`, `cy`,
+  `zoom`, `px`/`py`, `sx`/`sy`, `panBy`, `zoomAt`, `flyTo`, `home`), drag,
+  wheel, pinch and picking a star; the map's own stars, lines and names
+  are its children, on a plane that pans as one, and are named again on
+  `place()`, never every frame) with `StarLight` (a star's glow and cross,
+  one small shader), `StarArc` (how far along, round a star) and
+  `StarLine`, `StarScene` (the moment a star lights, played by the window on
+  `sky.lit`) and `Comet` (in every Sheet, on its few days a year):
+  `docs/world-apps.md` ("The Sky").
 - `Glass` (the pages behind, blurred and bent, cut to its `radius`; `from`
   blurs another item, as pairing does) and `GlassPanel` (glass with a
   hairline and `Theme.radius` corners: what the overlays sit on).
@@ -315,12 +389,13 @@ generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's ow
 `widget/DesktopWidget.qml` and `capture/Capture.qml` (quick capture's line),
 loaded by URL from outside the compiled module (they import
 `org.kde.layershell`, which may be missing). **Shaders**
-(`shaders/`): the body's lighting, the glass and the rounded picture
-(`picture.frag`, Rounded's), committed as `.qsb`; after changing one, from
+(`shaders/`): the body's lighting, the glass, the rounded picture
+(`picture.frag`, Rounded's) and a star's light and arc (`light.frag`,
+`arc.frag`, StarLight's and StarArc's), committed as `.qsb`; after changing one, from
 `shaders/`:
 
 ```sh
-for f in body glass picture; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
+for f in body glass picture light arc; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
 ```
 
 ## Writing a screen
@@ -378,7 +453,7 @@ What QML's JavaScript lacks or forbids (no `flat`, the names final on
 ## The gallery
 
 `examples/gallery` is the kit in its own window: every part of
-`Sol.Design` on four pages, as Shell sections, with sample data and the
+`Sol.Design` on six pages, as Shell sections, with sample data and the
 kit's own photographs. **Worlds**: the window's world's Sheet (each world
 in turn, ← and →), every Body at 22, 48, 120 and 300 px, every
 WorldGlyph, every Icon by name. **Controls**: every Button variant resting, busy and off,
@@ -387,9 +462,21 @@ typed, invalid), TextArea (and `large`), Select, Editable, Back,
 MoonLink, a page's `Key`, Ticks. **Panels**: Card in its ways, Grid at
 three widths, DataRows, Display, Progress, Callout, Settle, every
 Skeleton and Chart, Strip, Picture and Poster (loaded, missing, dim,
-lifted), Empty (both ways). **Overlays**: ContextMenu, CommandPalette, Ask, notices, Hint, the Tour (`_tour=1`), a Moment
+lifted), Empty (both ways), a masonry Grid with a feature card across two
+columns and one across the row (Again grows one; the cards under it
+glide). Panels is a section with children: **Tabs** (a PageHead's tabs,
+`/tabs?tab=calendar`) and **Menus** (a card and rows that are things,
+each with its right-click and ⋯, a nested "Rate…"; `_nested=1` opens it). **Overlays**: ContextMenu, CommandPalette, Ask, notices, Hint, the Tour (`_tour=1`), a Moment
 (`_moment=1`; `SOL_CALM=1` for its still form), quick capture (`_capture=walk`,
-answered by the gallery's own `ask`).
+answered by the gallery's own `ask`). **Sky**: `SkyPage` (its map a
+`StarField`) on the gallery's own `sky` command (four constellations, some stars lit), a star chosen
+(`?star=ghibli/spirited`), the star's moment (`_moment=star`); the comet
+and the full moon on Luna's Sheet are `/?_world=luna&_comet=1&_sky=full-moon`;
+the moon's sky on its own tab (`/moon/sky` leads there). **Settings**: the
+window's cards on a masonry Grid, then the moon's part under its name
+(`MoonSettings`, from the moon's `settings`; `/moon/settings` opens it
+there). The moon (**Tonight**, its one page) is carried as Luna is in
+Terra.
 
 ```sh
 scripts/hidden.sh -- cargo run --example gallery   # by hand: a preview, no Sol, no network
@@ -502,6 +589,8 @@ wrote, and an update never leaves them without the app:
   so a white moon still shows on the pale sky.
 - **The real sky**: Luna shows tonight's phase and Terra's light follows
   the local hour wherever a body is drawn (`Worlds.skyOf`, `Worlds.moonAt`).
+  A full moon or the Perseids on Luna's Sheet and Saturn's opposition on
+  Saturn's say so at the band's bottom right (`sky_tonight`).
 - **Charts**: `Chart` draws bars or lines for one or more series over the
   same labels, grows in when seen, and says the exact values under the
   pointer.
@@ -510,11 +599,31 @@ wrote, and an update never leaves them without the app:
   in the app's data folder (`seen/`), written only when it changed.
   `Sol.fill(item, name, command)` does it for one property.
 
+## Menus
+
+Every card or row that is a thing (a title, a deck, a station, a habit)
+has the same menu on a right-click and under a ⋯: one function of the
+thing returns its entries, and it is given to all three.
+
+```qml
+function stationMenu(s) { return [{ label: "Play", icon: "play", run: … }, { label: "Rate…", items: [1, 2, 3].map(n => ({ label: String(n), run: … })) }, { separator: true }, { label: "Remove", danger: true, run: … }] }
+Card { title: s.name; menu: () => page.stationMenu(s) }                        // right-click, and a ⋯ in its head
+Item { MenuArea { anchors.fill: parent; menu: () => page.stationMenu(s) }   // a row's right-click (clicks go on through)
+       MoreButton { anchors.right: parent.right; menu: () => page.stationMenu(s) } }
+win.menu.openAt(item, mouse, entries)   // from a MouseArea of your own: at the mouse, or under `item` with no mouse
+```
+
+The same entries may go in a page's `actions`, so the palette has them too.
+
 ## The palette and the hero
 
-Ctrl+K opens the **command palette** (`CommandPalette`): the sections, the
-window's `commands`, and what its `find` turns up as you type (Saturn
-searches titles, Neptune the library, Mercury the dictionary).
+Ctrl+K opens the **command palette** (`CommandPalette`): the sections
+(with their children and tabs as you type), the window's `commands` and
+the page's `actions` (all of them when nothing is typed), and what its
+`find` turns up as you type (Saturn searches titles, Neptune the library,
+Mercury the dictionary). A row with `items` opens its own list (Enter or
+Right; Left or Escape goes back out), and typing finds the entries inside
+it too ("rate 8").
 `Shell.go(path, params, { item, url })` flies a picture from where it was
 clicked to the new page's `hero` (a poster to the title page, a cover to
 the album). `Tone` reads a picture's colour for tinting; `Spark` is a burst
@@ -540,7 +649,7 @@ underline instead, and a slider its ring. A `PageHead` too narrow for its
 actions puts them on lines of their own under the title. `Editable` turns
 words into a field on click, or Enter (a `PageHead` with `editable: true`
 renames); `Check` shows the click at once and takes it back with a shake
-on `fail()`; a `Card` with a `menu` opens it on right-click. `Skeleton`
+on `fail()`; a `Card` with a `menu` opens it on right-click and from its ⋯. `Skeleton`
 draws a page's shape while its data is on the way. `Sounds` (off until
 turned on in `DeviceCard`, which also picks the world's accent from its
 photograph) gives a tick, a done and an off. Fractional scaling works as

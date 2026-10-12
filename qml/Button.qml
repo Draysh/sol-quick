@@ -81,9 +81,10 @@ Item {
     // The press gives, like a real key.
     transform: Translate { y: root.pressed ? 1 : 0; Behavior on y { NumberAnimation { duration: 40 } } }
 
-    // The world's light behind the main action; it breathes, slowly, while the button waits.
+    // The world's light behind the main action; it breathes three slow breaths when the button
+    // comes (or the window does), then rests, so nothing is drawn while nothing happens.
     property real breath: 0
-    SequentialAnimation { running: root.primary && root.enabled && root.visible && Theme.alive; loops: Animation.Infinite
+    SequentialAnimation { running: root.primary && root.enabled && root.visible && Theme.alive && !Theme.calm; loops: 3
         NumberAnimation { target: root; property: "breath"; to: 1; duration: 2600; easing.type: Easing.InOutSine }
         NumberAnimation { target: root; property: "breath"; to: 0; duration: 2600; easing.type: Easing.InOutSine } }
     RectangularShadow {

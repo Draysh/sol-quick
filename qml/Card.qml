@@ -3,9 +3,12 @@ import QtQuick
 /*
     A group: a panel raised off the night, its title in the world's light
     over a hairline, and two corner ticks that lock on to it under the
-    pointer. Give it a width; it is as tall as what it holds.
+    pointer. Give it a width; it is as tall as what it holds. A card that
+    is a thing (a title, a deck, a station) has a `menu`: right-click it,
+    or the ⋯ in its head.
 
         Card { title: "Log"; width: parent.width; Column { … } }
+        Card { title: "Spirited Away"; menu: () => Saturn.titleMenu(title); … }
 */
 Item {
     id: root
@@ -18,10 +21,14 @@ Item {
     signal opened()
     /** Its place in a grid, for the stagger. */
     property int index: 0
+    /** How many of a Grid's columns it takes: 1, 2, or "row" for the whole row. */
+    property var span: 1
     property real gap: Theme.s3
     default property alias content: body.data
-    /** Entries for a right-click (a list, or a function returning one): `{ label, run }`. */
+    /** Its menu, on a right-click and under the ⋯ in its head: ContextMenu's entries (a list, or a function returning one). */
     property var menu: null
+    /** Its ⋯ (there while it has a `menu`), for opening the menu from elsewhere. */
+    readonly property alias moreButton: more
     /** Its corners: `Theme.radius`, or `Theme.radiusL` for the dialog. */
     property real radius: Theme.radius
 
@@ -34,16 +41,29 @@ Item {
         acceptedButtons: Qt.RightButton
         onClicked: mouse => {
             const win = root.Window.window as AppWindow
-            if (!win) return
-            const p = root.mapToItem(null, mouse.x, mouse.y)
-            win.menu.show(p.x, p.y, typeof root.menu === "function" ? root.menu() : root.menu)
+            if (win) win.menu.openAt(root, mouse, root.menu)
         }
     }
     implicitWidth: 300
 
     // The card settles into place when it comes into view, then its ticks lock on.
     opacity: 0
-    transform: Translate { id: shift; y: 6 }
+    transform: [Translate { id: shift; y: 6 }, Translate { id: moved }]
+
+    /** Placed somewhere else by its Grid: it glides there from `dx`, `dy` away (not with less motion, nor before it has arrived). */
+    function glide(dx, dy) {
+        if (Theme.calm || Theme.settle === 0 || (opacity === 0 && !arrive.running)) return
+        gliding.stop()
+        moved.x += dx
+        moved.y += dy
+        gliding.start()
+    }
+    Settling { when: gliding.running }
+    ParallelAnimation {
+        id: gliding
+        NumberAnimation { target: moved; property: "x"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { target: moved; property: "y"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+    }
 
     /** Arrived late (scrolled to): it comes at once, no stagger. */
     property bool late: false
@@ -117,7 +137,7 @@ Item {
             // A long title elides before the Open link.
             Label {
                 text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, Math.min(implicitWidth, head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0)))
+                width: Math.max(0, Math.min(implicitWidth, head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0) - (more.visible ? more.width - 8 + Theme.s3 : 0)))
             }
         }
 
@@ -130,8 +150,8 @@ Item {
             Accessible.onPressAction: root.opened()
             Keys.onPressed: event => { if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) { event.accepted = true; if (!event.isAutoRepeat) root.opened() } }
             Item { anchors.centerIn: parent; width: open.width + 8; height: open.height + 8; Ticks { on: openLink.activeFocus; out: 2; radius: Theme.radiusS } }
-            anchors.right: parent.right
-            anchors.rightMargin: -8
+            anchors.right: more.visible ? more.left : parent.right
+            anchors.rightMargin: more.visible ? 0 : -8
             anchors.verticalCenter: parent.verticalCenter
             width: open.implicitWidth + 16
             height: Theme.target
@@ -148,6 +168,16 @@ Item {
                 }
             }
             MouseArea { id: openMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.opened() }
+        }
+        // The card's menu, for a pointer that doesn't right-click and for the keys.
+        MoreButton {
+            id: more
+            visible: !!root.menu
+            menu: root.menu
+            hint: root.title !== "" ? "More for " + root.title : "More"
+            anchors.right: parent.right
+            anchors.rightMargin: -8
+            anchors.verticalCenter: parent.verticalCenter
         }
     }
 

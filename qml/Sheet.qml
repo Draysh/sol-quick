@@ -88,9 +88,9 @@ Item {
             visible: root.collapse < 1
             scale: 1 - root.collapse * 0.15
             transformOrigin: Item.Top
-            // A slow drift, so the scene breathes.
+            // A slow drift when the scene comes (or the window does), so it breathes, then rests.
             transform: Translate { id: breathe; y: 0 }
-            SequentialAnimation { running: Theme.alive && root.visible && root.collapse < 1; loops: Animation.Infinite; NumberAnimation { target: breathe; property: "y"; to: -4; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
+            SequentialAnimation { running: Theme.alive && !Theme.calm && root.visible && root.collapse < 1; loops: 1; NumberAnimation { target: breathe; property: "y"; to: -4; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
 
             component Placed: Body {
                 id: placed
@@ -230,6 +230,62 @@ Item {
             SequentialAnimation { running: true; PauseAnimation { duration: Theme.rise / 2 } NumberAnimation { target: calloutBox; property: "opacity"; to: 1; duration: Theme.fade } }
             Callout { id: calloutView; lines: root.callout; flip: !!root.w.callout.flip }
         }
+
+        // Tonight's real sky, where the world follows it (a full moon in Luna,
+        // Saturn's opposition in Saturn): a quiet line at the bottom right.
+        Settle {
+            id: tonight
+            wait: Theme.rise / 2
+            visible: tonight.events.length > 0 && root.collapse < 0.3
+            readonly property real edge: Theme.margin(root.width)
+            x: band.width - width - edge
+            y: band.height - height - Theme.s3
+            width: root.portrait ? band.width - edge * 2 : 300
+            height: tonightColumn.implicitHeight
+            property var asked: []
+            readonly property AppWindow win: root.Window.window as AppWindow
+            readonly property var staged: ({
+                "full-moon": { title: "Full moon tonight", line: "The Hunter’s Moon is up all night." },
+                "perseids": { title: "The Perseids tonight", line: "Up to a hundred shooting stars an hour after midnight. Stay up a little?" },
+                "opposition": { title: "Saturn at its brightest", line: "Closest to us this year and up all night: look south-east after dark." } })
+            readonly property var events: win && win.stagedSky !== "" && staged[win.stagedSky] ? [staged[win.stagedSky]] : asked
+            Component.onCompleted: Sol.near(root).call("sky_tonight").then(e => tonight.asked = e || []).catch(why => console.warn("tonight’s sky couldn’t be asked for", why))
+            Column {
+                id: tonightColumn
+                width: parent.width
+                spacing: Theme.s1
+                Repeater {
+                    model: tonight.events
+                    delegate: Column {
+                        id: ev
+                        required property var modelData
+                        width: tonightColumn.width
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            horizontalAlignment: Text.AlignRight
+                            text: ev.modelData.title
+                            font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
+                            font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
+                            color: Theme.textWorld
+                            elide: Text.ElideLeft
+                        }
+                        Text {
+                            width: Math.min(implicitWidth, ev.width)
+                            x: ev.width - width
+                            horizontalAlignment: Text.AlignRight
+                            text: ev.modelData.line
+                            wrapMode: Text.WordWrap
+                            font.family: Theme.font; font.pixelSize: Theme.textXs + 1
+                            color: Theme.textQuiet
+                        }
+                    }
+                }
+            }
+        }
+
+        // On a few days a year, a comet crosses.
+        Comet { anchors.fill: parent; z: 3; opacity: Math.max(0, 1 - root.collapse * 2) }
 
         Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
     }

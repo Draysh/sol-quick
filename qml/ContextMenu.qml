@@ -3,20 +3,27 @@ import QtQuick
 
 /*
     One right-click menu for the whole app: a hairline panel at the
-    pointer, kept inside the window; an entry with `items` (a function
-    returning entries, or a promise of them) opens its list beside it, or
-    over it where the window has no room beside. Up and Down choose, Enter
+    pointer, kept inside the window; an entry with `items` (its entries, a
+    function returning them, or a promise of them) opens its list beside
+    it, or over it where the window has no room beside: ten "Rate N" rows
+    become one "Rate…" with its numbers inside. The palette shows the same
+    entries (a page's `actions`), a nested one as a row that opens its list. Up and Down choose, Enter
     runs, Right opens a list and Left closes it; Escape, a click elsewhere
     or a wheel closes the menu.
 
     Entries: `{ label, run }`, `{ label, run, danger: true }`,
-    `{ label, items: () => [...] }`, `{ separator: true }`; any of them may
+    `{ label, items: [...] }` (or `items: () => [...]`), `{ separator: true }`; any of them may
     lead with an `icon` (an `Icon` name), for the common actions, and the
     other labels in that list line up after it.
 
         ContextMenu { id: menu }   // once, in the window
         menu.show(mouse.x, mouse.y, entries)   // window coordinates
         menu.showUnder(button, entries)
+        menu.openAt(item, mouse, entries)   // at a mouse event in `item`, or under `item` without one
+
+    A thing's menu is one function of the thing, given to its Card (`menu`),
+    its row (MenuArea) and its ⋯ (MoreButton), so the right-click and the
+    button always agree.
 */
 Item {
     id: menu
@@ -62,6 +69,14 @@ Item {
         const p = item.mapToItem(menu, item.width, item.height)
         show(p.x, p.y, list)
     }
+    /** At a mouse event in `item` (a right-click), or under `item` when `mouse` is null (a ⋯ button).
+        `entries` may be a function returning them, called now. */
+    function openAt(item, mouse, entries) {
+        const list = typeof entries === "function" ? entries() : entries
+        if (!list || !list.length) return
+        if (mouse) { const p = item.mapToItem(menu, mouse.x, mouse.y); show(p.x, p.y, list) }
+        else showUnder(item, list)
+    }
     function close() {
         if (!open) return
         open = false
@@ -78,7 +93,7 @@ Item {
             subAt = at
             subEntries = null
             subKey = -1
-            Promise.resolve(entry.items()).then(list => { if (menu.subIndex === index) menu.subEntries = list })
+            Promise.resolve(typeof entry.items === "function" ? entry.items() : entry.items).then(list => { if (menu.subIndex === index) menu.subEntries = list })
             return
         }
         close()

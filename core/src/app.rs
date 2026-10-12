@@ -1,6 +1,7 @@
-//! What a running world's app shares: the `World` a world hands the kit,
-//! the `Runtime` (the link, the commands, the update checker) and the
-//! world's own calls to it (`emit`, `open`, `quit`, the data and cache
+//! What a running world's app shares: the `World` a world hands the kit
+//! (and the `Moon`s a planet's app carries), the `Runtime` (the link, the
+//! commands, the update checker, each carried world's own) and the world's
+//! own calls to it (`emit`, `emit_in`, `open`, `quit`, the data and cache
 //! folders). Starting the app and its window (`sol_quick::run`) is in the
 //! sol-quick crate, the one half that needs Qt.
 
@@ -59,6 +60,44 @@ pub struct World {
     pub shortcuts: &'static [crate::desktop::Shortcut],
 }
 
+/// A moon a planet's app carries: its pages are a group in the planet's
+/// window (the moon's QML module, `Sol.<Moon>`), its work runs in the
+/// planet's process, and it stays a world of its own in Sol, with its own
+/// link, local copy, door and status. `<moon>_core::moon()` makes one; the
+/// planet passes it to `sol_quick::run_with`.
+pub struct Moon {
+    /// The moon's `sol-world.json`.
+    pub manifest: &'static str,
+    /// The moon's version, which its link tells Sol.
+    pub version: &'static str,
+    /// The moon's app icons as its own app had them, so that app can be
+    /// found and taken away once the planet carries the moon.
+    pub icons: &'static [(u32, &'static [u8])],
+    pub handler: Arc<dyn Handler>,
+    /// The moon's own commands (the shared ones are added for its link).
+    pub commands: Commands,
+    pub sample: Option<Sample>,
+    pub prepare: Option<Prepare>,
+    /// The checkout of the moon's screens (`<moon>_screens::SOURCE`), read
+    /// from disk by a preview with `SOL_QML_LIVE=1`.
+    pub source: &'static str,
+    /// Its QML module's folder: `Sol/Luna`.
+    pub module: &'static str,
+}
+
+/// A world the app carries besides its own: a moon, running.
+pub struct Carried {
+    pub world: String,
+    /// Its name alone ("Luna").
+    pub name: String,
+    pub link: Link,
+    pub commands: Commands,
+    pub manifest_json: String,
+    /// Why its local copy didn't open (as `Runtime::problem`), when it didn't.
+    pub problem: Option<String>,
+    pub data_dir: PathBuf,
+}
+
 pub type Prepare = Box<dyn FnOnce(&Link, &tokio::runtime::Handle) + Send>;
 
 pub type Sample = Arc<
@@ -73,8 +112,6 @@ pub type Sample = Arc<
 pub enum ToWindow {
     /// Come up: another copy knocked, or the tray was clicked.
     Activate,
-    /// A moon's planet has closed.
-    PlanetGone,
     /// Quit the way the window would: it closes, then the app leaves.
     Quit,
     /// Whether the tray is there to come back from, so closing may hide.
@@ -85,6 +122,8 @@ pub enum ToWindow {
     Open(String),
     /// Open quick capture over the desktop (its key was pressed).
     Capture,
+    /// A carried world's own event: its id, a name and its JSON.
+    EventIn(String, String, String),
 }
 
 #[doc(hidden)]
@@ -121,6 +160,8 @@ pub struct Runtime {
     /// A planet's hold on its "running" lock, for as long as it runs.
     #[doc(hidden)]
     pub _moons: Option<moons::Running>,
+    /// The moons this app carries, each with its own link and commands.
+    pub carried: Vec<Carried>,
 }
 
 #[doc(hidden)]
@@ -131,6 +172,18 @@ pub fn runtime() -> &'static Runtime {
 }
 
 impl Runtime {
+    /// A world this app runs, by id: its link, commands and data folder (the
+    /// app's own world, or a moon it carries); None for any other.
+    pub fn world(&self, id: &str) -> Option<(&Link, &Commands, &std::path::Path)> {
+        if id.is_empty() || id == self.app.world {
+            return Some((&self.link, &self.commands, &self.data_dir));
+        }
+        self.carried
+            .iter()
+            .find(|c| c.world == id)
+            .map(|c| (&c.link, &c.commands, c.data_dir.as_path()))
+    }
+
     /// Where messages for the window go, once it is up.
     #[doc(hidden)]
     pub fn set_window(&self, f: impl Fn(ToWindow) + Send + Sync + 'static) {
@@ -271,6 +324,19 @@ pub fn emit(name: &str, data: &impl serde::Serialize) {
     }
 }
 
+/// Tells the screens something of `world`'s own: the app's own world's goes
+/// as `emit` does, a carried moon's to its pages (`Luna.sol.onEvent`). Code
+/// that may run for either says whose link it is: `emit_in(link.world(), …)`.
+pub fn emit_in(world: &str, name: &str, data: &impl serde::Serialize) {
+    let Some(rt) = RUNTIME.get() else { return };
+    if world == rt.app.world {
+        return emit(name, data);
+    }
+    if let Ok(json) = serde_json::to_string(data) {
+        rt.tell(ToWindow::EventIn(world.to_owned(), name.to_owned(), json));
+    }
+}
+
 /// Quits the app from anywhere: the window closes on Qt's thread, then
 /// `run` leaves. Without a window yet, it leaves at once.
 pub fn quit() {
@@ -291,17 +357,35 @@ pub fn leave(code: i32) -> ! {
     }
     single::leave();
     crate::status::leave();
-    // The empty copy a window that couldn't open its own ran on goes with it.
-    if let Some(stand_in) = STAND_IN.lock().ok().and_then(|mut s| s.take()) {
-        let _ = std::fs::remove_dir_all(stand_in);
+    // The empty copies the app ran on where its own couldn't open go with it.
+    if let Ok(mut kept) = STAND_IN.lock() {
+        for stand_in in kept.drain(..) {
+            let _ = std::fs::remove_dir_all(stand_in);
+        }
     }
     std::process::exit(code)
 }
 
-/// The empty local copy in the temporary folder that stands in for one that
-/// didn't open, removed when the app leaves.
+/// The empty local copies in the temporary folder that stand in for ones
+/// that didn't open (or a carried moon's, while its own app holds its copy),
+/// removed when the app leaves.
 #[doc(hidden)]
-pub static STAND_IN: Mutex<Option<std::path::PathBuf>> = Mutex::new(None);
+pub static STAND_IN: Mutex<Vec<std::path::PathBuf>> = Mutex::new(Vec::new());
+
+/// When the process started, for the timings `SOL_TRACE` writes.
+#[doc(hidden)]
+pub static STARTED: OnceLock<std::time::Instant> = OnceLock::new();
+
+/// `SOL_TRACE=<run>`: the app writes timings to its log for
+/// `scripts/measure.sh` (the first frame, each page, each command, the
+/// frames drawn while idle), each line `sol_trace <run> +<ms> <what>`.
+#[doc(hidden)]
+pub fn trace(what: &str) {
+    if let Ok(run) = std::env::var("SOL_TRACE") {
+        let ms = STARTED.get().map_or(0, |t| t.elapsed().as_millis());
+        tracing::info!("sol_trace {run} +{ms} {what}");
+    }
+}
 
 /// This version was just put in place by an update, and hasn't yet been
 /// seen to come up.

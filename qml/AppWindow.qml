@@ -9,10 +9,11 @@ import Sol.Design as Design
 /*
     A world app's window, the same for every world: the Connect screen
     until the app is paired, then the Shell with the app's sections and
-    pages. Remembers its size, comes up when another copy is started, and
-    stays out of sight when a moon runs with its planet. Closing it hides it
-    while there is a tray to come back from (or, for a moon, while its
-    planet runs); Quit, from the tray or anywhere, closes it for good.
+    pages (and those of the moons it carries: CarriedMoons). Remembers its
+    size, comes up when another copy is started, and stays out of sight when
+    it started with the computer. Closing it hides it while there is a tray
+    to come back from; Quit, from the tray or anywhere, closes it for good.
+    Its pictures for review are WindowShots'.
 
         AppWindow {
             world: "exoplanet"
@@ -28,6 +29,8 @@ Window {
     property string world: Sol.world
     property var sections: []
     property var pages: ({})
+    /** Paths that moved, still reachable: `{ "/calendar": "/schedule?tab=calendar" }` (`Shell.aliases`). */
+    property var aliases: ({})
     property string home: "/"
     property string search: ""
     property var shortcuts: []
@@ -37,6 +40,20 @@ Window {
     property string warn: ""
     /** A bar along the bottom of the pane (a Component), e.g. a player's transport. */
     property Component footer: null
+    /**
+        The moons this app carries (`Moon`s, from each moon's module): their
+        sections are a group after the world's own, their pages under
+        `/<moon>`, their palette rows and moments beside the world's.
+    */
+    property list<Moon> moons
+    CarriedMoons { id: carried; moons: win.moons; sections: win.sections; pages: win.pages; aliases: win.aliases }
+    readonly property var moonIds: carried.ids
+    function moonPath(m, path) { return carried.pathOf(m, path) }
+    /** Every section and page the Shell shows: the world's, then each moon's. */
+    readonly property var allSections: carried.allSections
+    readonly property var allPages: carried.allPages
+    /** The moons' parts of the Settings page (`{ world, settings }`): MoonSettings shows them. */
+    readonly property var moonSettings: carried.settings
     readonly property var w: Worlds.get(world)
     /** The Shell, once paired. */
     readonly property Shell shell: frame.item as Shell
@@ -59,10 +76,14 @@ Window {
     /** What the palette finds as you type: `function(query) → Promise<[{ label, hint, run }]>`. */
     property var find: null
     readonly property alias commandPalette: paletteBox
-    /** What the palette offers to do: the window's `commands`, then the page's own (`Screen.actions`). */
+    /** What the palette offers to do: the window's `commands`, then the page's own (`Screen.actions`), then
+        its other tabs (a PageHead's, when its section doesn't list them for the palette already). */
     readonly property var allCommands: {
         const p = shell ? shell.page as Design.Screen : null
-        return commands.concat(p && p.actions ? p.actions : [],
+        const section = shell && p ? shell.sectionOf(shell.path) : null
+        const head = p && !(section && section.tabs) ? Array.from(p.header || []).find(h => h && h.tabs && h.tabs.length && typeof h.choose === "function") : null
+        const tabs = head ? head.tabs.filter(t => t.id !== head.current).map(t => ({ label: "Show " + t.label, hint: (head.title || p.title) + ", as a tab", icon: "", run: () => head.choose(t.id) })) : []
+        return commands.concat(carried.commands, p && p.actions ? p.actions : [], tabs,
             tour.length ? [{ label: "Take the tour", icon: "info", hint: "What " + w.name + " does, its best key, where to start", run: () => tourBox.show() }] : [])
     }
     /**
@@ -87,18 +108,15 @@ Window {
         one (or a promise of one): `moments: ({ sunrise: () => ({ scene: sunrise, facts: … }) })`.
     */
     property var moments: ({})
-    function stageMoment(spec) {
-        const at = spec.indexOf(":"), name = at < 0 ? spec : spec.slice(0, at)
-        const m = win.moments[name]
-        if (!m) { if (Object.keys(win.moments).length) console.warn("no moment called " + name + " to stage"); return }
-        Promise.resolve(typeof m === "function" ? m(at < 0 ? "" : spec.slice(at + 1)) : m)
-            .then(o => { if (o) momentBox.play(Object.assign({}, o, { occasion: "" })) })
-            .catch(why => console.warn("the staged moment failed", why))
-    }
+    function stageMoment(spec) { shots.stageMoment(spec) }
     /** Quick capture is open over the desktop (its key, through the door); false closes it. */
     property bool capturing: false
     /** `_capture=<line>` in the shot path: quick capture opened with that line typed, and a picture of it. */
     property string stagedCapture: ""
+    /** `_comet=1` in the shot path: a comet held mid-way across the Sheet, for a picture. */
+    property bool stagedComet: false
+    /** `_sky=full-moon|perseids|opposition`: that night of the real sky on the Sheet, for a picture. */
+    property string stagedSky: ""
     /** What the app shows on the desktop when asked to (a Component), and what it is called: "Now playing". */
     property Component widget: null
     property string widgetName: ""
@@ -146,7 +164,7 @@ Window {
     function quit() { quitting = true; remember(); Qt.quit() }
     onClosing: close => {
         remember()
-        // Hidden, not closed: the tray brings it back, or the planet keeps the moon working.
+        // Hidden, not closed: the tray brings it back (one started in the background keeps working).
         if (!quitting && (SolBackend.tray || SolBackend.background)) { close.accepted = false; win.hide() }
     }
 
@@ -197,7 +215,6 @@ Window {
     Connections {
         target: SolBackend
         function onActivate() { win.show(); win.raise(); win.requestActivate() }
-        function onPlanetGone() { if (!win.visible) win.quit() }
         function onQuitRequested() { win.quit() }
         function onOpenRequested(path) { win.goTo(path) }
         function onCaptureRequested() { if (win.capturing && captureLoader.item) captureLoader.item.requestActivate(); else win.capturing = true }
@@ -236,12 +253,6 @@ Window {
     // Ctrl+K anywhere, inside a field too.
     Shortcut { sequence: "Ctrl+K"; enabled: !!win.shell; onActivated: paletteBox.show() }
 
-    // SOL_FPS=1: how many frames the window really paints a second, in the journal: 0 while
-    // nothing moves (a FrameAnimation would count ticks, and keep ticking, instead).
-    QtObject { id: frames; property int n: 0 }
-    Connections { target: win; enabled: SolBackend.fps; function onFrameSwapped() { frames.n++ } }
-    Timer { interval: 1000; repeat: true; running: SolBackend.fps; onTriggered: { console.info("fps", frames.n); frames.n = 0 } }
-
     // The widget on the desktop, from outside the compiled module (see DesktopWidget.qml).
     /** The widget's own window while it shows, else null. */
     readonly property Window desktopWidget: widgetLoader.item as Window
@@ -264,143 +275,12 @@ Window {
         onStatusChanged: if (status === Loader.Error) console.warn("SOL_DRIVE: the script didn't load:", SolBackend.drive)
     }
 
-    // Pictures of the window for review: SOL_SHOT=<file.png> (one, of
-    // SOL_SHOT_PATH), or SOL_SHOTS (many, one after another in this run:
-    // `<file.png>=<path?keys>` each, a line or `;` apart). Each opens its
-    // page, scrolls it (`_scroll=N`, `end`), stages what its keys ask for and
-    // is taken once the page is ready: nothing arriving or loading
-    // (Theme.settling), every command answered (Sol.waiting), then 150 ms
-    // without a new frame (or a second, when something keeps moving: a
-    // breathing button, a turning world). SOL_SHOT_AFTER (8 s unless given)
-    // is the most a picture waits; `_after=<ms>` makes one wait at least that
-    // long, for what the rule can't see. The clock starts when the window
-    // shows what it is for (the Shell, Connect), not when it opened. Beside a
-    // SOL_DRIVE script it doesn't quit: the script ends the run.
-    QtObject {
-        id: shots
-        /** `{ png, path }`, in order. */
-        property var list: []
-        property int at: -1
-        /** Where the current picture is: `page`, `scrolled`, `staged`, `taking`. */
-        property string step: ""
-        property var stage: ({})
-        property double since: 0
-        property double calmSince: 0
-        property double lastFrame: 0
-        property Item scrolledPage: null
-        readonly property bool active: at >= 0 && at < list.length
-
-        function read() {
-            const out = []
-            for (const line of SolBackend.shots.split(/[\n;]/)) {
-                const l = line.trim()
-                if (l === "" || l.startsWith("#")) continue
-                const eq = l.indexOf("=")
-                if (eq <= 0) { console.warn("SOL_SHOTS: not <file.png>=<path>:", l); continue }
-                out.push({ png: l.slice(0, eq).trim(), path: l.slice(eq + 1).trim() })
-            }
-            if (!out.length && SolBackend.shot !== "") out.push({ png: SolBackend.shot, path: SolBackend.shotPath })
-            list = out
-            if (out.length) { SolBackend.shot = out[0].png; SolBackend.shotPath = out[0].path }
-            // The frame may have loaded before the window was complete.
-            if (frame.item && frame.sourceComponent !== waiting) Qt.callLater(begin)
-        }
-        function begin() { if (list.length && at < 0) take(0) }
-        function take(i) {
-            at = i
-            const e = list[i]
-            if (i > 0) clear()
-            SolBackend.shot = e.png
-            SolBackend.shotPath = e.path
-            stage = win.goTo(e.path)
-            step = "page"
-            // What was calm stays calm: a page that is already there and settled (the same one,
-            // scrolled elsewhere next) is taken at once; one that changes counts itself busy.
-            since = Date.now()
-            if (i === 0) calmSince = since
-            tick.start()
-        }
-        // What the picture before staged goes, so the next starts from the page alone.
-        function clear() {
-            paletteBox.close(); askBox.finish(false); contextMenu.close(); tourBox.close()
-            if (keptBox.shown) keptBox.close()
-            momentBox.dismiss()
-            win.capturing = false
-            while (Notices.list.count) Notices.dismiss(Notices.list.get(0).key)
-        }
-        function ready() {
-            const t = Date.now()
-            const waitFor = Number(stage._after || 0)
-            if (!SolBackend.shotReady) return t - since >= (step === "page" ? Math.min(1200, SolBackend.shotAfter) : SolBackend.shotAfter)
-            const busy = Theme.settling > 0 || Sol.waiting > 0 || frame.sourceComponent === waiting
-                || (momentBox.showing && !momentBox.calm && momentBox.progress < 0.6) || t - since < waitFor
-            if (busy) { calmSince = t; return false }
-            if (t - calmSince < 150) return false
-            // Frames that never stop are something that keeps moving: then a while longer than the
-            // slowest arrival nothing counts (a rise), or with SOL_SHOT_CALM, when nothing takes time, less.
-            return t - lastFrame >= 150 || t - calmSince >= (SolBackend.shotCalm ? 300 : 1000)
-        }
-        function advance() {
-            if (Date.now() - since >= SolBackend.shotAfter) {
-                console.warn("SOL_SHOT: " + list[at].png + " wasn't ready after " + SolBackend.shotAfter + " ms; taken as it was")
-                return grab()
-            }
-            if (!ready()) return
-            if (step === "page") {
-                step = "scrolled"
-                const p = win.shell ? win.shell.page as Design.Screen : null
-                if (p && (stage._scroll || scrolledPage === p)) {
-                    const max = Math.max(0, p.flickable.contentHeight - p.flickable.height)
-                    p.contentY = stage._scroll === "end" ? max : Math.min(max, Number(stage._scroll || 0))
-                    scrolledPage = stage._scroll ? p : null
-                    calmSince = Date.now()
-                    return
-                }
-            }
-            if (step === "scrolled") {
-                step = "staged"
-                if (win.staging(stage)) { calmSince = Date.now(); return }
-            }
-            if (step === "staged") grab()
-        }
-        function grab() {
-            step = "taking"
-            tick.stop()
-            const png = list[at].png
-            win.contentItem.grabToImage(result => {
-                result.saveToFile(png)
-                const cap = captureLoader.item as Window
-                if (win.capturing && cap) cap.contentItem.grabToImage(r => { r.saveToFile(png.replace(/\.png$/, "") + "-capture.png"); shots.next() })
-                else next()
-            })
-        }
-        function next() {
-            if (at + 1 < list.length) { take(at + 1); return }
-            at = list.length
-            if (SolBackend.drive === "") win.quit()
-        }
-    }
-    Timer { id: tick; interval: 30; repeat: true; onTriggered: shots.advance() }
-    Connections { target: win; enabled: shots.active; function onFrameSwapped() { shots.lastFrame = Date.now() } }
+    // Pictures of the window for review (SOL_SHOT, SOL_SHOTS), what they
+    // stage, and the window's measures (SOL_FPS, SOL_TRACE): see WindowShots.
+    WindowShots { id: shots; host: win; moons: carried; frameLoader: frame; waitView: waiting; capture: captureLoader; starView: starScene }
 
     /** Stages what a picture's `_` keys ask for over its page; true when it staged something. */
-    function staging(stage) {
-        let any = false
-        const did = () => { any = true }
-        if (stage._notice === "button") { did(); Notices.show({ world: win.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } }) }
-        else if (stage._notice) { did(); Notices.show({ world: win.world, title: "Saved", body: "A notice, on glass, over the page." }) }
-        if (stage._ask) { did(); win.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove") }
-        if (stage._notify) { did(); Sol.call("notify", { title: "A notification", body: "From " + win.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why)) }
-        if (stage._palette) { did(); paletteBox.show(stage._palette === "1" ? "" : stage._palette) }
-        if (stage._kept) { did(); keptBox.open([
-            { seq: 1, why: "conflict", kind: "put", collection: "habits", id: "walk", data: { name: "Walk outside, 30 min" }, theirs: { version: 9, deleted: false, data: { name: "Walk outside" } } },
-            { seq: 2, why: "rejected", kind: "put", collection: "entries", id: "2026-10-10", data: { text: "A very long diary entry" }, message: "a document is at most 1 MiB" },
-            { seq: 3, why: "earlier", kind: "event", data: { summary: "Did “Read”, 4 days in a row" } }]) }
-        if (stage._capture) { did(); win.stagedCapture = stage._capture === "1" ? "" : stage._capture; win.capturing = true }
-        if (stage._tour) { did(); tourBox.show(); tourBox.at = Math.max(0, Math.min(win.tour.length - 1, Number(stage._tour) - 1)) }
-        if (stage._moment) { did(); win.stageMoment(stage._moment) }
-        return any
-    }
+    function staging(stage) { return shots.staging(stage) }
 
     Loader {
         id: frame
@@ -442,10 +322,33 @@ Window {
     }
     Tour { id: tourBox; world: win.world; cards: win.tour; go: path => win.shell && win.shell.go(path); onClosed: if (!Sol.preview) tourPrefs.toured = true }
     Moment { id: momentBox }
+    // A star lit in the world's Sky (a milestone reached, a comet caught): its moment.
+    Component { id: starScene; StarScene { } }
+    Connections {
+        target: Sol
+        function onEvent(name, data) {
+            if (name === "sky.lit") momentBox.play({ scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
+        }
+        function onEventIn(world, name, data) {
+            if (name === "sky.lit") momentBox.play({ world: world, scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
+        }
+    }
+    // A page of this app asked for by the screens (`Sol.go`): a carried moon's, or the planet's.
+    Connections { target: Sol; function onGo(path) { win.goTo(path, win.shell) } }
+    // What each moon draws over the window (Luna's veil).
+    Repeater {
+        model: carried.overlays
+        delegate: Loader {
+            required property var modelData
+            anchors.fill: parent
+            z: 150
+            sourceComponent: modelData
+        }
+    }
     ContextMenu { id: contextMenu }
     KeptAside { id: keptBox }
     Ask { id: askBox }
-    CommandPalette { id: paletteBox; sections: win.sections; commands: win.allCommands; find: win.find; go: path => win.shell && win.shell.go(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
+    CommandPalette { id: paletteBox; sections: win.allSections; commands: win.allCommands; find: win.find; go: path => win.goTo(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
 
     Component {
         id: waiting
@@ -491,8 +394,10 @@ Window {
         Shell {
             id: theShell
             world: win.world
-            sections: win.sections
-            pages: win.pages
+            sections: win.allSections
+            pages: win.allPages
+            aliases: carried.allAliases
+            moons: win.moonIds
             home: win.home
             search: win.search
             shortcuts: win.shortcuts

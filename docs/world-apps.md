@@ -66,15 +66,22 @@ update.pub        the key release files are signed with
 - **The QML**: `Main.qml` is an `AppWindow` with `world`, `sections`
   (each with an `icon`, an `Icon` name of its own among the world's
   sections), `pages` (path → Component; a path not in the sections is a
-  page opened from another, e.g. `/title`), `search`, `shortcuts`, and as needed
+  page opened from another, e.g. `/title`; a section may have `children`,
+  pages of its own under one row that opens out while one of them is
+  open, so the sidebar stays at about nine rows), `aliases` (paths that
+  moved, still reachable: `{ "/calendar": "/schedule?tab=calendar" }`),
+  `search`, `shortcuts`, and as needed
   `commands`, `find`, `footer`, `busy`, `warn`, `widget`, `widgetName`.
   State the screens share lives in the singleton `qml/<World>.qml`
   (`pragma Singleton`, `import Sol.Design`); every file that uses it
   imports `Sol.<World>`. The first page starts with a `Sheet` in its
-  `header`, other pages with a `PageHead`; everything else is `Card`s in a
-  `Grid`. One `primary` button per screen. The Settings page has
+  `header`, other pages with a `PageHead` (its `tabs` for views of one
+  page, each in the page's path: `/schedule?tab=calendar`); everything
+  else is `Card`s in a `Grid` (`masonry: true` where their heights differ
+  a lot; `span: 2` or `"row"` for a feature card). One `primary` button per screen. The Settings page has
   `SolCard`, `DeviceCard`, `SettingsCard`, `ExportCard` and `AppUpdates`
-  (and `WithPlanet` for a moon).
+  on a masonry `Grid`, then `MoonSettings` (each carried moon's part
+  under its name; see "Moons").
 
 ## Data goes through the Link
 
@@ -160,6 +167,12 @@ engine keeps the link), and one with state beside the link takes both
 
 ## The kit's helpers: use these, don't write your own
 
+- **A big collection read by many commands**: `sol_quick::kept::kept::<T>(&link,
+  "cards")` reads it once and keeps it until it changes (a write here or a
+  change from Sol), so a page's five commands don't read every card five
+  times. Prefer it to `list_as` for any collection a world reads on most
+  pages; count with `link.count` instead of reading bodies.
+
 **Rust** (`sol_quick::…`):
 
 - `data_dir(world)` (the local copy, the window's state, `seen/`) and
@@ -213,6 +226,22 @@ engine keeps the link), and one with state beside the link takes both
   a frame, veil or badge drawn over one takes the same radius.
 - Corners come from `Theme.radiusS` / `radiusM` / `radius` / `radiusL`,
   never a literal (the scale and where each goes are in the kit's README).
+- A thing's menu (a title, a deck, a station, a habit): one function of
+  the thing returning ContextMenu's entries, given to its `Card { menu }`
+  (right-click and a ⋯ in its head), or to a row's `MenuArea` and
+  `MoreButton`, or opened from a MouseArea of your own with
+  `win.menu.openAt(item, mouse, entries)`; an entry with `items` nests
+  ("Rate…" with its numbers inside). Neptune's `trackMenu`/`albumMenu`
+  built from `queueing()` and `addTo()` are the model.
+- Tabs: `PageHead { tabs: [{ id, label }]; tab: page.params.tab || "" }`
+  and read `head.current`; the Shell keeps the tab in the page's path, so
+  Back and links reach it (list them in the section's `tabs` too for the
+  palette to reach them from anywhere). Two pages merged under one
+  section keep a file each: the second tab is a page of its own
+  (`pages: { "/schedule": calendar, "/schedule?tab=timeline": timeline }`),
+  both with the same PageHead `tabs` (the second's `tab: page.params.tab
+  || "timeline"`), and the old paths stay as `aliases` (Saturn's
+  Discover, Schedule and Activity).
 - `Strip` for anything that scrolls sideways; `Settle` for anything that
   arrives in a list; `LongGrid` / `LongList` with a `Sift` for a list that
   grows with the library (only what is in sight is made; a Repeater makes
@@ -392,14 +421,63 @@ verb's 0.9.
 ## Moons
 
 A moon (Luna, Titan, Triton) names its planet in `sol-world.json`
-(`parent`) and runs whenever its planet does, without a window: the
-planet's `sol_quick::run` starts the installed moons (`orbit::moons`,
-with `--background`) and the moon leaves about five seconds after the
-planet closes (or crashes). A moon started at login (`--login`) stays. The moon's Settings page
-has `WithPlanet` (the shared `with_planet` / `set_with_planet`). Each
-lists the connections to and from its planet in its manifest. In the
-sidebar, the doors (`Sol.doors`) lead to Sol and to the kin installed
-here; a Sheet's moon links come from `Sol.moons`.
+(`parent`) and has no app of its own: its planet's app carries it
+(`"app": "<planet>"` in the moon's manifest). It stays a world of its own
+in Sol (its id, collections, events, settings, connections, export), and
+in the planet's process it has its own link, local copy
+(`~/.local/share/digital.sachi.sol.<moon>`), door (`sol-<moon>`) and
+status file, so the desktop's `sol-<moon> --do/--find/--status` and other
+worlds' questions reach it as before.
+
+- **The moon's repository** has two crates: `crates/<moon>-core` (its
+  logic, no Qt, with `pub fn moon() -> sol_quick::Moon`: manifest,
+  version, icons, handler, commands, sample, prepare, `module:
+  "Sol/<Moon>"`) and `crates/<moon>-screens` (the QML module `Sol.<Moon>`
+  from the repository's `qml/`, through a `qml` link, and `SOURCE` for live
+  QML). No binary.
+- **Its screens**: `<Moon>Moon.qml` is a `Moon { world; sections; pages;
+  commands; moments; overlays }`, paths relative to the moon (`/` its
+  first page). The singleton keeps `readonly property var sol:
+  Sol.of("<moon>")` and every page calls through it (`Luna.sol.call`,
+  `.undoable`, `.fill`, `.fail`, `Connections { target: Luna.sol }`);
+  `Watch { world: "<moon>"; … }`; its settings part (below) has `SolCard`,
+  `SettingsCard` and `ExportCard` with `world: "<moon>"` (the app's
+  updates and autostart are the planet's); its device settings are a
+  `WorldSettings { world: "<moon>" }` (the file its own app kept).
+- **One Sky and one Settings per app**: the moon has no Sky or Settings
+  row of its own. Its `Moon { settings: Component { <Moon>Settings { } }
+  }` (a `Grid { masonry: true }` of its cards, Titan's `TitanSettings`)
+  is shown under the moon's name and role by the planet's `MoonSettings`,
+  below the planet's cards; without a `/sky` page its sky is a tab of the
+  planet's `SkyPage`. `/<moon>/settings` and `/<moon>/sky` still open
+  them there (`/settings?part=<moon>`, `/sky?tab=<moon>`), and the moon's
+  own paths that moved are its `aliases` (relative to the moon: Titan's
+  `{ "/galaxy": "/taste?tab=galaxy" }`).
+- **The planet** depends on both crates (`worlds.sh` points them at the
+  moon's checkout or its release tag), starts them in `main.rs`
+  (`init_crate!(<moon>_screens)`, `init_qml_module!("Sol.<Moon>")`,
+  `sol_quick::run_with(World { … }, vec![Moon { source:
+  <moon>_screens::SOURCE, ..<moon>_core::moon() }])`) and lists the moon
+  in its window: `import Sol.<Moon> as <Moon>Screens` (a name: both
+  modules have a `SettingsPage`) and `moons: [<Moon>Screens.<Moon>Moon { }]`.
+  The moon's sections are a group of the sidebar under its name, its pages
+  under `/<moon>` in its colour, each page's `Screen.world` the moon.
+- **Pairing**: once the planet is paired, the moon pairs through it
+  (`Link::pair_through`, Sol's `pair/carried`): no second code.
+- **Events and moments**: the moon's Rust tells its pages with
+  `sol_quick::emit_in(link.world(), …)` (they hear it on `<Moon>.sol`); a
+  moment it plays passes `world` (`moment.play({ world: "luna", … })`).
+- **Its own app goes**: the planet's `--install`, and the first start of
+  an installed planet, take the standalone moon app away (asking a running
+  one to quit), leave `~/.local/bin/sol-<moon>` as a link to the planet,
+  and move the moon's start at login to the planet (windowless). Its data,
+  token and settings file stay.
+- **Pictures**: `/shots <moon>` shoots the planet's app at `/<moon>/…`;
+  the moon's preview data is its own (`/tmp/sol-preview-<moon>`).
+
+In the sidebar, the doors (`Sol.doors`) lead to Sol and to the kin
+installed here and not carried; a Sheet's moon links (`Sol.moons`) open a
+carried moon's (or the planet's) pages in the same window.
 
 ## Moments
 
@@ -423,6 +501,74 @@ function of an argument giving one or a promise of one), and
 occasion: Terra's `sunrise`, Saturn's `finished:<key>`, Mercury's
 `perfect` and `milestone`, the template's `first`. The template's
 `FirstLine.qml` is the smallest example.
+
+## The Sky
+
+Every world has a Sky page (`/sky`, the kit's `SkyPage`): the person's
+milestones as stars that join into named constellations ("100 Nights",
+"First 500 Words", "The Ghibli Run", "Every Opening of Bleach"), lit as
+they are reached. The world says what its constellations are, from its own
+data; the kit lights, keeps, lays out and draws them, and plays a star's
+moment.
+
+```rust
+// crates/<world>-core/src/sky.rs
+use sol_quick::sky::{self, Constellation};
+
+/// The world's constellations as its data stands now.
+pub async fn constellations(link: &Link) -> anyhow::Result<Vec<Constellation>> {
+    let nights = count_nights(link).await?;
+    Ok(vec![
+        Constellation::new("nights", "100 Nights", "Nights logged, one at a time.")
+            .steps(nights, &[1, 10, 30, 50, 100], |k| (format!("{k} nights"), format!("{k} nights logged."))),
+        Constellation::new("ghibli", "The Ghibli Run", "Every Studio Ghibli film.")
+            .star("totoro", "My Neighbor Totoro", "Watched to the end.", watched("totoro")),
+    ])
+}
+
+pub fn commands(c: &mut sol_quick::Commands) {
+    c.add("sky", |link, ()| async move { sky::show(&link, &constellations(&link).await?).await });
+}
+// After a write that may reach one (a night logged, a film finished):
+// sky::record(&link, &constellations(&link).await?, true).await?;
+```
+
+- **Ids are for good**: a lit star is a document in the world's `sky`
+  collection under its constellation's id and its own, so neither may
+  change once released. A star the world stops defining stays lit, in its
+  constellation (or one under its old title).
+- **Constellations from the person's own things** are made from the data
+  when there is some (one per franchise or show they are into: "Every
+  Opening of Bleach"), with a few made to be reached over months. Three to
+  six constellations, each three to eight stars, is a sky that reads well;
+  a star's title names the milestone ("100 nights"), its story says it in
+  a sentence.
+- **Lighting**: `sky::record(&link, &constellations, true)` after the writes
+  that can reach a milestone (it reads `sky` only when something is
+  reached), and `sky::show` in the `sky` command, so nothing is missed.
+  The first filling of a sky is quiet; after that the newest star lit
+  plays the kit's moment (`sky.lit` → `StarScene`), one at a time.
+  Recording reads the data again, so keep `constellations` to counts the
+  world already has at hand; never call it on a timer.
+- **The page**: `pages: { "/sky": skyPage }` with `Component { id:
+  skyPage; SkyPage { } }` and a section `{ path: "/sky", label: "Sky",
+  icon: "sparkles", hint: "Your milestones, as stars" }` (last before
+  Settings). A carried moon leaves its Sky page out: its sky is then a
+  tab of its planet's (`/sky?tab=<moon>`, "Moons"), from its own `sky` command. The manifest lists `{ "id": "sky", "label": "Stars in your
+  sky" }` (and the hub's catalog copy); `assert_manifest` checks it.
+- **A map of its own** (Mercury's path, Titan's galaxy) is a `StarField`
+  with the world's stars, lines and names as its children (`StarLight`,
+  `StarArc`, `StarLine`, placed with `sx`/`sy`); names are placed on the
+  field's `place()`, never in a binding on the view.
+- **Comets** come to every world's Sheet on its own few days a year; a
+  click catches one as a star in "Comets". **The real sky**: Luna's Sheet
+  says so on a full moon and the Perseids, Saturn's at its opposition, and
+  each lights a star in "Under the real sky". Both are the kit's, with
+  nothing for a world to write.
+- **Preview**: the sample data reaches a few stars, so a preview's Sky has
+  some lit. Pictures: `/sky`, `/sky?star=<constellation>/<star>` (one
+  chosen), `_moment=star`, and on the first page `_comet=1` and
+  `_sky=full-moon|perseids|opposition`.
 
 ## Undo
 
@@ -461,8 +607,11 @@ event already sent to Sol stays sent.
 
 The window's `commands` and each page's `Screen.actions` are the
 palette's rows ("Rate 8", "Next episode watched", "Bury this card", with
-`keys` where a key does it too; `win.allCommands` is both), and `?` lists
-them with the Shell's keys and the app's `shortcuts`.
+`keys` where a key does it too; `win.allCommands` is both, with the
+page's other tabs), and `?` lists them with the Shell's keys and the
+app's `shortcuts`. Ten rows of a kind are one row with `items` ("Rate…"
+with its numbers inside): it opens its own list, and typing "rate 8"
+still finds the one inside.
 
 ## The first run, empty pages, the voice
 

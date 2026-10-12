@@ -42,4 +42,4 @@ pub mod app;
 pub mod bridge;
 mod live;
 
-pub use app::run;
+pub use app::{run, run_with};

@@ -17,6 +17,8 @@ Item {
     id: screen
 
     /** The page's name, for the way back to it. */
+    /** The world the page belongs to: set by the Shell (a moon's pages carry the moon's id); "" is the app's own. */
+    property string world: ""
     property string title: ""
     /** What it was opened with (`Shell.go(path, params)`). */
     property var params: ({})

@@ -31,8 +31,10 @@ QtObject {
     /** The worlds with a voice of their own, and what it sounds like (DeviceCard says). */
     readonly property var voices: ({ saturn: "a soft ring", neptune: "a water drop", mercury: "a bell", terra: "a wood tick", luna: "a chime", titan: "a whoosh", triton: "a static blip" })
     /** What this world's voice sounds like, or "" for a world without one. */
-    readonly property string voiceName: voices[Sol.world] || ""
-    property SoundEffect voiceSound: SoundEffect { source: sounds.voiceName ? "../assets/sounds/" + Sol.world + ".wav" : ""; volume: 0.4 }
+    /** Whose voice: the world of the page in front (the Shell sets it: a carried moon's own on its pages). */
+    property string world: Sol.world
+    readonly property string voiceName: voices[world] || ""
+    property SoundEffect voiceSound: SoundEffect { source: sounds.voiceName ? "../assets/sounds/" + sounds.world + ".wav" : ""; volume: 0.4 }
 
     function tick() { if (on && Theme.alive) tickSound.play() }
     function done() { if (on && Theme.alive) doneSound.play() }

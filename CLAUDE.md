@@ -47,7 +47,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 - A shader: edit `shaders/<name>.frag`, rebuild the `.qsb` with the
   command in `README.md` (they are committed; the build only packs them).
   Uniform names must match the properties of `Body.qml` / `Glass.qml` /
-  `Rounded.qml`.
+  `Rounded.qml` / `StarLight.qml` / `StarArc.qml`.
 - Corners: `Theme.radiusS` / `radiusM` / `radius` / `radiusL` (4, 6, 10,
   14; README has where each goes), never a literal. Something drawn over
   a rounded thing (a hover fill, a hairline frame, a badge in its corner,
@@ -74,19 +74,34 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   PageHead keeps `screen` and `reveal(dir)`). Pages must not declare their
   own `reveal`: the Shell calls it.
 - **The Shell makes pages** with `params`, `shell`, `visible`, `width`,
-  `height`, then sets `back`, `x`, `opacity`, reads `title`, and casts to
+  `height`, then sets `back`, `x`, `opacity` (and `params` again for a
+  section's one page on another tab: `retab`, a step back), reads `title`, and casts to
   `Design.Screen` for `filter`, `filters`, `scrollBy`, `pageStep`, `hero`,
-  `restingPoint`, `wheel`, `notch`. The Sidebar reads `filter`/`filters`.
+  `restingPoint`, `wheel`, `notch`. The Sidebar reads `filter`/`filters` and the Shell's `rows`,
+  `currentRow` and `worldOf`. `go` follows `aliases` (the window's and,
+  under `/<moon>`, each moon's, from CarriedMoons, which adds
+  `/<moon>/sky` → `/sky?tab=<moon>` and `/<moon>/settings` →
+  `/settings?part=<moon>`) only where no page has the path; a tab's own
+  page is keyed `path?tab=<id>` in `pages` and `sectionPages`, and
+  `retab` swaps it into the step (a page no section keeps is destroyed
+  once it has left: `dropping`). SkyPage reads the Shell's `moons` and
+  `pages` for its tabs; MoonSettings reads `Window.window.moonSettings`
+  and its Screen's `params.part`. A PageHead with `tabs` calls
+  `screen.shell.retab(params)`; AppWindow finds it among the page's
+  `header` (`tabs`, `current`, `choose`) for the palette's tab rows.
 - **The hero flight** reads `rounded` and `radius` from the item it
   flies from and the page's `hero` (a Picture has both), and turns the
   one corner into the other on the way.
-- **Containers that place children**: Grid writes `card.index` and skips
+- **Containers that place children**: Grid writes `card.index`, reads
+  `card.span` and calls `card.glide(dx, dy)` when it has one, and skips
   Repeaters (`Theme.isRepeater`); PageHead reads `Button.natural`;
   `Button.room` walks up to a parent with `childRoom` (Sheet sets it);
+  Grid lets go of its cards' signals on destruction (a grid made by a
+  Loader, a moon's settings part, otherwise warns as the app quits);
   `Theme.whenSeen` finds the nearest Flickable (`contentY`,
   `contentHeight`, `contentItem`); `Theme.screenOf` the nearest Screen.
-- **`Window.window as AppWindow`**: Glass reads `backdrop`; Card
-  `menu.show`; Key `ask.current`, `commandPalette.open`, `menu.open`;
+- **`Window.window as AppWindow`**: Glass reads `backdrop`; Card,
+  MenuArea and MoreButton `menu.openAt`; Key `ask.current`, `commandPalette.open`, `menu.open`;
   DeviceCard `widget`, `widgetsHere`, `widgetPrefs.*`, `widgetName`;
   `assets/widget/DesktopWidget.qml` `host.widget`, `host.widgetPrefs.corner`;
   `assets/capture/Capture.qml` `host.capturing` (it sets it false to
@@ -104,6 +119,31 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 - **Moments**: a world that plays one lists `moments` among its collections
   (`moments::MOMENTS`; the documents are `{ occasion, at, device }`, the id
   `occasion_id(occasion)`; `testing::assert_manifest` checks the listing).
+- **The Sky**: lit stars are documents in the world's `sky` collection
+  (`sky::SKY`), `{ v, constellation, constellation_title, star, title,
+  story, at }`, the id `star_id(constellation, star)`; a constellation's
+  and a star's ids are for good (they name lit stars). Every world with a
+  Sheet lists `sky` (comets are caught there; `assert_manifest` checks).
+  `SkyPage` calls the world's own `sky` command (`sky::show`'s `View`:
+  `constellations`, `stars` with `key` `<constellation>/<star>`, `lines`,
+  `lit`, `total`); the kit's event `sky.lit` (a `Lit`) plays `StarScene`
+  from AppWindow; `comet`, `catch_comet` and `sky_tonight` are shared
+  commands; the comet's days come from `fingerprint("comet.<world>.<day>")`,
+  so changing it moves every world's comets. AppWindow's `stagedComet`
+  and `stagedSky` (`_comet`, `_sky`) are read by Comet and the Sheet.
+- **Carried moons** (`docs/world-apps.md`, "Moons"): `run_with` claims each
+  moon's door before opening its link (two processes must never open one
+  local copy), asks a standalone moon still running to quit (SIGTERM, five
+  seconds), and runs the moon's commands with the shared ones on its link.
+  The bridge adds `moons` (JSON by id: `name`, `status`, `unsent`, `kept`,
+  `problem`, `settingsVersion`), `callIn`, `callSeenIn`, `manifestOf` and
+  the signals `eventIn`, `changedIn`; every older name still means the
+  app's own world. `Sol.of(id)` caches one `SolWorld` per world;
+  `Theme.screenOf(item).world` is what `Sol.near` reads. A moon's pages
+  live under `/<moon>` (`Shell.worldOf`), its QML module is found through
+  `Moon.module` for live QML. A problem `"elsewhere"` (its own app still
+  holds its copy) shows on its pages. The moon's crate's `qml` is a link
+  to the repository's `qml/`, so the module's files keep `qml/<File>.qml`.
 - **Singletons written from outside**: `Theme.world` (Shell, DeviceCard),
   `Theme.picks` (Shell's Tone), `Theme.alive` (AppWindow), `Worlds.surfaces`
   (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
@@ -250,7 +290,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   warnings`, `cargo test --all-features` (both crates: the workspace's
   default members; `--all-features` adds the stand-in Navidrome). While
   iterating on core, `cargo test -p sol-quick-core` builds no Qt.
-- **Pictures wait for ready** (AppWindow's `shots`): `Theme.settling`
+- **Pictures wait for ready** (`WindowShots`, the window's `shots`): `Theme.settling`
   (every `Settling`: Settle, Card, Chart, Screen, PageHead, Shell, Picture,
   Tour, Moment, the frame) and `Sol.waiting` (commands not yet answered)
   at 0, then 150 ms without a frame, or a second when frames never stop. A

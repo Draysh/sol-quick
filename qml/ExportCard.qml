@@ -16,9 +16,11 @@ import QtCore
 */
 Card {
     id: root
+    /** Its world's connection: `world` (Card's) names a moon the app carries, "" the app's own. */
+    readonly property var sol: Sol.of(root.world)
 
     /** The world's name in the sentences. */
-    property string name: Sol.manifest.name || ""
+    property string name: root.sol.manifest.name || ""
     /** The last file saved, or "". */
     property string saved: ""
     property bool exporting: false
@@ -28,10 +30,10 @@ Card {
 
     function exportAll() {
         exporting = true
-        Sol.call("export_world").then(e => {
+        root.sol.call("export_world").then(e => {
             root.saved = e.path
             Notices.show({ world: Sol.world, title: "Exported", body: Format.plural(e.documents, "thing") + ", in " + e.path })
-        }).catch(why => Sol.fail("Not exported", why)).finally(() => root.exporting = false)
+        }).catch(why => root.sol.fail("Not exported", why)).finally(() => root.exporting = false)
     }
 
     // What the file would do here, in a sentence per collection.
@@ -44,7 +46,7 @@ Card {
 
     // The desktop's picker first; Qt's own dialog where there's no portal.
     function pick() {
-        Sol.call("pick_file", { title: "Import into " + root.name, filter: { label: "Sol exports", globs: ["*.json"] } }).then(path => {
+        root.sol.call("pick_file", { title: "Import into " + root.name, filter: { label: "Sol exports", globs: ["*.json"] } }).then(path => {
             if (path) root.review(path)
         }).catch(() => picker.open())
     }
@@ -52,7 +54,7 @@ Card {
     /** Reads the file at `path` (a path or a file:// URL), asks, then imports. */
     function review(path) {
         importing = true
-        Sol.call("import_world", { path: String(path), dry: true }).then(plan => {
+        root.sol.call("import_world", { path: String(path), dry: true }).then(plan => {
             if (!plan.added && !plan.replaced) {
                 Notices.show({ world: Sol.world, title: "Nothing to import", body: "Everything in that file is here already." })
                 return null
@@ -60,10 +62,10 @@ Card {
             const ask = (root.Window.window as AppWindow).ask
             const title = "Import " + [plan.added ? plan.added + " new" : "", plan.replaced ? plan.replaced + " changed" : ""].filter(Boolean).join(" and ")
             return ask.confirm(title, root.summary(plan), "Import").then(yes => yes
-                ? Sol.call("import_world", { path: String(path) }).then(done =>
+                ? root.sol.call("import_world", { path: String(path) }).then(done =>
                     Notices.show({ world: Sol.world, title: "Imported", body: Format.plural(done.added, "thing") + " added, " + done.replaced + " replaced." }))
                 : null)
-        }).catch(why => Sol.fail("Not imported", why)).finally(() => root.importing = false)
+        }).catch(why => root.sol.fail("Not imported", why)).finally(() => root.importing = false)
     }
 
     Words {

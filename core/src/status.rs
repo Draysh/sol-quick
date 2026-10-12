@@ -20,7 +20,7 @@
 //! What the desktop and the other worlds ask a running app through its
 //! door (`--do`, `--find`, a question) is in `door`.
 
-use std::{path::PathBuf, sync::OnceLock, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use orbit::link::Update;
 use serde_json::Value;
@@ -29,7 +29,7 @@ use tokio::sync::Notify;
 use crate::app::Runtime;
 
 static WAKE: Notify = Notify::const_new();
-static WRITTEN: OnceLock<PathBuf> = OnceLock::new();
+static WRITTEN: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
 
 /// Asks for the status again now: for news the world's documents don't
 /// carry (the track changed, playback paused).
@@ -110,26 +110,38 @@ async fn reason(updates: &mut tokio::sync::broadcast::Receiver<Update>) {
 /// a `status` command.
 #[doc(hidden)]
 pub fn start(rt: &'static Runtime) {
-    if !rt.commands.has("status") {
+    start_for(rt, rt.app.world, &rt.name, &rt.link, &rt.commands);
+    for c in &rt.carried {
+        start_for(rt, &c.world, &c.name, &c.link, &c.commands);
+    }
+}
+
+/// The same for one world this app runs: its own, or a moon it carries
+/// (whose file the desktop reads as it read the moon's own app's).
+fn start_for(
+    rt: &'static Runtime,
+    world: &'static str,
+    name: &'static str,
+    link: &'static orbit::link::Link,
+    commands: &'static crate::Commands,
+) {
+    if !commands.has("status") {
         return;
     }
-    let Some(path) = file(rt.app.world, rt.preview) else {
+    let Some(path) = file(world, rt.preview) else {
         tracing::debug!("no runtime folder: no status for the desktop");
         return;
     };
-    let _ = WRITTEN.set(path.clone());
+    if let Ok(mut written) = WRITTEN.lock() {
+        written.push(path.clone());
+    }
     rt.tokio.spawn(async move {
-        let mut updates = rt.link.subscribe();
+        let mut updates = link.subscribe();
         let mut last: Option<String> = None;
         loop {
-            match rt
-                .commands
-                .call(rt.link.clone(), "status", Value::Null)
-                .await
-            {
+            match commands.call(link.clone(), "status", Value::Null).await {
                 Ok(own) if last.as_deref() != Some(own.as_str()) => {
-                    let text =
-                        compose(rt.app.world, &rt.name, &own, chrono::Utc::now().timestamp());
+                    let text = compose(world, name, &own, chrono::Utc::now().timestamp());
                     match write(&path, &text) {
                         Ok(()) => last = Some(own),
                         Err(e) => tracing::debug!("couldn't write the status: {e}"),
@@ -148,8 +160,10 @@ pub fn start(rt: &'static Runtime) {
 /// Takes the status away as the app leaves.
 #[doc(hidden)]
 pub fn leave() {
-    if let Some(path) = WRITTEN.get() {
-        let _ = std::fs::remove_file(path);
+    if let Ok(written) = WRITTEN.lock() {
+        for path in written.iter() {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
 

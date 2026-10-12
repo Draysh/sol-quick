@@ -1,15 +1,14 @@
-//! The commands every world's screens can call besides its own: the
-//! connection, doors to other apps, notifications, the app's own updates,
-//! installing and restarting it, starting with the computer, a moon's
-//! place beside its planet, and export and import of the world's own
-//! collections.
+//! The commands every world's screens can call besides its own, by area:
+//! the connection (and the writes kept aside), doors to other apps and
+//! notifications, the app itself (updates, installing, restarting, starting
+//! with the computer), export and import of the world's own collections,
+//! moments and the sky, undo, and quick capture.
 
 use std::sync::Arc;
 
 use orbit::{
     install::{self, App},
     link::Status,
-    moons,
     world::Collection,
 };
 
@@ -21,51 +20,31 @@ use crate::{
 };
 
 /// The commands every world shares: the connection, the manifest, doors,
-/// the app's own updates and installation, export and import.
+/// the app's own updates and installation, export and import, moments and
+/// the sky, undo and quick capture.
 #[doc(hidden)]
-pub fn add(
-    commands: &mut Commands,
-    app: App,
-    parent: Option<String>,
-    collections: Vec<Collection>,
-) {
+pub fn add(commands: &mut Commands, app: App, collections: Vec<Collection>) {
+    connection(commands);
+    desktop(commands);
+    the_app(commands, app);
+    undo(commands, &collections);
+    export_and_import(commands, collections);
+    moments_and_sky(commands, app);
+    capture(commands);
+}
+
+/// Pairing with Sol, its settings, the world's page there, the writes kept
+/// aside instead of sent, and starting again from Sol's copy.
+fn connection(commands: &mut Commands) {
     #[derive(serde::Deserialize)]
     struct Server {
         server: String,
     }
     #[derive(serde::Deserialize)]
-    struct Which {
-        world: String,
-        /// A page there: `/title?key=x`.
-        #[serde(default)]
-        path: Option<String>,
-    }
-    #[derive(serde::Deserialize)]
-    struct Auto {
-        auto: bool,
-    }
-    #[derive(serde::Deserialize)]
-    struct On {
-        on: bool,
-    }
-    #[derive(serde::Deserialize)]
     struct Seq {
         seq: i64,
     }
-
-    #[derive(serde::Deserialize)]
-    struct Notify {
-        title: String,
-        #[serde(default)]
-        body: String,
-        /// A button, as `[id, label]`; pressing it is a `notified` event.
-        action: Option<(String, String)>,
-    }
-
     commands
-        .add("notify", |_, a: Notify| async move {
-            crate::desktop::notify(&a.title, &a.body, a.action).await
-        })
         .add("connect", |link, a: Server| async move {
             link.connect(&a.server).await
         })
@@ -84,43 +63,6 @@ pub fn add(
                 "{server}/worlds/{}",
                 link.world()
             ))?)
-        })
-        .add(
-            "doors",
-            |_, ()| async move { Ok(orbit::doors::installed()) },
-        )
-        .add("open_world", |_, a: Which| async move {
-            let Some(path) = a.path else {
-                return orbit::doors::open(&a.world);
-            };
-            // Running: it opens the page. If not, it starts, and opens it once it answers.
-            let knock = single::Knock::Open(path);
-            let preview = runtime().preview;
-            if single::knock(&a.world, preview, &knock) {
-                return Ok(());
-            }
-            orbit::doors::open(&a.world)?;
-            for _ in 0..40 {
-                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                if single::knock(&a.world, preview, &knock) {
-                    return Ok(());
-                }
-            }
-            anyhow::bail!("{} started, but didn't open the page", a.world)
-        })
-        .add("check_updates", |_, ()| async move {
-            let updates = &runtime().updates;
-            updates.check().await?;
-            Ok(updates.status())
-        })
-        .add("install_update", |_, ()| async move {
-            // The new version runs from the next start (or a restart).
-            let updates = &runtime().updates;
-            updates.install().await?;
-            Ok(updates.status())
-        })
-        .add("set_auto_update", |_, a: Auto| async move {
-            runtime().updates.set_auto(a.auto).await
         })
         // Writes kept aside instead of sent: conflicts, rejected, earlier.
         .add("kept", |link, ()| async move { link.kept_writes().await })
@@ -151,43 +93,26 @@ pub fn add(
             quit();
             Ok(aside.display().to_string())
         });
+}
 
-    // Both start the installed copy, which waits for this one to leave.
-    commands.add("restart", move |_, ()| async move {
-        let path = match install::here(&app) {
-            install::Here::Installed { path, .. } | install::Here::Loose { path } => path,
-            _ => anyhow::bail!("start the app again yourself"),
-        };
-        install::relaunch(&path)?;
-        quit();
-        Ok(())
-    });
-    // Starting with the computer, in the tray without a window: only the
-    // installed copy can (null otherwise).
-    commands.add("autostart", move |_, ()| async move { Ok(autostart(&app)) });
-    commands.add("set_autostart", move |_, a: On| async move {
-        set_autostart(&app, a.on).map_err(anyhow::Error::msg)?;
-        Ok(autostart(&app))
-    });
-    commands.add("install_app", move |_, ()| async move {
-        let bin = install::install(&app)?;
-        install::relaunch(&bin)?;
-        quit();
-        anyhow::Ok(())
-    });
-
-    // Everything in the world's own collections, as one file in Downloads.
-    let kept_ids: Vec<String> = collections.iter().map(|c| c.id.clone()).collect();
-    let kept = Arc::new(collections);
-    let these = kept.clone();
-    commands.add("export_world", move |link, ()| {
-        let these = these.clone();
-        async move {
-            let dir = downloads()?;
-            let (path, documents) = exchange::write(&link, &these, &dir, &chrono_stamp()).await?;
-            Ok(serde_json::json!({ "path": path.display().to_string(), "documents": documents }))
-        }
-    });
+/// The desktop around the app: notifications, the other apps installed
+/// here and opening one (at a page), and the file picker.
+fn desktop(commands: &mut Commands) {
+    #[derive(serde::Deserialize)]
+    struct Notify {
+        title: String,
+        #[serde(default)]
+        body: String,
+        /// A button, as `[id, label]`; pressing it is a `notified` event.
+        action: Option<(String, String)>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Which {
+        world: String,
+        /// A page there: `/title?key=x`.
+        #[serde(default)]
+        path: Option<String>,
+    }
     // The desktop's file picker, for a file to open (null: closed): an
     // export to import, or another app's export for a world to read.
     #[derive(serde::Deserialize)]
@@ -201,19 +126,112 @@ pub fn add(
         #[serde(default)]
         filter: Option<Filter>,
     }
-    commands.add("pick_file", |_, a: Pick| async move {
-        let folder = downloads().ok();
-        let filter = a.filter.as_ref().map(|f| (f.label.as_str(), &f.globs[..]));
-        crate::desktop::pick_file(&a.title, folder.as_deref(), filter).await
+    commands
+        .add("notify", |_, a: Notify| async move {
+            crate::desktop::notify(&a.title, &a.body, a.action).await
+        })
+        .add(
+            "doors",
+            |_, ()| async move { Ok(orbit::doors::installed()) },
+        )
+        .add("open_world", |_, a: Which| async move {
+            let Some(path) = a.path else {
+                return orbit::doors::open(&a.world);
+            };
+            // Running: it opens the page. If not, it starts, and opens it once it answers.
+            let knock = single::Knock::Open(path);
+            let preview = runtime().preview;
+            if single::knock(&a.world, preview, &knock) {
+                return Ok(());
+            }
+            orbit::doors::open(&a.world)?;
+            for _ in 0..40 {
+                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                if single::knock(&a.world, preview, &knock) {
+                    return Ok(());
+                }
+            }
+            anyhow::bail!("{} started, but didn't open the page", a.world)
+        })
+        .add("pick_file", |_, a: Pick| async move {
+            let folder = downloads().ok();
+            let filter = a.filter.as_ref().map(|f| (f.label.as_str(), &f.globs[..]));
+            crate::desktop::pick_file(&a.title, folder.as_deref(), filter).await
+        });
+}
+
+/// The app itself: its updates, installing it, starting it again, and
+/// starting with the computer.
+fn the_app(commands: &mut Commands, app: App) {
+    #[derive(serde::Deserialize)]
+    struct Auto {
+        auto: bool,
+    }
+    #[derive(serde::Deserialize)]
+    struct On {
+        on: bool,
+    }
+    commands
+        .add("check_updates", |_, ()| async move {
+            let updates = &runtime().updates;
+            updates.check().await?;
+            Ok(updates.status())
+        })
+        .add("install_update", |_, ()| async move {
+            // The new version runs from the next start (or a restart).
+            let updates = &runtime().updates;
+            updates.install().await?;
+            Ok(updates.status())
+        })
+        .add("set_auto_update", |_, a: Auto| async move {
+            runtime().updates.set_auto(a.auto).await
+        });
+    // Both start the installed copy, which waits for this one to leave.
+    commands.add("restart", move |_, ()| async move {
+        let path = match install::here(&app) {
+            install::Here::Installed { path, .. } | install::Here::Loose { path } => path,
+            _ => anyhow::bail!("start the app again yourself"),
+        };
+        install::relaunch(&path)?;
+        quit();
+        Ok(())
     });
-    // An export file read back: with `dry`, what it would add and replace;
-    // without, the same written through the link (merged by id, nothing deleted).
+    commands.add("install_app", move |_, ()| async move {
+        let bin = install::install(&app)?;
+        install::relaunch(&bin)?;
+        quit();
+        anyhow::Ok(())
+    });
+    // Starting with the computer, in the tray without a window: only the
+    // installed copy can (null otherwise).
+    commands.add("autostart", move |_, ()| async move { Ok(autostart(&app)) });
+    commands.add("set_autostart", move |_, a: On| async move {
+        set_autostart(&app, a.on).map_err(anyhow::Error::msg)?;
+        Ok(autostart(&app))
+    });
+}
+
+/// Everything in the world's own collections as one file in Downloads, and
+/// such a file read back: with `dry`, what it would add and replace;
+/// without, the same written through the link (merged by id, nothing
+/// deleted).
+fn export_and_import(commands: &mut Commands, collections: Vec<Collection>) {
     #[derive(serde::Deserialize)]
     struct Import {
         path: String,
         #[serde(default)]
         dry: bool,
     }
+    let kept = Arc::new(collections);
+    let these = kept.clone();
+    commands.add("export_world", move |link, ()| {
+        let these = these.clone();
+        async move {
+            let dir = downloads()?;
+            let (path, documents) = exchange::write(&link, &these, &dir, &chrono_stamp()).await?;
+            Ok(serde_json::json!({ "path": path.display().to_string(), "documents": documents }))
+        }
+    });
     commands.add("import_world", move |link, a: Import| {
         let kept = kept.clone();
         async move {
@@ -226,27 +244,55 @@ pub fn add(
             }
         }
     });
+}
 
-    // Moments: whether an occasion is new to the person (recorded the
-    // first time, so no device plays it again).
+/// Moments: whether an occasion is new to the person (recorded the first
+/// time, so no device plays it again). The sky: today's comet (its day, or
+/// null), catching it, and what the real sky has tonight for this world
+/// (each lit as a star the first time).
+fn moments_and_sky(commands: &mut Commands, app: App) {
     #[derive(serde::Deserialize)]
     struct Occasion {
         occasion: String,
     }
+    #[derive(serde::Deserialize)]
+    struct Day {
+        day: chrono::NaiveDate,
+    }
     commands.add("moment", |link, a: Occasion| async move {
         crate::moments::first_time(&link, &a.occasion, &crate::app::device_name()).await
     });
-    // Undo: the documents an undoable write changed (the `undoable` call
-    // keeps them under a token), put back as they were.
+    commands.add("comet", |link, ()| async move {
+        let today = orbit::clock::Clock::calendar(&link).today();
+        crate::sky::comet(&link, today).await
+    });
+    let name = app.name;
+    commands.add("catch_comet", move |link, a: Day| async move {
+        let lit = crate::sky::catch_comet(&link, a.day, name).await?;
+        crate::emit_in(link.world(), "sky.lit", &lit);
+        Ok(lit)
+    });
+    commands.add("sky_tonight", |link, ()| async move {
+        crate::sky::tonight(&link).await
+    });
+}
+
+/// Undo: the documents an undoable write changed (the `undoable` call keeps
+/// them under a token), put back as they were, in the world's own
+/// collections and the kit's moments and sky.
+fn undo(commands: &mut Commands, collections: &[Collection]) {
     #[derive(serde::Deserialize)]
     struct Restore {
         undo: u64,
     }
     let own: Arc<Vec<String>> = Arc::new(
-        kept_ids
+        collections
             .iter()
-            .cloned()
-            .chain([crate::moments::MOMENTS.to_owned()])
+            .map(|c| c.id.clone())
+            .chain([
+                crate::moments::MOMENTS.to_owned(),
+                crate::sky::SKY.to_owned(),
+            ])
             .collect(),
     );
     commands.add("restore", move |link, a: Restore| {
@@ -257,7 +303,10 @@ pub fn add(
             crate::undo::restore(&link, &before, &own).await
         }
     });
-    // Quick capture: what each running world would do with a line, and doing it.
+}
+
+/// Quick capture: what each running world would do with a line, and doing it.
+fn capture(commands: &mut Commands) {
     #[derive(serde::Deserialize)]
     struct Capture {
         line: String,
@@ -273,23 +322,6 @@ pub fn add(
             None => Ok(serde_json::json!(crate::capture::offers(&a.line).await)),
         }
     });
-
-    // A moon's place beside its planet: running with it, without a window.
-    if let Some(parent) = parent {
-        let (me, p) = (app, parent.clone());
-        commands.add("with_planet", move |_, ()| {
-            let (me, p) = (me, p.clone());
-            async move { Ok(moons::enabled(&me, &p)) }
-        });
-        let (me, p) = (app, parent);
-        commands.add("set_with_planet", move |_, a: On| {
-            let (me, p) = (me, p.clone());
-            async move {
-                moons::set_enabled(&me, &p, a.on)?;
-                Ok(moons::enabled(&me, &p))
-            }
-        });
-    }
 }
 
 /// Where files the person saves go: Downloads, or home without one; a

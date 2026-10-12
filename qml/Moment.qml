@@ -44,12 +44,13 @@ FocusScope {
 
     /**
         Plays a moment once for its `occasion` (or every time, without one).
-        `{ occasion, scene, facts, length, chime }`. Resolves true when it
-        will play, false when the occasion has been shown before.
+        `{ occasion, scene, facts, length, chime, world }` (`world`: a moon
+        the app carries, whose `moments` keep the occasion). Resolves true
+        when it will play, false when the occasion has been shown before.
     */
     function play(spec) {
         if (!spec.occasion) { waiting = waiting.concat([spec]); pump(); return Promise.resolve(true) }
-        return Sol.call("moment", { occasion: spec.occasion }).then(fresh => {
+        return Sol.callIn(spec.world || "", "moment", { occasion: spec.occasion }).then(fresh => {
             if (fresh) { waiting = waiting.concat([spec]); pump() }
             return fresh
         })

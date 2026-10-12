@@ -7,7 +7,9 @@ import Sol.Design
     with a world, openable, with a menu), the ExportCard, Grid at a few
     widths, DataRows, Display, Progress, Callout, every kind of Skeleton
     and Chart, a Settle list, a Strip, Picture and Poster loaded,
-    missing, dimmed and lifted, and a long grid and list sifted by a field.
+    missing, dimmed and lifted, a long grid and list sifted by a field, and
+    a masonry grid of uneven cards with a feature card across two columns
+    (Again grows one, and the cards under it glide to their new places).
     The pictures are the kit's own photographs.
 */
 Screen {
@@ -48,7 +50,7 @@ Screen {
         Card {
             title: "With a menu"
             menu: [{ label: "Rename", run: () => { } }, { label: "Move to", items: () => [{ label: "Watching", run: () => { } }, { label: "Later", run: () => { } }] }, { separator: true }, { label: "Remove", danger: true, run: () => { } }]
-            Words { width: parent.width; quiet: true; text: "Right-click it for its menu." }
+            Words { width: parent.width; quiet: true; text: "Right-click it, or the button in its head, for its menu." }
         }
 
         Card {
@@ -235,6 +237,50 @@ Screen {
     }
 
     // A library's worth of tiles and rows: only those in sight are made, and the field sifts them.
+    // Masonry: each card into the shortest column, a feature card across two, one across the row.
+    Column {
+        width: parent.width
+        spacing: Theme.s3
+        Heading { level: 3; text: "Masonry" }
+        Grid {
+            width: parent.width
+            min: 240
+            masonry: true
+            Card {
+                title: "A feature card"
+                span: 2
+                world: "saturn"
+                Words { width: parent.width; text: "Two columns wide (span 2): the cards around it fill in beside and under it, each into the shortest column." }
+            }
+            Card {
+                title: "Short"
+                Words { width: parent.width; quiet: true; text: "One line." }
+            }
+            Card {
+                title: "Tall"
+                DataRows { width: parent.width; rows: page.week.map((d, n) => ({ label: d, value: (6 + n % 3) + " h" })) }
+            }
+            Card {
+                title: "Grows with Again"
+                Words { width: parent.width; quiet: true; text: page.round % 2 ? "Taller now: the cards under it glide down to their new places, and back up again with the next Again. A grid places its cards again whenever one grows, hides or shows." : "Press Again in the head: this card grows." }
+            }
+            Card {
+                title: "Medium"
+                Progress { width: parent.width; value: 0.6; start: "3 of 5" }
+                Words { width: parent.width; quiet: true; text: "A figure and a line under it." }
+            }
+            Card {
+                title: "Another"
+                Words { width: parent.width; quiet: true; text: "Into whichever column is shortest when its turn comes." }
+            }
+            Card {
+                title: "The whole row"
+                span: "row"
+                Words { width: parent.width; quiet: true; text: "Span “row” takes every column, under everything before it." }
+            }
+        }
+    }
+
     readonly property var many: Array.from({ length: 600 }, (_, n) => ({ n: n + 1, world: page.order[n % page.order.length], name: Worlds.get(page.order[n % page.order.length]).name + " " + (n + 1) }))
     Sift { id: sift; rows: page.many; words: longFilter.text; text: r => r.name; order: (a, b) => b.n - a.n }
     Card {

@@ -18,7 +18,7 @@ use std::{
     os::linux::net::SocketAddrExt,
     os::unix::net::{SocketAddr, UnixListener, UnixStream},
     path::PathBuf,
-    sync::{Arc, OnceLock},
+    sync::Arc,
 };
 
 /// What a knock on the door asks for.
@@ -55,9 +55,10 @@ impl Knock {
     }
 }
 
-/// The socket file this copy listens on too; removed again when it leaves.
+/// The socket files this copy listens on too (its own world's, and each
+/// carried moon's); removed again when it leaves.
 #[cfg(target_os = "linux")]
-static OWNED: OnceLock<PathBuf> = OnceLock::new();
+static OWNED: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
 
 /// Whether the doors are the computer's (`sol-<world>`, `sol-preview-<world>`).
 /// `sol_quick::run` says so before anything knocks; until then, as in every
@@ -202,7 +203,9 @@ pub fn claim(
         let _ = std::fs::remove_file(&path);
         match UnixListener::bind(&path) {
             Ok(old) => {
-                let _ = OWNED.set(path);
+                if let Ok(mut owned) = OWNED.lock() {
+                    owned.push(path);
+                }
                 serve(old, on_knock);
             }
             Err(e) => tracing::debug!("no socket file for older versions: {e}"),
@@ -328,11 +331,13 @@ pub fn wake_door(world: &str) {
     let _ = world;
 }
 
-/// Removes the socket file this copy listens on, if it has one.
+/// Removes the socket files this copy listens on, if it has any.
 pub fn leave() {
     #[cfg(target_os = "linux")]
-    if let Some(path) = OWNED.get() {
-        let _ = std::fs::remove_file(path);
+    if let Ok(owned) = OWNED.lock() {
+        for path in owned.iter() {
+            let _ = std::fs::remove_file(path);
+        }
     }
 }
 
@@ -383,13 +388,9 @@ mod tests {
             Asked::Nobody
         ));
         leave();
-        // `leave` removes the file this process listens on; another test may
-        // have claimed its door first and own that one.
-        if OWNED.get() == Some(&file(&world, true)) {
-            assert!(!file(&world, true).exists());
-        } else {
-            let _ = std::fs::remove_file(file(&world, true));
-        }
+        // `leave` removes every file this process listens on, this one too.
+        assert!(OWNED.lock().unwrap().contains(&file(&world, true)));
+        assert!(!file(&world, true).exists());
     }
 
     #[test]

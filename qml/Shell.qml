@@ -16,6 +16,17 @@ import Sol.Design as Design
     page (`/write?day=…` from the Diary) is a page opened from it: it
     slides in and shows the way back.
 
+    A section may have children (`children: [{ path, label, icon? }]`):
+    one row that opens out to them while it or one of them is open; Ctrl +
+    1…9 count only the sections. A page with tabs (a PageHead's `tabs`)
+    keeps its tab in its path (`/schedule?tab=calendar`): a section opened
+    with only its tab is still the section, and choosing a tab changes the
+    step in the history instead of adding one (`retab`). A tab may be a page
+    of its own: `pages: ({ "/schedule": calendar, "/schedule?tab=timeline":
+    timeline })`, each with the same PageHead tabs; choosing one puts its
+    page in that step. Paths that moved stay reachable through `aliases`
+    (`{ "/calendar": "/schedule?tab=calendar" }`).
+
     The world's light marks the current section and glides to the next one
     when it changes; each screen settles into the pane as it opens.
 
@@ -33,10 +44,50 @@ Item {
     id: shell
 
     property string world: "terra"
-    /** `{ path, label, hint, icon?, world?, badge? }`, in the order of the sidebar; `icon` is an `Icon` name. */
+    /** `{ path, label, hint, icon?, world?, badge?, children?, tabs? }`, in the order of the sidebar; `icon` is an `Icon`
+        name. `children` are pages of their own under it, `{ path, label, hint?, icon? }`: the row opens out to them
+        while it or one of them is open. `tabs` (`{ id, label }`, as its PageHead has them) are offered by the palette. */
     property var sections: []
-    /** Path → Component. A path not in the sections is a page opened from another. */
+    /** Every row of the sidebar, a section's children after it (`child: true`, `parent` its path, `top` its section's place). */
+    readonly property var rows: {
+        const out = []
+        sections.forEach((s, i) => {
+            out.push(Object.assign({}, s, { top: i, child: false }))
+            for (const c of s.children || []) out.push(Object.assign({ world: s.world }, c, { top: i, child: true, parent: s.path }))
+        })
+        return out
+    }
+    /** Path → Component. A path not in the sections is a page opened from another. A section's tab that is a
+        page of its own is its path with the tab: `/schedule?tab=timeline`. */
     property var pages: ({})
+    /** Paths that moved, still reachable (links, other apps and quick capture may name them): path →
+        `/path?key=value`, its params under the ones asked with (`/season?year=2024` → `/discover?tab=season&year=2024`).
+        A page at the path itself comes first. */
+    property var aliases: ({})
+    /** Where `path` leads through `aliases`, and its params: `[path, params]`. */
+    function resolve(path, params) {
+        const to = pages[path] ? undefined : aliases[path]
+        if (!to) return [path, params]
+        const [p, query] = to.split("?")
+        const own = {}
+        for (const pair of (query || "").split("&").filter(Boolean)) {
+            const [k, v] = pair.split("=").map(decodeURIComponent)
+            own[k] = v || ""
+        }
+        return [p, Object.assign(own, params)]
+    }
+    /** The page `path` opens with `params`: its tab's own page (`/schedule?tab=timeline`), or the path's. */
+    function pageKey(path, params) {
+        const tab = params ? params.tab : undefined
+        return tab !== undefined && pages[path + "?tab=" + tab] ? path + "?tab=" + tab : path
+    }
+    /** The moons this app carries (their ids): pages under `/<moon>` are theirs. */
+    property var moons: []
+    /** The world a path's page belongs to: a carried moon's under `/<moon>`, else the app's own. */
+    function worldOf(path) {
+        for (const m of moons) if (path === "/" + m || path.indexOf("/" + m + "/") === 0) return m
+        return world
+    }
     /** Doors to other apps, under the sections: `{ world, label, hint, open }`. */
     property var doors: []
     property string home: "/"
@@ -62,18 +113,42 @@ Item {
     property int here: -1
     /** The most steps kept; older ones are forgotten (and their pages, if nothing else leads there). */
     readonly property int remembered: 30
-    /** Section path → its page, made the first time it's opened. */
+    /** Section path (or a tab's own page's, `pageKey`) → its page, made the first time it's opened. */
     property var sectionPages: ({})
+    /** Section path → the tab it was left on. */
+    property var tabOf: ({})
+    /** Remembers the tab a section's step is on (none: its first). */
+    function keepTab(path, params) {
+        if (!isSection(path) || !ownParams(params)) return
+        if (params.tab !== undefined) tabOf[path] = params.tab
+        else delete tabOf[path]
+    }
     property bool keys: false
 
     // The accent: the world's own colour, or the one chosen for this device; the photo's colours to choose from.
     // The world's own colour from `world` itself: when the world changes, `w` may not have followed yet.
-    function accent() { Theme.world = Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color }
+    // A moon's pages are in the moon's own colour.
+    function accent() {
+        const of = here >= 0 && history[here] ? worldOf(history[here].path) : world
+        Theme.world = of !== world ? Worlds.get(of).color : Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color
+        // And in its own voice.
+        Sounds.world = of
+    }
     Tone { source: shell.w.image; onPicksChanged: Theme.picks = picks }
     Component.onCompleted: { accent(); go(home) }
     onWorldChanged: accent()
 
-    function isSection(path) { return sections.some(s => s.path === path) }
+    /** The section or the child of one at `path`, or null. */
+    function sectionOf(path) {
+        for (const s of sections) {
+            if (s.path === path) return s
+            for (const c of s.children || []) if (c.path === path) return c
+        }
+        return null
+    }
+    function isSection(path) { return !!sectionOf(path) }
+    /** Params that leave a section the section: none, its tab, or the part of it to show (`/settings?part=titan`). */
+    function ownParams(params) { return Object.keys(params).every(k => k === "tab" || k === "part") }
 
     /** On the rail, the sidebar's field is folded away until it is used. */
     property bool finding: false
@@ -87,17 +162,27 @@ Item {
     /** Opens `path` with `params`, as a new step in the history. `hero` is
         `{ item, url }`: a picture that flies from `item` to the new page's `hero`. */
     function go(path, params, hero) {
-        const component = pages[path]
-        if (!component) { console.warn("Shell: no page at", path); return }
-        params = params || {}
+        // A moon's page may name its own pages as the moon's app did (`/moon`): where the app
+        // has no page of that path, it is the moon's, under `/<moon>`.
+        const from = here >= 0 && history[here] ? worldOf(history[here].path) : world
+        if (from !== world && !pages[path] && (pages["/" + from + path] || aliases["/" + from + path])) path = "/" + from + path
+        const to = resolve(path, params || {})
+        path = to[0]
+        params = to[1]
+        if (!pages[path]) { console.warn("Shell: no page at", path); return }
+        const section = isSection(path) && ownParams(params)
+        // A section opened without a tab comes back on the tab it was left on.
+        if (section && params.tab === undefined && tabOf[path] !== undefined) params = Object.assign({ tab: tabOf[path] }, params)
         if (path === shell.path && JSON.stringify(params) === JSON.stringify(history[here].params)) return
-        const section = isSection(path) && Object.keys(params).length === 0
-        let item = section ? sectionPages[path] : null
+        const key = pageKey(path, params)
+        let item = section ? sectionPages[key] : null
+        if (item && JSON.stringify(item.params) !== JSON.stringify(params)) item.params = params
         if (!item) {
-            item = component.createObject(paneSlot, { params: params, shell: shell, visible: false, width: Qt.binding(() => paneSlot.width), height: Qt.binding(() => paneSlot.height) })
-            if (!item) { console.warn("Shell: page failed", path, component.errorString()); return }
-            if (section) sectionPages[path] = item
+            item = make(path, key, params)
+            if (!item) return
+            if (section) sectionPages[key] = item
         }
+        keepTab(path, params)
         // What is ahead of here is forgotten, as a browser does; past `remembered`, the oldest too.
         let kept = history.slice(0, here + 1).concat([{ path: path, params: params, item: item }])
         let dropped = history.slice(here + 1)
@@ -106,6 +191,17 @@ Item {
         release(dropped)
         show(history.length - 1, section ? "up" : "in")
         if (hero && hero.item && hero.url) fly(hero, item)
+    }
+
+    /** A page for `path` from its Component at `key` (the path, or its tab's own), hidden until shown. */
+    function make(path, key, params) {
+        const of = worldOf(path)
+        const props = { params: params, shell: shell, visible: false, width: Qt.binding(() => paneSlot.width), height: Qt.binding(() => paneSlot.height) }
+        // A moon's page is the moon's; the app's own keep theirs (a page may say its own `world`).
+        if (of !== world) props.world = of
+        const item = pages[key].createObject(paneSlot, props)
+        if (!item) console.warn("Shell: page failed", key, pages[key].errorString())
+        return item
     }
 
     /** Destroys the pages of forgotten steps that nothing else leads to; a section's page stays. */
@@ -202,20 +298,54 @@ Item {
         if (here < history.length - 1) show(here + 1, "in")
     }
 
+    /** The page on screen takes `params` in place of its own, the same step in the history (a tab
+        chosen: `retab(Object.assign({}, page.params, { tab: "calendar" }))`), so going back and forth
+        and the palette find it as it was left. */
+    function retab(params) {
+        if (here < 0) return
+        const e = history[here]
+        const was = e.item
+        const before = pageKey(e.path, e.params)
+        const key = pageKey(e.path, params)
+        e.params = params
+        keepTab(e.path, params)
+        if (key === before) { was.params = params; return }
+        // The tab is a page of its own: it takes this step's place, settling in as a section does.
+        const section = isSection(e.path) && ownParams(params)
+        let item = section ? sectionPages[key] : null
+        if (item && JSON.stringify(item.params) !== JSON.stringify(params)) item.params = params
+        if (!item) {
+            item = make(e.path, key, params)
+            if (!item) return
+            if (section) sectionPages[key] = item
+        }
+        e.item = item
+        // A page that was no section's goes once it has left.
+        if (!Object.values(sectionPages).includes(was)) dropping = was
+        show(here, "up", was)
+    }
+    /** A page left by `retab` that nothing leads to any more: destroyed once it has left. */
+    property Item dropping: null
+
     /** `dir`: `up` for a section (it settles), `in` for a page opened from another (it slides in from
-        the right), `out` for going back (the page slides out to the right, the one under it comes back). */
-    function show(i, dir) {
+        the right), `out` for going back (the page slides out to the right, the one under it comes back).
+        `from`: the page leaving, when it isn't the one at `here` (a tab's own page taking its step). */
+    function show(i, dir, from) {
         // A leave still running (back and forth quickly) is finished first.
         if (leave.running) { leave.stop(); settleLeaving() }
-        const was = here >= 0 ? history[here].item : null
+        const was = from !== undefined ? from : here >= 0 ? history[here].item : null
         here = i
         const entry = history[i]
         const item = entry.item
         for (const e of history) if (e.item && e.item !== was && e.item !== item) e.item.visible = false
         item.visible = true
+        // A section's one page, back on the tab this step had.
+        if (isSection(entry.path) && JSON.stringify(item.params) !== JSON.stringify(entry.params)) item.params = entry.params
+        keepTab(entry.path, entry.params)
         item.x = 0
         item.opacity = 1
         item.back = backFor(entry)
+        accent()
         if (was && was !== item) {
             // The page that was here leaves under the one arriving; one coming back settles in again.
             leaving.target = was
@@ -233,6 +363,7 @@ Item {
     function settleLeaving() {
         const t = leaving.target as Item
         if (!t) return
+        if (t === dropping) { dropping = null; leaving.target = null; slideOut.target = null; t.destroy(); return }
         if (t !== shell.page) t.visible = false
         t.opacity = 1
         t.x = 0
@@ -246,7 +377,10 @@ Item {
         ScriptAction { script: shell.settleLeaving() }
     }
 
-    readonly property int current: sections.findIndex(s => s.path === path)
+    /** The section on screen, or the one whose child is, by its place in `sections`; -1 for none. */
+    readonly property int current: sections.findIndex(s => s.path === path || (s.children || []).some(c => c.path === path))
+    /** The sidebar row on screen (a child's own row when a child is), by its place in `rows`; -1 for none. */
+    readonly property int currentRow: rows.findIndex(r => r.path === path)
 
     function upPath() {
         const s = sections.find(s => s.path === home) || sections[0]
@@ -257,7 +391,7 @@ Item {
         path opened with params from another path (`/write?day=…` from the Diary). */
     function opened(entry) {
         if (!isSection(entry.path)) return true
-        if (Object.keys(entry.params).length === 0) return false
+        if (ownParams(entry.params)) return false
         const at = history.indexOf(entry)
         return at <= 0 || history[at - 1].path !== entry.path
     }
@@ -268,10 +402,10 @@ Item {
         const at = history.indexOf(entry)
         if (at > 0) {
             const prev = history[at - 1]
-            const section = sections.find(s => s.path === prev.path)
+            const section = sectionOf(prev.path)
             return { label: section ? section.label : (prev.item.title || "Back"), go: () => shell.back() }
         }
-        const up = sections.find(s => s.path === upPath())
+        const up = sectionOf(upPath())
         return { label: up ? up.label : "Home", go: () => shell.go(upPath()) }
     }
 

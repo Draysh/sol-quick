@@ -39,6 +39,12 @@ QtObject {
     readonly property bool background: SolBackend.background
     /** Working on screens: the Shell without pairing, on a throwaway local copy. */
     readonly property bool preview: SolBackend.preview
+    /**
+        The moons this app carries, by id: each `{ name, status, unsent,
+        kept, problem, settingsVersion }` as the app's own world's are here.
+        A moon's pages reach theirs through `Sol.of("luna")`.
+    */
+    readonly property var carried: SolBackend.moons ? JSON.parse(SolBackend.moons) : ({})
 
     property int nextId: 1
     property var pending: ({})
@@ -55,12 +61,19 @@ QtObject {
     }
 
     /** Runs a command on the Rust side. Resolves with what it returned, rejects with one sentence on why not. */
-    function call(command, args) {
+    function call(command, args) { return callIn("", command, args) }
+
+    /** Whether `w` is this app's own world ("" is too). */
+    function own(w) { return !w || w === world }
+
+    /** `call` for a world this app carries (`"luna"`); "" for its own. */
+    function callIn(w, command, args) {
         const id = nextId++
         return new Promise((resolve, reject) => {
             pending[id] = { resolve: resolve, reject: reject }
             waiting++
-            SolBackend.call(id, command, JSON.stringify(args || {}))
+            if (own(w)) SolBackend.call(id, command, JSON.stringify(args || {}))
+            else SolBackend.callIn(w, id, command, JSON.stringify(args || {}))
         })
     }
 
@@ -70,7 +83,10 @@ QtObject {
         what it showed while the fresh reply comes (`use(reply, false)`).
         Resolves with the fresh reply.
     */
-    function callSeen(command, args, use) {
+    function callSeen(command, args, use) { return callSeenIn("", command, args, use) }
+
+    /** `callSeen` for a world this app carries. */
+    function callSeenIn(w, command, args, use) {
         const id = nextId++
         const key = command + " " + JSON.stringify(args || {})
         return new Promise((resolve, reject) => {
@@ -80,13 +96,16 @@ QtObject {
                 try { use(JSON.parse(last), true, false) } catch (e) { }
             } }
             waiting++
-            SolBackend.callSeen(id, key, command, JSON.stringify(args || {}))
+            if (own(w)) SolBackend.callSeen(id, key, command, JSON.stringify(args || {}))
+            else SolBackend.callSeenIn(w, id, key, command, JSON.stringify(args || {}))
         }).then(r => { use(r.reply, false, r.same); return r.reply })
     }
 
     // ---- Little helpers every world's screens share -----------------------------
     /** A failure as a notice from this world: titled for what didn't happen, the reason as its body. */
     function fail(title, why) { return Notices.failed(world, title, why) }
+    /** `fail`, as a notice from a carried world. */
+    function failIn(w, title, why) { return Notices.failed(own(w) ? world : w, title, why) }
 
     /**
         Runs the command `command` with `args` as a write that can be taken
@@ -101,14 +120,18 @@ QtObject {
 
             Sol.undoable("archive_habit", { id: id }, { title: "Archived", body: "“Walk” is off the list." })
     */
-    function undoable(command, args, o) {
-        return call("undoable", { command: command, args: args || {} }).then(r => {
+    function undoable(command, args, o) { return undoableIn("", command, args, o) }
+
+    /** `undoable` for a world this app carries. */
+    function undoableIn(w, command, args, o) {
+        const from = own(w) ? world : w
+        return callIn(w, "undoable", { command: command, args: args || {} }).then(r => {
             const back = o.undo ? () => o.undo(r.result, r.undo)
-                : r.undo !== null ? () => call("restore", { undo: r.undo }) : null
+                : r.undo !== null ? () => callIn(w, "restore", { undo: r.undo }) : null
             if (back)
-                Notices.show({ world: world, title: o.title, body: o.body || "", action: "Undo",
-                    run: () => back().then(() => { Sounds.off(); if (o.undone) o.undone() }).catch(why => fail("Not taken back", why)) })
-            else Notices.show({ world: world, title: o.title, body: o.body || "" })
+                Notices.show({ world: from, title: o.title, body: o.body || "", action: "Undo",
+                    run: () => back().then(() => { Sounds.off(); if (o.undone) o.undone() }).catch(why => failIn(w, "Not taken back", why)) })
+            else Notices.show({ world: from, title: o.title, body: o.body || "" })
             return r.result
         })
     }
@@ -131,9 +154,12 @@ QtObject {
         skipped when `item[name]` already holds something. `then(reply)`
         follows each reply taken. Resolves with the fresh reply.
     */
-    function fill(item, name, command, args, then) {
+    function fill(item, name, command, args, then) { return fillIn("", item, name, command, args, then) }
+
+    /** `fill` for a world this app carries. */
+    function fillIn(w, item, name, command, args, then) {
         let shown = false
-        return callSeen(command, args || {}, (reply, seen, same) => {
+        return callSeenIn(w, command, args || {}, (reply, seen, same) => {
             if (seen && item[name]) return
             // The fresh reply is what was seen, and that is what shows: nothing to compare.
             if (same && shown) return
@@ -149,8 +175,11 @@ QtObject {
         (`seen` true), then the fresh reply, so the page is there on a cold
         start; later loads ask Sol only. Resolves with the fresh reply.
     */
-    function fetch(first, command, args, use) {
-        return first ? callSeen(command, args, use) : call(command, args).then(r => { use(r, false); return r })
+    function fetch(first, command, args, use) { return fetchIn("", first, command, args, use) }
+
+    /** `fetch` for a world this app carries. */
+    function fetchIn(w, first, command, args, use) {
+        return first ? callSeenIn(w, command, args, use) : callIn(w, command, args).then(r => { use(r, false); return r })
     }
 
     /**
@@ -201,6 +230,27 @@ QtObject {
     signal event(string name, var data)
     /** Documents changed in these collections (an empty list: in any); a page reads again with a `Watch`. */
     signal changedIn(var collections)
+    /** A carried world's own event, and its documents changed (`Sol.of(w)` passes each on as its own). */
+    signal eventIn(string world, string name, var data)
+    signal changedInWorld(string world, var collections)
+
+    /**
+        The connection as a world's pages see it: `Sol.of("luna")` for a moon
+        this app carries (the same members as `Sol`, for that world), the
+        app's own for its own id or "".
+    */
+    function of(w) {
+        const id = own(w) ? world : w
+        if (!worlds[id]) worlds[id] = worldOf.createObject(sol, { world: id })
+        return worlds[id]
+    }
+    /** The world of the page `item` is on (`Screen.world`), as `of` gives it. */
+    function near(item) {
+        const screen = Theme.screenOf(item)
+        return of(screen && screen.world ? screen.world : "")
+    }
+    property var worlds: ({})
+    property Component worldOf: Component { SolWorld { } }
 
     property Connections link: Connections {
         target: SolBackend
@@ -218,6 +268,8 @@ QtObject {
         function onRecalled(id, body) { const p = sol.pending[id]; if (p && p.recalled) p.recalled(body) }
         function onRepeated(id) { const p = sol.pending[id]; if (p) p.same = true }
         function onChanged(collections) { sol.changedIn(JSON.parse(collections)) }
+        function onEventIn(w, name, data) { sol.eventIn(w, name, data === "" ? null : JSON.parse(data)) }
+        function onChangedIn(w, collections) { sol.changedInWorld(w, JSON.parse(collections)) }
         function onNotice(title, body, tone) {
             Notices.show({ world: "sol", title: title, body: body, tone: tone })
         }
@@ -250,6 +302,13 @@ QtObject {
         return call("doors").catch(() => [])
     }
 
+    /** Where `id`'s pages are in this app: "/" for its own world, `/<moon>` for a moon it carries; "" when they're in another app. */
+    function pathOf(id) { return id === world ? "/" : carried[id] ? "/" + id : "" }
+    /** Opens a page of this app's window (the window follows it). */
+    signal go(string path)
+    /** Opens `id`'s pages: here when this app carries them, else its own app. */
+    function openKin(k) { const p = pathOf(k.id); if (p) go(p); else openWorld(k.id, k.name) }
+
     /**
         The doors in this app's sidebar: Sol first, then the moons or the
         planet this world works with, but only those installed here, so a
@@ -258,14 +317,15 @@ QtObject {
     function doors(me) {
         const w = Worlds.get(me)
         const solDoor = { world: "sol", label: "Sol", role: "Settings and every world", hint: w.name + "’s settings and connections, and every other world, in the browser", open: () => openInSol() }
+        // A moon this app carries has its pages here already: no door.
         return installed().then(here => [solDoor].concat(
-            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ world: k.id, label: k.name, role: k.role, hint: k.tagline, open: () => openWorld(k.id, k.name) }))))
+            Worlds.kin(me).filter(k => here.includes(k.id) && !pathOf(k.id)).map(k => ({ world: k.id, label: k.name, role: k.role, hint: k.tagline, open: () => openWorld(k.id, k.name) }))))
     }
 
     /** The same doors for the Sheet, under the world's name. */
     function moons(me) {
         return installed().then(here =>
-            Worlds.kin(me).filter(k => here.includes(k.id)).map(k => ({ id: k.id, label: k.name + " · " + (k.role || k.tagline), hint: k.tagline, open: () => openWorld(k.id, k.name) })))
+            Worlds.kin(me).filter(k => here.includes(k.id) || pathOf(k.id)).map(k => ({ id: k.id, label: k.name + " · " + (k.role || k.tagline), hint: k.tagline, open: () => openKin(k) })))
     }
 
     /** `HH:MM` of an ISO time, in the local zone. */

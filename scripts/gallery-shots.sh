@@ -96,9 +96,10 @@ for light in night day; do
     shoot "$light-panels" "/panels"
     shoot "$light-panels-lower" "/panels?_scroll=1000"
     shoot "$light-panels-end" "/panels?_scroll=2300"
-    shoot "$light-panels-long" "/panels?_scroll=5000"
+    shoot "$light-panels-long" "/panels?_scroll=5700"
     shoot "$light-overlays" "/overlays"
     shoot "$light-overlays-menu" "/overlays?_menu=1"
+    shoot "$light-sky" "/sky"
     if [[ $light == night ]]; then
         # The states one picture can't hold, at night only.
         shoot "night-controls-field" "/controls?_focus=field"
@@ -112,12 +113,31 @@ for light in night day; do
         # Quick capture: its own window's picture lands beside, as <name>-capture.png.
         shoot "night-overlays-capture" "/overlays?_capture=walk"
         shoot "night-overlays-tour" "/overlays?_tour=1"
+        # The Sky's own: a star chosen, the comet and the full moon on Luna's Sheet, a star lighting.
+        shoot "night-sky-chosen" "/sky?star=ghibli/spirited"
+        shoot "night-worlds-comet" "/?_world=luna&_comet=1&_sky=full-moon"
+        shoot "night-sky-star" "/sky?_moment=star"
+        # A carried moon: its group in the sidebar, its pages in its colour, on its own link; its sky a tab
+        # of the Sky and its settings a part of Settings, which its old paths still open.
+        shoot "night-moon" "/moon"
+        shoot "night-moon-sky" "/moon/sky"
+        shoot "night-settings" "/settings"
+        shoot "night-moon-settings" "/moon/settings"
+        # Structure: a masonry grid, a section's children open, a page's tabs, things' menus, the palette's nested row.
+        shoot "night-panels-masonry" "/panels?_scroll=4900"
+        shoot "night-tabs" "/tabs"
+        shoot "night-tabs-calendar" "/tabs?tab=calendar"
+        shoot "night-menus" "/menus"
+        shoot "night-menus-open" "/menus?_nested=1"
+        shoot "night-overlays-palette-rate" "/overlays?_palette=rate"
         # Last: the open list stays open over what comes after.
         shoot "night-controls-select" "/controls?_focus=select"
     else
         shoot "day-overlays-moment" "/overlays?_moment=1"
         shoot "day-overlays-kept" "/overlays?_kept=1"
         shoot "day-overlays-tour" "/overlays?_tour=2"
+        shoot "day-tabs" "/tabs?tab=timeline"
+        shoot "day-panels-masonry" "/panels?_scroll=4900"
     fi
     run SOL_LIGHT="$light"
 done
@@ -126,6 +146,7 @@ run SOL_LIGHT=night SOL_CALM=1
 # Narrow: the sidebar as a rail, one column.
 shoot "narrow-worlds" "/?_world=saturn"
 shoot "narrow-controls" "/controls"
+shoot "narrow-tabs" "/tabs"
 run SOL_LIGHT=night QT_SCALE_FACTOR=3
 
 echo "The journal since $start:"

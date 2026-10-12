@@ -94,7 +94,8 @@ pub struct Expect<'a> {
 /// - a `day_starts` setting defaults to the day orbit starts while Sol has
 ///   sent none (`DEFAULT_DAY_STARTS`, 04:00);
 /// - a world whose screens play a moment (`moment.play(` in `qml/`) lists
-///   the `moments` collection;
+///   the `moments` collection, and one with a Sky page or a Sheet (where
+///   comets are caught) the `sky` collection;
 /// - Sol's hand copy, `../../hub/catalog/<id>.json`, says the same, when the
 ///   world sits in the workspace checkout beside the hub.
 pub fn assert_manifest(manifest: &str, expect: Expect) -> WorldManifest {
@@ -135,10 +136,17 @@ pub fn assert_manifest(manifest: &str, expect: Expect) -> WorldManifest {
         );
     }
     let here = world_dir();
-    if plays_moments(&here.join("qml")) {
+    let qml = here.join("qml");
+    if any_screen_says(&qml, &["moment.play("]) {
         assert!(
             lists(crate::moments::MOMENTS),
             "the screens play moments, so the manifest lists the moments collection"
+        );
+    }
+    if any_screen_says(&qml, &["SkyPage", "Sheet {"]) {
+        assert!(
+            lists(crate::sky::SKY),
+            "the screens have a Sky or a Sheet (where comets are caught), so the manifest lists the sky collection"
         );
     }
     let catalog = here.join(format!("../../hub/catalog/{}.json", m.id));
@@ -169,14 +177,15 @@ fn world_dir() -> PathBuf {
         .map_or(start.clone(), Path::to_path_buf)
 }
 
-/// Whether any screen in `qml` plays a moment.
-fn plays_moments(qml: &Path) -> bool {
+/// Whether any screen in `qml` has one of `words` in it.
+fn any_screen_says(qml: &Path, words: &[&str]) -> bool {
     let Ok(files) = std::fs::read_dir(qml) else {
         return false;
     };
     files.flatten().any(|f| {
         f.path().extension().is_some_and(|e| e == "qml")
-            && std::fs::read_to_string(f.path()).is_ok_and(|text| text.contains("moment.play("))
+            && std::fs::read_to_string(f.path())
+                .is_ok_and(|text| words.iter().any(|w| text.contains(w)))
     })
 }
 

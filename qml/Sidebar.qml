@@ -7,8 +7,10 @@ import Sol.Design as Design
 /*
     The Shell's sidebar: the world (its disc, its name, what the app is
     for), the field that filters the page or searches the app, the
-    sections with the world's light on the current one, the doors to other
-    apps, and where the app stands with Sol at the bottom. On the rail (a
+    sections with the world's light on the current one (a section with
+    children opens out to them while one of them is open, as a carried
+    moon's group does), the doors to other apps, and where the app stands
+    with Sol at the bottom. On the rail (a
     narrow window) only the icons and marks show, and the field folds away
     behind a button until it is used. The Shell makes one and reads
     `finder` back.
@@ -123,12 +125,34 @@ Item {
     // Left empty on the rail, it folds away again.
     Connections { target: finder.input; function onActiveFocusChanged() { if (!finder.input.activeFocus && finder.text === "") side.frame.finding = false } }
 
+    // The sections and the doors, between the brand and the status; they scroll
+    // only when they don't fit (a planet with its moon's group open, a short window).
+    Flickable {
+        id: scroller
+        readonly property real from: side.frame.rail ? (findButton.visible ? findButton.y + findButton.height + Theme.s2 : brand.y + brand.height + Theme.s2)
+            : finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
+        y: from
+        width: parent.width
+        height: Math.max(0, statusSlot.y - from - Theme.s2)
+        contentHeight: doorColumn.visible ? doorColumn.y + doorColumn.height : list.height
+        interactive: contentHeight > height
+        clip: interactive
+        boundsBehavior: Flickable.StopAtBounds
+        /** Scrolls the current section into view, when the list scrolls at all. */
+        function reveal() {
+            const r = light.row
+            if (!r || !interactive) return
+            if (r.y < contentY) contentY = r.y
+            else if (r.y + r.height > contentY + height) contentY = Math.min(contentHeight - height, r.y + r.height - height)
+        }
+        Connections { target: side.frame; function onPathChanged() { Qt.callLater(scroller.reveal) } }
+        onHeightChanged: Qt.callLater(scroller.reveal)
+
     // The sections, with the world's light on the current one.
     Item {
         id: list
         x: side.frame.rail ? Theme.s1 : Theme.s2
-        y: side.frame.rail ? (findButton.visible ? findButton.y + findButton.height + Theme.s2 : brand.y + brand.height + Theme.s2)
-            : finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
+        y: 0
         width: parent.width - x * 2
         height: sectionColumn.implicitHeight
 
@@ -138,8 +162,10 @@ Item {
             width: 2
             height: Theme.control - 18
             color: Theme.accent
-            opacity: side.frame.current >= 0 ? 1 : 0
-            y: (side.frame.current >= 0 ? side.frame.current : 0) * (Theme.control + 2) + 9
+            opacity: side.frame.currentRow >= 0 ? 1 : 0
+            // On the current row (a moon's group has its name above it).
+            readonly property var row: sectionRepeater.count > 0 ? sectionRepeater.itemAt(Math.max(0, side.frame.currentRow)) : null
+            y: (row ? row.y + row.rowTop : 0) + 9
             property bool moved: false
             onYChanged: moved = true
             Behavior on y { enabled: light.moved; SpringAnimation { spring: 3.2; damping: 0.28; mass: 0.9 } }
@@ -150,23 +176,75 @@ Item {
         Column {
             id: sectionColumn
             width: parent.width
-            spacing: 2
             Repeater {
-                model: side.frame.sections
-                delegate: SidebarRow {
+                id: sectionRepeater
+                model: side.frame.rows
+                // A carried moon's sections are a group under its name (on the rail, a line above);
+                // a section's children follow it, a step in.
+                delegate: Item {
+                    id: entry
                     required property var modelData
                     required property int index
-                    place: index
+                    readonly property bool first: !!modelData.group && !modelData.child && (modelData.top === 0 || side.frame.sections[modelData.top - 1].group !== modelData.group)
+                    readonly property real caption: !first ? 0 : side.frame.rail ? Theme.s3 : 30
+                    // The gap above it, as a Column's spacing would put it.
+                    readonly property real gap: index === 0 ? 0 : 2
+                    /** Where its row starts: under the gap and the group's name. */
+                    readonly property real rowTop: gap + caption
+                    readonly property string here: side.frame.path
+                    /** The section it is, or is a child of. */
+                    readonly property var section: side.frame.sections[modelData.top]
+                    // A moon's group shows its first page until one of its pages is open, then all;
+                    // a section's children show while it or one of them is open.
+                    readonly property bool leads: modelData.top === 0 || side.frame.sections[modelData.top - 1].world !== section.world
+                    readonly property bool folded: (!!section.world && side.frame.worldOf(here) !== section.world && (!leads || modelData.child))
+                        || (modelData.child && here !== section.path && !section.children.some(c => c.path === entry.here))
+                    readonly property real full: rowTop + row.height
                     width: sectionColumn.width
-                    rail: side.frame.rail
-                    label: modelData.label
-                    world: modelData.world || ""
-                    icon: modelData.icon || ""
-                    badge: modelData.badge || 0
-                    current: side.frame.path === modelData.path
-                    // On the rail only the mark shows: the hint names the section too.
-                    hint: [side.frame.rail ? modelData.label + (modelData.badge ? " (" + modelData.badge + ")" : "") : "", modelData.hint, index < 9 ? "Ctrl+" + (index + 1) : ""].filter(Boolean).join(" · ")
-                    onClicked: side.frame.go(modelData.path)
+                    // Folding and opening out settle: the rows under it glide as it opens, and it
+                    // fades and slips into place (at once with less motion, and the first time).
+                    property real shown: folded ? 0 : 1
+                    property bool ready: false
+                    Component.onCompleted: Qt.callLater(() => entry.ready = true)
+                    Behavior on shown { enabled: entry.ready && !Theme.calm; NumberAnimation { id: folding; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                    height: full * shown
+                    visible: shown > 0.01
+                    opacity: shown
+                    transform: Translate { y: (1 - entry.shown) * -6 }
+                    Design.Settling { when: folding.running }
+                    Rectangle {
+                        visible: entry.first
+                        y: entry.gap + Theme.s1
+                        width: parent.width
+                        height: 1
+                        color: Theme.line
+                    }
+                    Text {
+                        visible: entry.first && !side.frame.rail
+                        x: Theme.s3
+                        y: entry.gap + Theme.s3
+                        text: entry.modelData.group || ""
+                        font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
+                        font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
+                        color: Theme.textQuiet
+                    }
+                    Design.SidebarRow {
+                        id: row
+                        y: entry.rowTop
+                        place: entry.index
+                        width: parent.width
+                        rail: side.frame.rail
+                        child: !!entry.modelData.child
+                        label: entry.modelData.label
+                        world: entry.modelData.icon || entry.modelData.child ? "" : entry.modelData.world || ""
+                        icon: entry.modelData.icon || ""
+                        badge: entry.modelData.badge || 0
+                        current: side.frame.path === entry.modelData.path
+                        // On the rail only the mark shows: the hint names the section too.
+                        readonly property string parentLabel: entry.modelData.child ? side.frame.sections[entry.modelData.top].label + " · " : ""
+                        hint: [side.frame.rail ? (entry.modelData.group ? entry.modelData.group + " · " : "") + parentLabel + entry.modelData.label + (entry.modelData.badge ? " (" + entry.modelData.badge + ")" : "") : "", entry.modelData.hint, !entry.modelData.child && entry.modelData.top < 9 ? "Ctrl+" + (entry.modelData.top + 1) : ""].filter(Boolean).join(" · ")
+                        onClicked: side.frame.go(entry.modelData.path)
+                    }
                 }
             }
         }
@@ -200,6 +278,8 @@ Item {
                 onClicked: modelData.open()
             }
         }
+    }
+
     }
 
     // The bottom: where the app stands with Sol.

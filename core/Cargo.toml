@@ -13,7 +13,7 @@ publish = false
 # built, so orbit and this crate are the same build for an app and its tests.
 orbit = { path = "../../orbit", features = ["app", "testing"] }
 anyhow = "1"
-chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 dirs = "6"
 gethostname = "1.1"
 open = "5"

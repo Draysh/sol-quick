@@ -6,7 +6,13 @@ import QtQuick
     it, and the page's actions on the right. On a page opened from another,
     the way back comes first. Put it in a Screen's `header`.
 
+    With `tabs`, the tabs run along its foot. A tab is part of the page's
+    path (`/schedule?tab=calendar`): choosing one changes the page's
+    `params` in place (`Shell.retab`, no new step in the history), so Back,
+    links and the palette reach it; the page reads `tab` (or `params.tab`).
+
         Screen { header: PageHead { title: "Settings"; lead: "…"; Button { text: "Export" } } … }
+        Screen { id: page; header: PageHead { title: "Schedule"; tabs: [{ id: "calendar", label: "Calendar" }, { id: "timeline", label: "Timeline" }]; tab: page.params.tab || "" } … }
 */
 Item {
     id: root
@@ -21,6 +27,22 @@ Item {
     /** The title can be changed in place: click it and type; `renamed` carries the new one. */
     property bool editable: false
     signal renamed(string title)
+    /** Tabs along its foot, `{ id, label, count?, hint? }`; none by default. */
+    property var tabs: []
+    /** The tab that is on, by id ("" for the first): bind it to the page's `params.tab`. */
+    property string tab: ""
+    /** The tab that shows: `tab`, or the first. */
+    readonly property string current: tab !== "" ? tab : tabs.length ? String(tabs[0].id) : ""
+    /** A tab was chosen (the page's path has it already, through the Shell). */
+    signal tabChosen(string id)
+    /** Shows tab `id`: in the page's path when it is in a Shell, else here. */
+    function choose(id) {
+        if (id === current) return
+        const sh = screen ? screen.shell : null
+        if (sh && sh.page === screen && typeof sh.retab === "function") sh.retab(Object.assign({}, screen.params, { tab: id }))
+        else tab = id
+        tabChosen(id)
+    }
 
     readonly property var back: screen && screen.back ? screen.back : null
     readonly property real margin: Theme.margin(width)
@@ -47,8 +69,11 @@ Item {
         one): the actions go on lines of their own under the title and the lead, which get the full width. */
     readonly property bool stacked: hasActions && room - actionsWidth - Theme.s4 < Math.min(wordsWidth, 240)
 
-    implicitHeight: stacked ? textRow.implicitHeight + actionRow.height + Theme.s2 * 3
-                            : Math.max(Theme.navHeight, Math.max(textRow.implicitHeight, actionRow.height) + Theme.s2 * 2)
+    /** The words and the actions, above the tabs. */
+    readonly property real topHeight: stacked ? textRow.implicitHeight + actionRow.height + Theme.s2 * 3
+                                              : Math.max(Theme.navHeight, Math.max(textRow.implicitHeight, actionRow.height) + Theme.s2 * 2)
+    // The tabs take the words' bottom padding, so their line sits on the bar's hairline.
+    implicitHeight: topHeight + (tabs.length ? tabStrip.height - Theme.s2 : 0)
 
     /** The title and the actions settle in with their page (its Screen calls this as the page
         shows); the bar itself stays, so nothing flashes behind it. */
@@ -56,6 +81,7 @@ Item {
         headIn.stop()
         textRow.opacity = 0
         actionRow.opacity = 0
+        tabStrip.opacity = 0
         textShift.x = dir === "in" ? 16 : dir === "back" ? -10 : 0
         headIn.start()
     }
@@ -64,6 +90,7 @@ Item {
         id: headIn
         NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
         NumberAnimation { target: actionRow; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
         NumberAnimation { target: textShift; property: "x"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
     }
 
@@ -81,7 +108,7 @@ Item {
     Flow {
         id: textRow
         x: root.margin
-        y: root.stacked ? Theme.s2 : (root.height - height) / 2
+        y: root.stacked ? Theme.s2 : (root.topHeight - height) / 2
         width: root.stacked || !root.hasActions ? root.room : root.room - root.actionsWidth - Theme.s4
         spacing: Theme.s3
         transform: Translate { id: textShift }
@@ -114,7 +141,7 @@ Item {
         id: actionRow
         readonly property real spacing: Theme.s2
         x: root.stacked ? root.margin : root.width - root.margin - width
-        y: root.stacked ? textRow.y + textRow.height + Theme.s2 : (root.height - height) / 2
+        y: root.stacked ? textRow.y + textRow.height + Theme.s2 : (root.topHeight - height) / 2
         width: root.stacked ? root.room : root.actionsWidth
         height: 0
         onWidthChanged: place()
@@ -153,5 +180,18 @@ Item {
             if (line.length) end()
             height = top
         }
+    }
+
+    // The tabs along the foot, the one that is on drawn over the bar's hairline.
+    Tabs {
+        id: tabStrip
+        visible: root.tabs.length > 0
+        x: root.margin
+        y: root.implicitHeight - height
+        width: Math.min(implicitWidth, root.room)
+        options: root.tabs
+        value: root.current
+        ground: Theme.deep
+        onChosen: v => root.choose(v)
     }
 }

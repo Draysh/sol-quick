@@ -39,7 +39,7 @@ pub(crate) fn asked(preview: bool) -> bool {
 /// stands in for it, for each checkout that is still there. `main` is the
 /// world's main QML (`qrc:/qt/qml/Sol/Terra/qml/Main.qml`), `source` the
 /// world's checkout.
-pub(crate) fn folders(main: &str, source: &str) -> Vec<(String, String)> {
+pub(crate) fn folders(main: &str, source: &str, moons: &[(&str, &str)]) -> Vec<(String, String)> {
     let mut out = vec![(
         "qrc:/qt/qml/Sol/Design/qml/".to_owned(),
         format!("{KIT}/qml/"),
@@ -51,6 +51,13 @@ pub(crate) fn folders(main: &str, source: &str) -> Vec<(String, String)> {
         && !source.is_empty()
     {
         out.push((module, format!("{source}/qml/")));
+    }
+    // Each carried moon's screens, from its own checkout.
+    for (module, source) in moons.iter().filter(|(_, s)| !s.is_empty()) {
+        out.push((
+            format!("qrc:/qt/qml/{module}/qml/"),
+            format!("{source}/qml/"),
+        ));
     }
     out.retain(|(_, dir)| Path::new(dir).is_dir());
     out
@@ -76,7 +83,7 @@ mod tests {
         let world = tempfile::tempdir().unwrap();
         std::fs::create_dir(world.path().join("qml")).unwrap();
         let source = world.path().to_str().unwrap();
-        let found = folders("qrc:/qt/qml/Sol/Terra/qml/Main.qml", source);
+        let found = folders("qrc:/qt/qml/Sol/Terra/qml/Main.qml", source, &[]);
         assert_eq!(
             found,
             [
@@ -91,9 +98,9 @@ mod tests {
             ]
         );
         // A main read from disk already (the gallery), and a checkout that's gone.
-        assert_eq!(folders("file:///x/Main.qml", source).len(), 1);
+        assert_eq!(folders("file:///x/Main.qml", source, &[]).len(), 1);
         assert_eq!(
-            folders("qrc:/qt/qml/Sol/Terra/qml/Main.qml", "/nowhere").len(),
+            folders("qrc:/qt/qml/Sol/Terra/qml/Main.qml", "/nowhere", &[]).len(),
             1
         );
     }

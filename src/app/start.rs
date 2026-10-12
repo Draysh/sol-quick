@@ -1,7 +1,8 @@
 //! The start-up, in the order `run` takes it: the command line, one copy
 //! at a time, an update's first start, the local copy and its link to Sol,
-//! the app's place on the computer (menu entry, doors, moons), the shared
-//! runtime, the tray and shortcuts, and at last the window.
+//! each moon the app carries (its door, its copy, its link), the app's place
+//! on the computer (menu entry, doors, moons), the shared runtime, the tray
+//! and shortcuts, and at last the window.
 
 use std::{
     path::{Path, PathBuf},
@@ -21,32 +22,64 @@ use orbit::{
 };
 
 use super::{
-    BUILT_QT, RUNTIME, Runtime, STAND_IN, Sample, TRYING, ToWindow, World, data_dir, device_name,
-    leave, open_page, quit, runtime,
+    BUILT_QT, Carried, Moon, RUNTIME, Runtime, STAND_IN, Sample, TRYING, ToWindow, World, data_dir,
+    device_name, leave, open_page, quit, runtime,
 };
 use crate::single;
 
 /// Runs the app. Never returns.
 pub fn run(world: World) -> ! {
+    run_with(world, Vec::new())
+}
+
+/// Runs a planet's app carrying its moons: each moon's pages in the window,
+/// its work in this process, its own link and door. Never returns.
+pub fn run_with(world: World, moons: Vec<Moon>) -> ! {
+    let _ = super::STARTED.set(std::time::Instant::now());
     // This process is the app: its doors are the computer's, not a test's.
     single::use_the_computers_doors();
     let manifest: WorldManifest =
         serde_json::from_str(world.manifest).expect("sol-world.json is a world manifest");
     let mut app = make_app(&world, &manifest);
-    let parent = manifest.parent.clone();
+    let moons: Vec<(Moon, WorldManifest, App)> = moons
+        .into_iter()
+        .map(|moon| {
+            let m: WorldManifest =
+                serde_json::from_str(moon.manifest).expect("a moon's sol-world.json");
+            let moon_app = moon_app(&moon, &m);
+            (moon, m, moon_app)
+        })
+        .collect();
+    // Started by a moon's name (the desktop's `sol-luna --do`, an older
+    // planet starting it): that moon, inside this app.
+    let as_moon = invoked_as(
+        &moons
+            .iter()
+            .map(|(_, m, _)| m.id.as_str())
+            .collect::<Vec<_>>(),
+    );
     // First, and before anything is written: `--version` is how an update
     // is tried before it goes in.
-    if let Some(code) = command_line(&app, &manifest.name, parent.as_deref()) {
+    let moon_apps: Vec<App> = moons.iter().map(|(_, _, a)| *a).collect();
+    if let Some(code) = match as_moon.and_then(|i| moons.get(i)) {
+        Some((_, m, moon_app)) => desktop_line(moon_app, &m.name),
+        None => None,
+    }
+    .or_else(|| command_line(&app, &manifest.name, &moon_apps))
+    {
         std::process::exit(code);
     }
     app.qt = Some(running_qt());
     let preview = std::env::var_os("SOL_PREVIEW").is_some();
     orbit::telemetry::init_app(&log_file(&manifest.id, preview));
     let data_dir = data_dir(&manifest.id);
-    // Started by its planet (a moon) or at login: no window, just the work.
-    let by_planet = parent.is_some() && moons::in_background();
+    // Started at login (or as a carried moon, by an older planet's app): no
+    // window, just the work.
     let background = moons::in_background() || crate::autostart::at_login();
-    one_copy_at_a_time(&manifest.id, preview, background);
+    let start_at = as_moon
+        .and_then(|i| moons.get(i))
+        .map(|(_, m, _)| format!("/{}", m.id));
+    one_copy_at_a_time(&manifest.id, preview, background, start_at);
     count_the_start(&app, &manifest.id, &data_dir);
 
     let tokio = tokio::runtime::Builder::new_multi_thread()
@@ -62,7 +95,22 @@ pub fn run(world: World) -> ! {
     quit_on_signals(tokio.handle());
 
     let (link, problem) = open_link(&tokio, &manifest.id, world.version, &data_dir, preview);
-    let running = settle_on_the_computer(&app, parent.as_deref(), preview || problem.is_some());
+    // Each moon: its door first (so no other copy opens its local copy too),
+    // then its link, as the app's own.
+    let mut carried = Vec::new();
+    let mut handlers = Vec::new();
+    for (moon, m, moon_app) in moons {
+        let (c, handler) = carry(&tokio, moon, &m, &moon_app, app, preview);
+        carried.push(c);
+        handlers.push(handler);
+    }
+    let carried_ids: Vec<&str> = moon_apps.iter().map(|a| a.world).collect();
+    let running = settle_on_the_computer(&app, preview || problem.is_some(), &carried_ids);
+    if !preview {
+        for moon_app in &moon_apps {
+            take_the_moons_place(&app, moon_app);
+        }
+    }
     if let Some(prepare) = world.prepare {
         prepare(&link, tokio.handle());
     }
@@ -73,12 +121,7 @@ pub fn run(world: World) -> ! {
     tokio.spawn(updates.clone().watch());
 
     let mut commands = world.commands;
-    crate::shared::add(
-        &mut commands,
-        app,
-        parent.clone(),
-        manifest.collections.clone(),
-    );
+    crate::shared::add(&mut commands, app, manifest.collections.clone());
 
     let rt = Runtime {
         link: link.clone(),
@@ -97,6 +140,7 @@ pub fn run(world: World) -> ! {
         window: Mutex::new(None),
         told: Mutex::new(None),
         _moons: running,
+        carried,
     };
     if RUNTIME.set(rt).is_err() {
         panic!("sol_quick::run twice");
@@ -104,33 +148,235 @@ pub fn run(world: World) -> ! {
     // What the desktop around the app shows of it (the bar, the terminal).
     crate::status::start(runtime());
 
-    if let Some(parent) = parent.filter(|_| by_planet) {
-        follow_the_planet(&tokio, &link, parent);
-    }
-    // The Sol tray, for every app here but a preview (a moon its planet
-    // started is there too, to be opened); global shortcuts beside a window.
+    // The Sol tray and global shortcuts, for every app here but a preview
+    // (one that started hidden, with the computer, too).
     if !preview {
         crate::tray::start(world.tray);
-    }
-    // Shortcuts for every window there may be: a planet that started hidden
-    // (with the computer) too, not a moon its planet started.
-    if !preview && !by_planet {
         crate::desktop::start(world.shortcuts);
     }
     runtime().tokio.spawn_blocking(crate::seen::prune);
     // Sync; the screens follow through `SolBackend`.
     link.start(world.handler);
+    for (c, handler) in runtime().carried.iter().zip(handlers) {
+        c.link.start(handler);
+        if !preview {
+            pair_through_the_planet(&c.link);
+        }
+    }
 
-    show_the_window(&manifest, world.version, world.main, world.source)
+    let modules = MOON_MODULES.lock().map(|m| m.clone()).unwrap_or_default();
+    show_the_window(&manifest, world.version, world.main, world.source, &modules)
+}
+
+/// Each carried moon's QML module and the checkout of its screens.
+static MOON_MODULES: Mutex<Vec<(&'static str, &'static str)>> = Mutex::new(Vec::new());
+
+/// A moon, carried: its door (taken over from its own app if that still
+/// runs), its local copy and link, its prepared work and sample data, and
+/// its commands with the shared ones on its link. Its handler starts with
+/// the rest once the runtime is up.
+fn carry(
+    tokio: &tokio::runtime::Runtime,
+    moon: Moon,
+    m: &WorldManifest,
+    moon_app: &App,
+    planet: App,
+    preview: bool,
+) -> (Carried, std::sync::Arc<dyn orbit::link::Handler>) {
+    if let Ok(mut modules) = MOON_MODULES.lock() {
+        modules.push((moon.module, moon.source));
+    }
+    let id = m.id.clone();
+    let data = data_dir(&id);
+    let ours = moon_door(&id, preview) || (!preview && take_over(moon_app, &id));
+    let (link, problem) = if ours {
+        open_link(tokio, &id, moon.version, &data, preview)
+    } else {
+        // Its own app holds its copy and won't go: its pages say so.
+        let (link, _) = open_link(
+            tokio,
+            &id,
+            moon.version,
+            &std::env::temp_dir().join(format!("sol-{id}-elsewhere-{}", std::process::id())),
+            true,
+        );
+        let detail = format!(
+            "{} is running in its own app; close it, and its pages are here from the next start.",
+            m.name
+        );
+        let problem = serde_json::json!({ "problem": "elsewhere", "path": "", "detail": detail });
+        (link, Some(problem.to_string()))
+    };
+    if let Some(prepare) = moon.prepare {
+        prepare(&link, tokio.handle());
+    }
+    if preview && problem.is_none() {
+        fill_with_samples(tokio, &link, moon.sample.as_ref(), &data);
+    }
+    let mut commands = moon.commands;
+    crate::shared::add(&mut commands, planet, m.collections.clone());
+    let carried = Carried {
+        world: id,
+        name: m.name.clone(),
+        link,
+        commands,
+        manifest_json: moon.manifest.to_owned(),
+        problem,
+        data_dir: data,
+    };
+    (carried, moon.handler)
+}
+
+/// Claims a carried moon's door: `show` opens its pages, `open <p>` one of
+/// them, `do`, `find` and `ask` go to its commands on its link, `capture`
+/// opens the app's quick capture. False when another copy holds it.
+fn moon_door(id: &str, preview: bool) -> bool {
+    let world = id.to_owned();
+    single::claim(id, preview, None, move |knock| match knock {
+        single::Knock::Show => {
+            open_page(format!("/{world}"));
+            None
+        }
+        single::Knock::Open(path) => {
+            open_page(format!("/{world}{}", if path == "/" { "" } else { &path }));
+            None
+        }
+        single::Knock::Ask(command, _) if command == "capture" => Some(match RUNTIME.get() {
+            Some(rt) if rt.tell(ToWindow::Capture) => Ok("\"open\"".into()),
+            _ => Err("the app is still starting; try again in a moment".into()),
+        }),
+        single::Knock::Ask(command, args) => Some(
+            match RUNTIME.get().and_then(|rt| Some((rt, rt.world(&world)?))) {
+                Some((rt, (link, commands, _)))
+                    if matches!(command.as_str(), "do" | "find" | "ask") =>
+                {
+                    rt.tokio
+                        .block_on(commands.call(link.clone(), &command, args))
+                }
+                Some(_) => Err(format!("nothing answers {command:?} from the desktop")),
+                None => Err("the app is still starting; try again in a moment".into()),
+            },
+        ),
+    })
+}
+
+/// The moon's own app still runs (an earlier version, standalone): it is
+/// asked to quit (it saves as it goes) and its door taken once it has gone,
+/// within five seconds. False when it stays.
+fn take_over(moon_app: &App, id: &str) -> bool {
+    let pids = running_as(&moon_app.bin_name());
+    if pids.is_empty() {
+        return false;
+    }
+    for pid in &pids {
+        tracing::info!(
+            pid,
+            "asking {}'s own app to quit: this app carries it now",
+            id
+        );
+        let _ = std::process::Command::new("kill")
+            .arg("-TERM")
+            .arg(pid.to_string())
+            .status();
+    }
+    for _ in 0..20 {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        if moon_door(id, false) {
+            return true;
+        }
+    }
+    tracing::warn!("{id}'s own app didn't quit; its pages wait for it");
+    false
+}
+
+/// The processes (other than this one) started as `bin`.
+fn running_as(bin: &str) -> Vec<u32> {
+    let me = std::process::id();
+    std::fs::read_dir("/proc")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
+        .filter(|&pid| pid != me)
+        .filter(|pid| {
+            std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|c| {
+                let argv0 = c.split(|&b| b == 0).next().unwrap_or_default();
+                use std::os::unix::ffi::OsStrExt;
+                Path::new(std::ffi::OsStr::from_bytes(argv0))
+                    .file_name()
+                    .is_some_and(|n| n == bin)
+            })
+        })
+        .collect()
+}
+
+/// An installed planet that carries `moon` takes the moon's own app away
+/// (its menu entry and icons; `sol-<moon>` becomes a link to this app) and
+/// its place at login. Done once; development builds and previews never.
+fn take_the_moons_place(planet: &App, moon: &App) {
+    let install::Here::Installed { path, .. } = install::here(planet) else {
+        return;
+    };
+    match install::uninstall_other(moon, &path) {
+        Ok(true) => tracing::info!(
+            "{}'s own app is gone: {} carries it now",
+            moon.world,
+            planet.world
+        ),
+        Ok(false) => {}
+        Err(err) => tracing::warn!(error = ?err, "couldn't take {}'s own app away", moon.world),
+    }
+    if crate::autostart::hand_over(moon, planet, &path) {
+        tracing::info!(
+            "{} starts with the computer now, for {}",
+            planet.world,
+            moon.world
+        );
+    }
+}
+
+/// A carried moon pairs through its planet, without a code, as soon as the
+/// planet is paired (and again should it ever be unpaired while the planet is).
+fn pair_through_the_planet(moon: &'static Link) {
+    let rt = runtime();
+    let planet = &rt.link;
+    let mut updates = planet.subscribe();
+    rt.tokio.spawn(async move {
+        loop {
+            let paired = matches!(
+                planet.status(),
+                Status::Online { .. } | Status::Offline { .. }
+            );
+            if paired && matches!(moon.status(), Status::Unpaired { .. }) {
+                match moon.pair_through(planet).await {
+                    Ok(_) => tracing::info!("{} paired through {}", moon.world(), planet.world()),
+                    Err(err) => tracing::warn!(
+                        "{} couldn't pair through {}: {err:#}",
+                        moon.world(),
+                        planet.world()
+                    ),
+                }
+            }
+            if updates.recv().await.is_err() {
+                return;
+            }
+        }
+    });
 }
 
 /// One copy at a time: a later one brings this one's window up and leaves.
 /// `--open /title?key=x`: at that page (here, or in the copy already running).
-fn one_copy_at_a_time(world: &str, preview: bool, background: bool) {
+fn one_copy_at_a_time(world: &str, preview: bool, background: bool, start_at: Option<String>) {
+    // Started by a moon's name: at the moon's pages (or one of them).
     let open_at = std::env::args()
         .skip_while(|a| a != "--open")
         .nth(1)
-        .filter(|p| p.starts_with('/'));
+        .filter(|p| p.starts_with('/'))
+        .map(|p| match &start_at {
+            Some(moon) => format!("{moon}{}", if p == "/" { "" } else { &p }),
+            None => p,
+        })
+        .or(start_at);
     let knock = if background {
         None
     } else {
@@ -229,7 +475,7 @@ fn open_link(
             let stand_in =
                 std::env::temp_dir().join(format!("sol-{}-stand-in-{}", world, std::process::id()));
             if let Ok(mut kept) = STAND_IN.lock() {
-                *kept = Some(stand_in.clone());
+                kept.push(stand_in.clone());
             }
             let link = tokio
                 .block_on(Link::open(config(stand_in, Tokens::File)))
@@ -244,24 +490,19 @@ fn open_link(
 /// doors other apps open it by, and its moons. A planet's hold on its moons'
 /// "running" lock, when it starts them; `alone` (a preview, or a copy that
 /// didn't open) starts none.
-fn settle_on_the_computer(app: &App, parent: Option<&str>, alone: bool) -> Option<moons::Running> {
+fn settle_on_the_computer(app: &App, alone: bool, carried: &[&str]) -> Option<moons::Running> {
     // The app-menu entry follows the installed version; updates come through Sol.
     install::refresh(app);
     crate::autostart::refresh(app);
     // Other apps on this computer can open this one from their sidebars.
     orbit::doors::settle(app);
-    match parent {
-        // Its planet starts it from where it says it is.
-        Some(parent) => {
-            moons::settle(app, parent);
-            None
-        }
-        // A preview runs alone: the installed moons stay as they are; and
-        // a copy that didn't open does nothing until the person chose.
-        None if alone => None,
-        // A planet's moons run whenever it does.
-        None => moons::start(app.world),
-    }
+    // A preview runs alone: the installed moons stay as they are; and a
+    // copy that didn't open does nothing until the person chose. Otherwise
+    // the lock older moons wait on is held, and a moon with an app of its
+    // own still settled here starts with it (those it carries run in it).
+    (!alone)
+        .then(|| moons::start_except(app.world, carried))
+        .flatten()
 }
 
 /// A preview's throwaway copy gets the world's sample data, once.
@@ -283,24 +524,14 @@ fn fill_with_samples(
     }
 }
 
-/// A moon its planet started, without a window, leaves a few seconds
-/// after its planet does (or at once, unpaired: there's nothing to do
-/// until it's opened and paired).
-fn follow_the_planet(tokio: &tokio::runtime::Runtime, link: &Link, parent: String) {
-    let unpaired = matches!(link.status(), Status::Unpaired { .. });
-    if unpaired {
-        leave(0);
-    }
-    tokio.spawn(async move {
-        loop {
-            moons::planet_gone(&parent).await;
-            runtime().tell(ToWindow::PlanetGone);
-        }
-    });
-}
-
 /// The window. Qt owns the main thread from here, until the app leaves.
-fn show_the_window(manifest: &WorldManifest, version: &str, main: &str, source: &'static str) -> ! {
+fn show_the_window(
+    manifest: &WorldManifest,
+    version: &str,
+    main: &str,
+    source: &'static str,
+    moons: &[(&str, &str)],
+) -> ! {
     let mut gui = QGuiApplication::new();
     // The .desktop file orbit::install writes: the desktop looks the icon and the name up under it.
     QGuiApplication::set_desktop_file_name(&QString::from(&format!("sol-{}", manifest.id)));
@@ -326,7 +557,10 @@ fn show_the_window(manifest: &WorldManifest, version: &str, main: &str, source: 
             })
             .release();
         if crate::live::asked(runtime().preview) {
-            crate::live::read_from_disk(engine.as_mut(), &crate::live::folders(main, source));
+            crate::live::read_from_disk(
+                engine.as_mut(),
+                &crate::live::folders(main, source, moons),
+            );
         }
         engine.load(&QUrl::from(main));
     }
@@ -403,6 +637,21 @@ fn role(manifest: &WorldManifest) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// What a carried moon's own app was, so it can be found and taken away.
+fn moon_app(moon: &Moon, manifest: &WorldManifest) -> App {
+    let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
+    App {
+        world: leak(&manifest.id),
+        name: leak(&manifest.name),
+        comment: leak(&manifest.tagline),
+        version: moon.version,
+        wm_class: leak(&manifest.id),
+        icons: moon.icons,
+        pubkey: None,
+        qt: None,
+    }
+}
+
 fn make_app(world: &World, manifest: &WorldManifest) -> App {
     let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
     // In the app menu with what it is for, so a planet's name needn't be remembered.
@@ -423,24 +672,45 @@ fn make_app(world: &World, manifest: &WorldManifest) -> App {
     }
 }
 
+/// The desktop's `--status`, `--do` and `--find` for a world, before any
+/// window opens; None for anything else.
+fn desktop_line(app: &App, name: &str) -> Option<i32> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let preview = std::env::var_os("SOL_PREVIEW").is_some();
+    Some(match args.first()?.as_str() {
+        "--status" => crate::status::print(app.world, name, preview),
+        "--do" => crate::door::act(app.world, name, preview, &args[1..]),
+        "--find" => crate::door::find(app.world, name, preview, &args[1..]),
+        _ => return None,
+    })
+}
+
+/// Which carried moon this process was started as (`sol-luna`, the link to
+/// this app the moon's own app left), by its place among `moons`.
+fn invoked_as(moons: &[&str]) -> Option<usize> {
+    let argv0 = std::env::args_os().next()?;
+    let name = Path::new(&argv0).file_name()?.to_str()?.to_owned();
+    moons.iter().position(|m| name == format!("sol-{m}"))
+}
+
 /// `--install`, `--uninstall` and `--version` from a terminal, and the
 /// desktop's `--status`, `--do` and `--find`, before any window opens.
-fn command_line(app: &App, name: &str, parent: Option<&str>) -> Option<i32> {
+fn command_line(app: &App, name: &str, moons: &[App]) -> Option<i32> {
+    if let Some(code) = desktop_line(app, name) {
+        return Some(code);
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let arg = args.first()?.clone();
-    let preview = std::env::var_os("SOL_PREVIEW").is_some();
-    match arg.as_str() {
-        "--status" => return Some(crate::status::print(app.world, name, preview)),
-        "--do" => return Some(crate::door::act(app.world, name, preview, &args[1..])),
-        "--find" => return Some(crate::door::find(app.world, name, preview, &args[1..])),
-        _ => {}
-    }
     let done = match arg.as_str() {
         "--install" => install::install(app).map(|bin| {
             // The other apps on this computer can open this one from now on.
             orbit::doors::settle_installed(app, &bin);
-            if let Some(parent) = parent {
-                moons::settle_installed(app, parent, &bin);
+            // The moons it carries have no app of their own any more.
+            for moon in moons {
+                if let Err(err) = install::uninstall_other(moon, &bin) {
+                    eprintln!("couldn't take {}'s own app away: {err:#}", moon.world);
+                }
+                crate::autostart::hand_over(moon, app, &bin);
             }
             format!("Installed {}: {}", app.name, bin.display())
         }),
