@@ -80,6 +80,7 @@ In `core/src/`:
 | `questions.rs` | The questions worlds ask each other, typed (`Furigana`, `Say`, `Level`, `AddWord`, `Now`, `Duck`, `Pause`), and `ask` / `tell` for them |
 | `moments.rs` | Moments played once per occasion for the person (`first_time`, kept in the world's `moments` collection) |
 | `sky.rs` | The Sky: a world's milestones as constellations (`Constellation`, `Star`, `steps`), lit once each into the world's `sky` collection (`record`, `lit`, `show`, `view`, the layout), comets (`comet_on`, `comet`, `catch_comet`) and the real sky (`events_on`, `tonight`: full moons, the Perseids, Saturn's opposition) |
+| `look_art.rs` | The Yozora look's pictures (`docs/yozora.md` in the workspace): the list of where they come from (`core/yozora-art.json`: TMDB's and AniList's CDNs, no key), `missing`, `list`, and `fetch_missing`, which the window runs in the background at start (two at a time, those hosts only, each written whole) before listing the folder again |
 | `kept.rs` | `kept::<T>(&link, "cards")`: a collection read once and kept (shared, `Arc`) until a write or a change from Sol touches it; for commands that each read the same big collection |
 | `app.rs` (`Moon`, `Carried`, `emit_in`) | A moon carried in a planet's app: `sol_quick::run_with(world, vec![moon])` runs it in the planet's process with its own link, door, status and commands (the shared ones on its link); `Runtime::world(id)`; `emit_in(world, …)` tells a carried world's pages |
 | `commands.rs` | `Commands` (the registry: `add`, `undoable`, `creates`, `names`; over the link, `engine(&ENGINE)` or `over(…)`), `doc`, `say` |
@@ -123,7 +124,7 @@ replaced: don't use them.
 | --- | --- |
 | `SOL_PREVIEW` | The Shell without pairing, on a throwaway copy (`/tmp/sol-preview-<world>`) filled with sample data the first time; its own socket, so it runs beside the installed app. On with any value, even `0` |
 | `SOL_SHOT=<png>` | A picture of the window once its page is ready (below), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
-| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through; `_moment=star`, the kit's own: a star lighting), `_comet=1` (a comet held mid-way across the Sheet), `_sky=full-moon\|perseids\|opposition` (that night of the real sky on the Sheet), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
+| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through; `_moment=star`, the kit's own: a star lighting), `_comet=1` (a comet held mid-way across the Sheet), `_sky=full-moon\|perseids\|opposition` (that night of the real sky on the Sheet), `_hour=N` (the hour the navigator keeps: sleepy from 23 to 5), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
 | `SOL_SHOTS=<list>` | Many pictures in one run, one after another, then the app quits: `<png>=<path?keys>` each (as `SOL_SHOT` and `SOL_SHOT_PATH`), a line or `;` apart, or the name of a file holding them (`#` starts a comment). Each opens its page, scrolls, stages its keys, waits until ready and is taken; what the one before staged (dialogs, the palette, notices, a moment, quick capture) is put away first. `scripts/shots.sh` runs a world with a list on a hidden display. A `_problem` picture goes first (the Shell then loads for the rest); a world's own keys that it reads once at start (Neptune's `_vinyl`, Triton's `_dj`) work in the first picture only |
 | `SOL_SHOT_AFTER=<ms>` | The most a picture waits for its page to be ready: 8000 unless set; one that times out is taken anyway and says so in the journal (`SOL_SHOT: … wasn't ready`) |
 | `SOL_SHOT_READY=0` | The old way: each picture `SOL_SHOT_AFTER` ms in, ready or not |
@@ -131,9 +132,8 @@ replaced: don't use them.
 | `SOL_QML_LIVE=1` | A preview reads the kit's and the world's QML from their checkouts, so an edited `.qml` shows without a build (`docs/world-apps.md`, "Live QML"); `scripts/hidden.sh` turns it on unless set, `0` looks at the compiled QML |
 | `SOL_FPS` | The frames really painted each second, in the journal (0 while nothing moves). On with any value |
 | `SOL_DRIVE=<file.qml>` | A script loaded into the window (handed `win`) that drives it end to end, and ends the run with `Qt.quit()` |
-| `SOL_LIGHT=night\|day` | This run's light, whatever the device's setting says |
 | `SOL_CALM` | This run with less motion (moments short and still), whatever the device's setting says |
-| `SOL_LOOK=yozora` | A look to try for this run (`Theme.look`, below): Yozora, every page over a still from the world's film; `yozora:<world>` wears that world's flavour (the gallery) |
+| `SOL_FLAVOUR=<world>` | This run wears that world's flavour (`saturn`, `mercury`, `neptune`, `terra`), whichever world the app is (the gallery's pictures of each flavour; `SolBackend.flavour`, read by `Theme.lookWorld`) |
 | `SOL_FAKE_NAVIDROME=off` | A music world's preview without the stand-in Navidrome (`navidrome::preview()` answers none), to see its pages unconnected |
 | `QT_SCALE_FACTOR` | Qt's own: `1.5` to check fractional scaling; a large one (3) also makes a narrow window |
 
@@ -146,8 +146,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 **Singletons**
 
-- `Theme`: every token (the sky in three depths, night and day, type,
-  spacing, corners, durations, eases) and the rules the controls share:
+- `Theme`: every token (the sky in three depths, the flavour's colours,
+  type, spacing, corners, durations and curves: "Motion" below) and the rules the controls share:
   `calm` (less motion, per device: Settings → On this device, or `SOL_CALM`),
   `whenSeen(item, arrival)`, `flickableOf(item)`, `scrollWith(item, view)`
   (what LongGrid is built on), `wheel(event, notch)`, `screenOf(item)`,
@@ -166,7 +166,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   listens to). `callSeen` reads and keeps what a page showed on the Rust
   side, off the window's thread, and hands `use` a third argument, `same`,
   when the fresh reply is what was shown (`fill` then leaves it be).
-- `Format`: counts, days, times and durations as words (`plural`, `dayOf`,
+- `Format`: counts, days, times and durations as words (`plural`, `kanji`
+  (a number as a title card writes it, 十七), `dayOf`,
   `toDate`, `addDays`, `weekday`, `dayNumber`, `short`, `long`, `month`,
   `date`, `when`, `ago`, `until`, `hours`, `hm`, `length`, `duration`,
   `total`, `timer`, `timeOfDay`); each documents its output.
@@ -174,7 +175,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (moons and planets), and the real sky (`skyOf`, `moonAt`, `now`).
 - `Notices`: in-app notices (`show`, with an optional button: `action`
   and `run`; `dismiss`, `act`, `failed`).
-- `Sounds`: `tick`, `done`, `off`, `chime` (a moment's, two soft seconds) and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which), once turned on in `DeviceCard` (one switch for all).
+- `Sounds`: `tick` (Button, Chip, Tabs, Select, Toggle and Check tick by themselves), `done` (`Sol.undoable` plays it when a write goes through), `off`, `chime` (a moment's, two soft seconds) and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which; it takes the place of a `done` just played). On by default and low (`level`, 0.5, under each sound's own share), one switch in `DeviceCard` for all; a device that has said keeps what it said.
 - `SolBackend` (Rust, `bridge.rs`): what `Sol` and `AppWindow` are built on.
 
 **The frame**
@@ -217,6 +218,16 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Screen`: a page in the pane (`header`, `filter`/`filters`, `hero`,
   `scrollBy`, `wheel(event)`, `notch`, `pageStep`, `actions`: the page's
   own rows in the palette and on the `?` sheet, "Rate 8", "Bury this card").
+  Its content is never wider than `maxWidth` (1400): a wider pane centres
+  it, or gives the room to `side` (a column beside it, above it on a
+  narrow pane: a cover, art; `sideAbove: false` leaves it out on a narrow
+  pane, for a page that shows the same things in its column there); `atStart` keeps the
+  content to the left of a wide pane, the still's figure on the right; `sparse` composes a page with little on it
+  to the still on a wide pane (its title large and its content in a column under it, one group low
+  on the left that scrolls together, the still's figure keeping the rest; written down with the
+  flavour's `tategaki` (Mercury's), the title stands beside the column instead); `contentX` and `contentWidth` say
+  where the content is (a PageHead lines up with it). A page opened from
+  another without a header gets a PageHead with its title and the way back.
 - `PageHead`: a working page's toolbar (title, a quiet line, actions, the
   way back, `editable`, `tabs`). With `tabs: [{ id, label, count?, hint? }]`
   and `tab: page.params.tab || ""`, the tabs run along its foot, the one
@@ -227,26 +238,45 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   choice, `choose(id)` makes one. A section opened with only its tab (or
   `part`, the part of it to show: `/settings?part=titan`) is still the
   section (no way back), and comes back on the tab it was left on; the
-  palette offers the page's other tabs ("Show Timeline").
+  palette offers the page's other tabs ("Show Timeline"). `feature` holds
+  the page's one lead object (an album's cover and name), on the still
+  under the band, folding away under it as the page scrolls; with a
+  flavour's `letterbox` (Saturn's) it stands between a film's thin black
+  bars (`letterbox: false` leaves them off). With the flavour's `torii`
+  (Mercury's) its foot is a vermilion rule, a gate's beam and posts under
+  its Japanese title (not where tabs run along the foot).
 - `Tabs`: uppercase words in a row, one of them on, along a hairline
   (`line`) or as plain choices: `options: [{ value, label, count?, hint?, jp? }]`
-  (`jp` before the label in the Yozora look),
+  (`jp` before the label),
   `value`, `chosen(value)`; the line slides to the next one (moved and
   scaled, at once with less motion), and a row wider than its room
   scrolls sideways.
-- `Sheet`: the band across a world's first screen, pinned and shrinking;
-  `rings` draws faint rings round the world (Mercury: a week of reviews each).
-- `Back`: the way back, by name (Space or Enter from the keys).
-- `Connect`: pairing; `LinkStatus`: the sidebar's bottom line; `Waiting`:
+- `Sheet`: the band across a world's first screen, pinned and shrinking:
+  the title card, what sits under it (moon links, the main action) beside
+  two or three `figures: [{ value, label, jp }]` (HeroFigures), a comet on
+  its days; compact (about 220 px) in a window under 1300 px wide.
+  `HeroFigure`: one big figure, its label and its Japanese tag; the
+  number counts up as it comes into view (on from the one before when it
+  changes), in the room its value takes.
+- `Back`: the way back, always 「← 戻る」 BACK, the page it leads to in its
+  hint (Space or Enter from the keys).
+- `Connect`: pairing; `LinkStatus`: the sidebar's bottom line (what waits
+  goes on a line of its own when the whole line doesn't fit its `room`,
+  beside the navigator's head chip); `Waiting`:
   a small spinner while the status is unknown.
 
 **Panels**
 
 - `Card` (a raised panel with a title; `menu`: its right-click and a ⋯
   in its head, see Menus below; `span`: 1, 2 or `"row"` of a Grid's
-  columns), `Grid` (cards in auto-fit columns, row by row; `masonry: true`
+  columns; it settles in with the spring and leans to the pointer;
+  `pressable` (or `openable`) gives under a press; `lockOn()` locks its
+  brackets on with a few sparks, for a thing that has just gone live), `Grid` (cards in auto-fit columns, row by row; `masonry: true`
   puts each card into the shortest column instead, for pages of cards of
-  very different heights: Settings, Today, Taste, Discover). When a grid
+  very different heights: Settings, Today, Taste, Discover). A pair (a
+  card across two columns beside the cards that fill the rest of its band)
+  ends level: the shorter are drawn as tall as the tallest, a Card or
+  HudPanel holding its body in the middle of the room (`spare`). When a grid
   places its cards again (one grows, hides or shows) they glide to their
   new places (not the first time, not while the width changes, not with
   less motion). `Callout` (a dotted leader and a short list, in a Sheet).
@@ -262,6 +292,13 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   a page reads again when documents change in its own collections, here
   or on another device (once a burst; also when every collection may have
   changed; with `settings`, when the settings change in Sol).
+- `SettingsScreen`: a world's Settings page as a system menu, its parts
+  listed on the left and the chosen one's cards on the right, at the start
+  of the pane with a panel no wider than 720 px, a wide window's rest left
+  to the still (`/settings?part=<key>`): the kit's `sol`, `export`, `device` and
+  `updates`, each carried moon's own, and the world's `SettingsPart`s
+  (`key`, `label`, `jp`, `order`, `available`; one with a kit part's key
+  takes its place).
 - The Settings cards every world has: `SolCard` (with what is kept
   aside), `SettingsCard`, `DeviceCard`, `AppUpdates` (with an update that
   was rolled back), `ExportCard` (export everything to Downloads, import
@@ -276,9 +313,9 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `callIn`, `callSeenIn`, `fillIn`, `fetchIn`, `undoableIn`, `failIn`,
   `pathOf`, `go`. A `Moon` may declare `settings` (a Component: its cards
   as a part of the planet's Settings page) and `aliases` (its own paths
-  that moved); `MoonSettings` on the planet's Settings page shows each
-  moon's part under its name and role (`/<moon>/settings` opens the page
-  scrolled there), and a moon without a `/sky` page has its sky as a tab
+  that moved); the planet's `SettingsScreen` lists each moon's part
+  under its name (`/<moon>/settings` opens it; `MoonSettings` is the
+  older column of them, for a page that isn't one), and a moon without a `/sky` page has its sky as a tab
   of the planet's `SkyPage` (`/<moon>/sky`). See `docs/world-apps.md`,
   "Moons".
 - `KeptAside`: the writes kept on this device instead of sent (a conflict
@@ -288,13 +325,19 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 
 **Controls**
 
-- `Button` (`primary` once a screen, `ghost`, `quiet`, `round`; `icon`
+- `Button` (`primary` once a screen, `ghost`, `quiet`, `round`, `danger`
+  for what can't be taken back: the slant outlined in vermilion; a press
+  gives and springs back, `pulse()` does it for a press from a key; `icon`
   leads the label with a hairline glyph, for the few actions a glyph makes
-  quicker to find, such as Export, Import, Play next, Refresh), `Chip`,
-  `Check` (optimistic, `fail()`; `weight` 1–3 rings the box for a streak of 7, 30, 100 days, `weightOf(days)`), `Toggle`, `Slider`, `Field`, `TextArea`
+  quicker to find, such as Export, Import, Play next, Refresh; `tone`
+  marks a ghost or quiet one in a colour, its outline and label: an answer
+  picked wrong), `Chip`,
+  `Check` (optimistic, `fail()`; `weight` 1–3 rings the box for a streak of 7, 30, 100 days, `weightOf(days)`; `sparks` for a world's main act), `Toggle`, `Slider`, `Field`, `TextArea`
   (`large` for writing at length, `single` when Enter goes on, `ink` and
   `ruled` for writing in ink on a ruled page), `Select`,
-  `Editable`, `MoonLink`.
+  `Editable`, `MoonLink`. `Field` and `Select` sit in a `FieldFrame`, a
+  bracketed well lit in the world's light under the pointer and with the
+  keys (`bare` leaves it out, for the palette).
 - `Key`: a key for one page (quiet while you type, or while a menu, dialog
   or the palette is open).
 
@@ -312,7 +355,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (the ⋯ that opens the same menu under itself): see Menus below.
 - `Moment` (one per window, `win.moment.play({ occasion, scene, facts,
   chime, length, hud, ground })`) and `MomentCaption`, a scene's words
-  (`jp`, `subtitleJp` and `subtitle` in the Yozora look); `Tour` (one per
+  (`jp`, `subtitleJp` and `subtitle`); `Tour` (one per
   window, `win.tourSheet`, filled from `AppWindow.tour`): both in
   `docs/world-apps.md` ("Moments", "The first run").
 - `SkyPage` (a world's `/sky`: the map and a card per constellation, from
@@ -326,65 +369,97 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `place()`, never every frame) with `StarLight` (a star's glow and cross,
   one small shader), `StarArc` (how far along, round a star) and
   `StarLine`, `StarScene` (the moment a star lights, played by the window on
-  `sky.lit`) and `Comet` (in every Sheet, on its few days a year):
+  `sky.lit`) and `Comet` (across every Sheet's sky and Saturn's Home, on its few days a year):
   `docs/world-apps.md` ("The Sky").
-- `Glass` (the pages behind, blurred and bent, cut to its `radius`; `from`
-  blurs another item, as pairing does) and `GlassPanel` (glass with a
-  hairline and `Theme.radius` corners: what the overlays sit on).
-- **Yozora (夜空)**, a look to try (`SOL_LOOK=yozora`, `Theme.look`,
-  `Theme.yozora`; `../../docs/yozora.md` is its spec and how it is built):
-  an anime film's night over every page of every world. While it is on,
-  the Theme's tokens take the world's flavour (`Theme.hud`, from
-  `yozoraOf(world)`: Saturn's dusk, Mercury's shrine, Neptune's neon,
-  Terra's noon; a moon wears its planet's), corners are square, there is
-  no day and no grain, and capitals are set in the mono face
-  (`Theme.fontCaps`), so the kit's components follow by themselves. The
+- `Glass` (the pages behind, blurred and bent; `from` blurs another item,
+  as pairing does) and `GlassPanel` (glass with a hairline: what the
+  overlays sit on).
+- **Yozora (夜空)**, the look of every app (`../../docs/yozora.md` is its
+  spec and how it is built): an anime film's night over every page of
+  every world. The Theme's tokens take the world's flavour (`Theme.hud`,
+  from `yozoraOf(world)`: Saturn's dusk, Mercury's shrine, Neptune's neon,
+  Terra's noon; a moon wears its planet's unless it has its own, as Luna's
+  evening does on her pages; `SOL_FLAVOUR` wears another),
+  corners are square, panels cut one corner at 45° (`Theme.hudCut`), there
+  is no day, and capitals are set in the HUD face (`Theme.fontCaps`) for
+  labels of one to three words, so the kit's components follow by
+  themselves. The
   Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
   one of the world's stills turned over by section, `Theme.groundsOf`, a
   moon's own when it has some, `Theme.ownGroundsOf`, graded, the shade
-  deeper round the title on a bright flavour, its `pool`; without a still,
-  the world's drawn sky) and blurs it once
+  deeper round the title on a bright flavour, its `pool`, framed by its
+  `frame` so the still's subject stands clear of a first page's title;
+  without a still, the world's drawn sky) and blurs it once
   (`Shell.groundBlur`); every `HudGlass` (Card, HudPanel, PageHead, the
   rail, the footer, the Sky's night) reads the part under it, with the
   flavour's motif drawn in the same shader (`hud.frag`: Mercury's waves,
-  Neptune's neon edge and scanlines, Terra's daylight). Overlays
+  Neptune's neon edge and scanlines, Terra's daylight), with a 1 px
+  highlight along its top edge and cut corner, a faint sheen from the top
+  and a tint laid thinner at the top than at the foot over art. Overlays
   (GlassPanel) blur the pages live. The rail is numbered, a section's `jp`
   before its name; PageHead, Card, HudPanel and Sheet take a `jp` (the
-  title in Japanese) and head with `HudLabel` (mono capitals, a Japanese
-  tag, the flavour's mark: a diamond, a `HudSeal`, neon slashes, a sun;
+  title in Japanese) and head with `HudLabel` (HUD capitals, a Japanese
+  tag, the flavour's mark: a diamond, a `HudSeal`, neon slashes, a furin;
   Neptune's sets the `jp` first as a lit sign instead); the Sheet is a
-  title card (`jp`, the callout under it, `vertical` for a line written
-  down the right, `hud` and `hudJp` for its HUD line). Neptune's flavour
+  title card: a HUD line (`hud`, `hudJp`), the Japanese title (`jp`), the
+  English callout line under it, what sits under that, facts on glass, and
+  `vertical` for a line written down the right. Neptune's flavour
   adds rain and a neon glow to the ground (the flavour's `rain` and
   `haze`) and `HudGlitch`, which Screen plays as a page arrives: a scan
   line and a few torn bands for a quarter of a second. The primary Button is a parallelogram
   (as `AngledButton`), a round one a diamond, Progress is `SlantTicks`,
-  chips are mono pills, Display's figures mono. `Navigator` (in the rail's
-  foot, while the rows leave room; small, it grows into what room there
-  is) is the world's character, saying the
-  page's `Screen.say`, its Empty's line (`Screen.emptySay`), a greeting on
-  the first page, or what the section is for. A `Moment` is a film's scene:
+  chips are pills, Display's figures are in the HUD face. `Card` is glass
+  with brackets (its glass is made once the card has come into view),
+  `HudPanel` likewise; `Empty` is the world's navigator, large, saying its
+  line in a bubble (the glyph in a diamond without the portrait, and in a
+  card). `Navigator` (in the rail's foot) is the world's character: its
+  portrait (`NavigatorFace`) in a cut frame breaking the rail's edge,
+  growing into the room the rows leave, and over it a manga bubble
+  (`Speech`) with the page's `Screen.sayJp` and `say` typed in, a greeting
+  on the first page, or nothing; where there is no room, a head chip on
+  the rail's edge whose bubble opens on hover or a click. It hops when a
+  line arrives, leans towards a new page, cheers on `Sol.cheer()` and is
+  sleepy late at night (`_hour=N` stages the hour). A `Moment` is a film's scene:
   the page's still darkened behind it, black bars, a HUD line, and
   MomentCaption as its title card and subtitles. HudGlass's motif
   `"washi"` (with a paper `tint`) is a sheet of paper: fibres and a faint
   asanoha lattice. `HudSeal` (`round`, `tilt`) is a seal or a stamp
   card's round stamp. The pictures live outside
   every repository (`~/.local/share/sol-yozora/`, fetched by
-  `scripts/yozora-art.sh`; the bridge lists them, `Theme.yozoraArt`); the
-  look draws its own skies and leaves the navigator out without them.
-  `SOL_LOOK=yozora:mercury` wears one world's flavour in any app (the
-  gallery).
+  `scripts/yozora-art.sh`; the bridge always lists them, `SolBackend.lookArt`);
+  the look draws its own skies and leaves the navigator out without them.
+  The Sky's night (`StarField`: SkyMap, Mercury's PathMap, Titan's
+  GalaxyMap) is no glass: the still itself under a light gradient of the
+  ground, so the constellations float on the film.
 
 **Display**
 
-- `Empty` (a page or card with nothing in it yet: a small still scene, a
-  `line`, a `hint`, at most one `action`; `compact` in a card; how to word
-  it in `docs/world-apps.md`).
-- `Display` (a figure that counts up), `DataRows` (`Label: value`),
+- `Empty` (a page or card with nothing in it yet: the navigator saying
+  `jp` and `line`, a `hint`, at most one `action`; `compact` in a card;
+  how to word it in `docs/world-apps.md`).
+- `NavigatorFace` (the navigator's portrait, cropped and read at its drawn
+  size, with the world's motif round it; `diamond` for the head chip;
+  `bob()`, `lean()`, `cheer()`), `Speech` (its manga bubble: `jp`, `line`,
+  `tail`, `tailAt`, `large`; typed in as the words change, whole at once
+  in a picture; a line that wraps is balanced, the Japanese broken after
+  its 、 when that leaves two lines that fit, so nothing stands alone on
+  the last line).
+- `NeonSign` (a word in katakana written down in a lit tube, glowing on a
+  dark board: `text`, `light`, `size`, `room`; drawn once, never moving),
+  `ChromaText` (a Text whose big words split their colours at the edges,
+  red one side and cyan the other, with the flavour's `chroma`; a plain
+  Text otherwise). The neon flavour's `signs` makes a Sheet's `vertical` a
+  NeonSign; its `chroma` edges the Sheet's title and a sparse page's big
+  title.
+- `Display` (a figure that counts up), `DataRows` (`Label: value`; `ledger`: a line
+  each across the width, the value at its right end, hairlines between, as
+  Settings' cards are),
   `Progress`, `Chart`, `Skeleton` (a page's shape before its data).
 - `Picture` (a picture from a `url`, or a `key` in a `PictureStore`:
-  `ratio`, `crop`, `outline`, `lift`/`hovered`, `dim`, `animated`, the name
-  in its place, a fade, a retry when a file has gone, `radius`), `PictureStore` (a
+  `ratio`, `crop`, `outline`, `lift`/`hovered`, `dim`, `animated`, a fade,
+  a retry when a file has gone, `radius`; without a picture, a card in the
+  world's colours with one kanji or katakana on it, `glyph`, else chosen by
+  `name` or `seed`), `PictureStore` (a
   world's pictures fetched once to disk by one of its commands), `Poster`
   (a Picture for a network cover, 2:3, outlined).
 - `Strip`: a row that scrolls sideways (sideways wheel, swipe or Shift;
@@ -426,24 +501,33 @@ before its staging counts it with `Settling { when: anim.running }`.
 **Primitives**: `Ticks` (the focus mark, rounded with what it marks:
 `radius`), `Rounded` (an image's picture with rounded corners, cut in a
 shader: what Picture and the flying hero draw with), `Settle` (arrive when
-seen, a stagger apart), `Settling` (a picture for review waits while
+seen, a stagger apart; `pop` for a tile in a grid, `pushed` for a row
+under a press), `Lean` (a thing leans to the pointer and, with `presses`,
+gives under a press: put it last inside the thing and list its
+`transforms` in the thing's `transform`), `PageTurn` (the world's way of
+turning a page, which the Shell plays over its pane), `Settling` (a picture for review waits while
 `when` holds), `Underline` (a field's line and its focus light),
-`Caret` (the text cursor), `Grain`.
+`Caret` (the text cursor).
 
-**Assets** (`assets/`, in the module's resources): the fonts (Outfit,
-Shippori Mincho), every world's photo (`worlds/`), the sounds (`sounds/`,
-generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's own, `<world>.wav`; `scripts/night-sounds.py` makes Luna's rain, fire and space loops, which Luna keeps itself), `grain.png`, `sol-tray.png` (the tray's icon),
+**Assets** (`assets/`, in the module's resources): the fonts (`fonts/`: Outfit, Shippori
+Mincho, Shippori Mincho B1, Zen Kaku Gothic New, Chakra Petch, each with its
+`OFL-*.txt` licence; `src/fonts.rs` and `cpp/fonts.h` register them at
+start-up, and `scripts/fonts.py assets/fonts` fetches them from google/fonts
+at a fixed commit and cuts the Japanese families to JIS X 0208, kana,
+punctuation and Latin, kept TrueType so nothing is unpacked at start-up), every world's photo (`worlds/`), the sounds (`sounds/`,
+generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's own, `<world>.wav`; `scripts/night-sounds.py` makes Luna's rain, fire and space loops, which Luna keeps itself), `sol-tray.png` (the tray's icon),
 `widget/DesktopWidget.qml` and `capture/Capture.qml` (quick capture's line),
 loaded by URL from outside the compiled module (they import
 `org.kde.layershell`, which may be missing). **Shaders**
 (`shaders/`): the body's lighting, the glass, the rounded picture
 (`picture.frag`, Rounded's), a star's light and arc (`light.frag`,
-`arc.frag`, StarLight's and StarArc's) and Yozora's cut glass (`hud.frag`,
-HudGlass's), committed as `.qsb`; after changing one, from
-`shaders/`:
+`arc.frag`, StarLight's and StarArc's) and the cut glass (`hud.frag`,
+HudGlass's, with `hud.vert`, which finds where the glass is drawn on the
+window), committed as `.qsb`; after changing one, from `shaders/`:
 
 ```sh
 for f in body glass picture light arc hud; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
+/usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o hud.vert.qsb hud.vert
 ```
 
 ## Writing a screen
@@ -456,37 +540,45 @@ imports with `import Sol.<Name>`. Lists are `Repeater`s whose delegates are
 motion holds here unchanged; [DESIGN.md](../design/DESIGN.md) has the QML
 notes.
 
-Light and depth differ from the web's pure black, for long sessions in an
-app: the window is a night sky in three depths, and colour still comes only
-from the worlds.
+The window is the world's still under its grade, and everything on it
+takes its colours from the world's flavour (`Theme.hud`): its ground, its
+glass and its two lights.
 
 | Token | What it is |
 | --- | --- |
-| `Theme.deep` | The chrome: the sidebar, a `Sheet`'s band and strip, a `PageHead` |
-| `Theme.space` | The pane, where the work is: `night` (`#0c0e13`) tinted 5 % by the world's own colour, so each app has its own sky |
-| `Theme.raised` / `raisedTop` | A panel off the pane: every `Card` is one, lit a little from above, with `Theme.radius` corners and a hairline |
-| `Theme.textWorld` | A panel's title, in the world's light, over a hairline that splits head from body |
+| `Theme.deep` | The flavour's ground, a little see-through: what lies behind a page's chrome where there is no glass |
+| `Theme.space` | The flavour's ground (`hud.ground`: Saturn's `#0b0e2a`), under everything before the still is drawn |
+| `Theme.raised` / `raisedTop` | The flavour's glass tint (`hud.glass`): what `HudGlass` lays over the blurred still |
+| `Theme.textWorld` | A panel's title, in the flavour's accent, over a hairline that splits head from body |
+| `Theme.light` | The flavour's glass is light (Terra's noon): the words on glass (`text…`, `hudText`, `hudQuiet`, `hudFaint`), `ink`, `deep`, `danger` and `ok` are dark |
+| `Theme.artBright` / `artText` / `artQuiet` / `artFaint` / `artAccent` / `artSecond` / `artLine` | Words and marks on the still itself, not on glass (a Sheet's title card, `HeroFigure`s in a PageHead's feature, a sparse page's big title, moon links, moments): always light; over a dark flavour the same as the glass's |
+| `Theme.frost` | The tint live glass lays over the page (menus, the palette, dialogs): the ground, or a light flavour's frost |
+| `Theme.hudPrimary` | The primary button's fill: the accent, or the flavour's `primary` (Terra's sunflower, where its ramune blue is too deep for words on it) |
+| `Theme.textInverse` | What is drawn on something filled in the words' colour: a ticked box, selected text |
 
-Corners come from one scale, so nothing sits square on a rounded panel;
-an inner corner is about the outer one less the room between them (a
-menu row's light, inset 4 px in a 10 px panel, is 6). Pills (a `round`
-button, a switch, a count) stay pills; hairlines, rules and the month's
-grid lines stay straight.
+Corners come from one scale whose four steps are all 0: the corners are
+square, and the names stay so a thing still says which corner it follows.
+Panels cut one corner at 45° (`Theme.hudCut`); a `Chip` is a pill.
 
 | Token | Value | Where |
 | --- | --- | --- |
-| `Theme.radiusS` | 4 | A `Check`'s box, a `Skeleton`'s lines, a `Chart`'s bars, the pairing code, an `Editable`'s or a link's focus ticks; worlds: badges inside a picture, Terra's week ticks, thumbnails under 48 px |
-| `Theme.radiusM` | 6 | `Button`, `Chip`, `Back`, a `Picture` (posters, covers, stills), a menu's, list's or palette's row light, a `SidebarRow`, a `Chart`'s tip; worlds: tiles, kana cells, Saturn's watched tick, a lifted queue row |
-| `Theme.radius` | 10 | `Card`, every `GlassPanel` (menus, the `Select` list, `Hint`, `Notice`, the palette), the pairing card's glass; worlds: a big cover or poster, Saturn's continue card, Titan's galaxy, Saturn's month |
-| `Theme.radiusL` | 14 | Big surfaces on their own: `Ask`'s dialog, the `Shortcuts` sheet, the desktop widget |
+| `Theme.radiusS` | 0 | A `Check`'s box, a `Skeleton`'s lines, a `Chart`'s bars, the pairing code, an `Editable`'s or a link's focus ticks; worlds: badges inside a picture, Terra's week ticks, thumbnails under 48 px |
+| `Theme.radiusM` | 0 | `Button`, `Chip`, `Back`, a `Picture` (posters, covers, stills), a menu's, list's or palette's row light, a `SidebarRow`, a `Chart`'s tip; worlds: tiles, kana cells, Saturn's watched tick, a lifted queue row |
+| `Theme.radius` | 0 | `Card`, every `GlassPanel` (menus, the `Select` list, `Hint`, `Notice`, the palette), the pairing card's glass; worlds: a big cover or poster, Saturn's continue card, Titan's galaxy, Saturn's month |
+| `Theme.radiusL` | 0 | Big surfaces on their own: `Ask`'s dialog, the `Shortcuts` sheet, the desktop widget |
 
-Groups are raised as rounded panels, with ticks kept for focus and for a
-card under the pointer, bent round the corner they mark. The web kit
-(`../design`, Sol's web app) has the same look: its `tokens.css` copies
-these palettes and corners, its `Body` is `body.frag` in WebGL, and its
-world data is written from `Worlds.qml` by its
+Groups are raised as panels, with ticks kept for focus and for a card
+under the pointer. The web kit (`../design`, Sol's web app) still has the
+older palettes and rounded corners (`docs/yozora-plan.md`, Stage 6, brings
+it over): its `tokens.css` copies the palettes, its `Body` is `body.frag` in
+WebGL, and its world data is written from `Worlds.qml` by its
 `scripts/worlds-from-qml.mjs`, so a change to a world, a token or the
 shader here is made there too.
+
+On a light flavour nothing with words stands bare on the still but the
+title cards: a page's figures go in its PageHead's `feature` as
+`HeroFigure`s (which use the `art…` tokens), and a control on the page sits
+on a Card (Settings' list stands on glass by itself there).
 
 Text has a hierarchy: a fact's label is quiet (`textQuiet`), its value is
 bright (`text`), reading text is softer (`textValue`), and `textBright` is
@@ -510,7 +602,8 @@ typed, invalid), TextArea (and `large`), Select, Editable, Back,
 MoonLink, a page's `Key`, Ticks. **Panels**: Card in its ways, Grid at
 three widths, DataRows, Display, Progress, Callout, Settle, every
 Skeleton and Chart, Strip, Picture and Poster (loaded, missing, dim,
-lifted), Empty (both ways), a masonry Grid with a feature card across two
+lifted), Empty (both ways), the Navigator's portrait, chip and bubbles
+(Cheer plays its cheer), a masonry Grid with a feature card across two
 columns and one across the row (Again grows one; the cards under it
 glide). Panels is a section with children: **Tabs** (a PageHead's tabs,
 `/tabs?tab=calendar`) and **Menus** (a card and rows that are things,
@@ -528,15 +621,22 @@ Terra.
 
 ```sh
 scripts/hidden.sh -- cargo run --example gallery   # by hand: a preview, no Sol, no network
-scripts/gallery-shots.sh /tmp/shots               # after a kit change: every page night and day, the journal (a build only when needed)
+scripts/gallery-shots.sh /tmp/shots               # after a kit change: every page once for each flavour, the journal (a build only when needed)
 scripts/shots.sh terra /tmp/t today=/ end='/?_scroll=end'   # a world's pages, in one run (builds nothing)
 SOL_HIDDEN_SIZE=1920x1080 scripts/shots.sh …       # the hidden display at another size (hidden.sh's --size)
 scripts/yozora-art.sh                             # the Yozora look's stills and navigators, into ~/.local/share/sol-yozora (this computer only)
+scripts/fonts.py assets/fonts                     # the fonts, from google/fonts at a fixed commit, the Japanese two cut to size
 ```
 
-`gallery-shots.sh` takes its pictures in four runs (night, day, less
-motion, narrow), each one launch taking a list (`SOL_SHOTS`); the gallery's
-own keys follow each picture of a run.
+`gallery-shots.sh` takes its pictures in seven runs (one for each flavour,
+`SOL_FLAVOUR=saturn|mercury|neptune|terra|luna`, then less motion and narrow),
+each one launch taking a list (`SOL_SHOTS`); the gallery's own keys follow
+each picture of a run. A flavour's pictures are named `<flavour>-worlds`,
+`-controls`, `-panels`, `-overlays`, `-sky`, `-tabs`, `-settings`; each page
+is taken from its top to its end a view at a time (`-2`, `-3` … `-end`, the
+views that only repeat the one before dropped), so every component is in a
+picture, and its staged parts beside; the states one picture can't hold are in Saturn's run
+only, then `calm-overlays-moment` and `narrow-worlds|controls|tabs`.
 
 Its QML (`examples/gallery/qml/`) and the kit's are read from this
 checkout, so `gallery-shots.sh` builds only when something besides `.qml`
@@ -558,6 +658,10 @@ the gallery (above), not in every world.
   single Sol icon; the others join it, each as a submenu (Open, the entries
   a world lists in `World::tray`, Quit), and the next takes over when it
   quits. Closing a window hides it while the tray is there.
+- **The navigator's cheer**: `Sol.cheer()` after the world's main good
+  act (an episode watched, a habit ticked, a card remembered): every
+  navigator in the window glows warm and sparks once (`Sol.react(kind)`,
+  the `reacted` signal).
 - **Counts**: `Sol.badge(10, "due")` puts a count beside the app in the
   tray, in its tooltip, and on its icon in docks that read the Launcher
   Entry API.
@@ -628,15 +732,8 @@ wrote, and an update never leaves them without the app:
   "waiting for the keyring to unlock" and syncs once it opens, instead of
   asking to pair again.
 
-## Night and day, the sky, charts, instant start
+## The sky, charts, instant start
 
-- **Night and day**: `Theme.day`, from Settings → On this device ("As the
-  desktop is", "With the sun", always night, always day) for every Sol app
-  on the computer (`~/.config/sol/device.conf`). Overlays use `Theme.ink`
-  at an alpha (white at night, black by day), dims and glass `Theme.veil`.
-  A world's colour as a small mark (a glyph, the current section's light,
-  the chosen row) is `Theme.mark(c)` / `Theme.accent`: deepened by day,
-  so a white moon still shows on the pale sky.
 - **The real sky**: Luna shows tonight's phase and Terra's light follows
   the local hour wherever a body is drawn (`Worlds.skyOf`, `Worlds.moonAt`).
   A full moon or the Perseids on Luna's Sheet and Saturn's opposition on
@@ -687,6 +784,11 @@ corner and the name taking its place. Cards and `Settle`d rows arrive when
 they scroll into view, not before. Pages have real inertia: a drag past the
 end gives and springs back, the wheel bounces at the ends. A page opened
 from another slides in from the right and back out; a section settles.
+Each turn is the world's own (`PageTurn`): a slanted wipe in its light with
+the PageHead's words sliding in behind it, Saturn's a film's cut with black
+bars, Neptune's red with a cyan ghost under its glitch, Mercury's an ink
+wash clearing from the title, Terra's a soft sweep of sunlight; going back
+runs the other way, and less motion only fades.
 The sidebar's field filters the page in place when the page says
 `filters: true` (it reads `filter`), and searches the app otherwise; `/`
 focuses it (on the rail it waits behind a button and floats over the pane).
@@ -700,27 +802,35 @@ actions puts them on lines of their own under the title. `Editable` turns
 words into a field on click, or Enter (a `PageHead` with `editable: true`
 renames); `Check` shows the click at once and takes it back with a shake
 on `fail()`; a `Card` with a `menu` opens it on right-click and from its ⋯. `Skeleton`
-draws a page's shape while its data is on the way. `Sounds` (off until
-turned on in `DeviceCard`, which also picks the world's accent from its
-photograph) gives a tick, a done and an off. Fractional scaling works as
+draws a page's shape while its data is on the way. `Sounds` (on and low
+unless turned off in `DeviceCard`) gives a tick, a done and an off. Fractional scaling works as
 Qt does it: `QT_SCALE_FACTOR=1.5` to check.
 
 ## Motion
 
 Every screen settles into the pane and settles again when the Shell comes
 back to it; the page it replaces fades under it. Lists arrive with the
-stagger, bars grow from their baseline, figures count up, the first screen's
-band drifts with the scroll and breathes while it waits, the main action's
-glow breathes too, a card's ticks answer the pointer, and menus, notices,
+stagger, bars grow from their baseline, figures count up, cards settle
+with the spring and lean a pixel or two to the pointer, things that act
+give under a press, the first screen's band drifts with the scroll, the
+pairing scene breathes a few times and rests, and menus, notices,
 hints and the dialog sit on real glass, the page blurred behind them and
 bent a little at the panel's edge. The worlds are alive: clouds drift over
 Terra, Neptune and Titan, Sol's corona flickers, their rims of air breathe
 (`live` in `Worlds`, `time` in the body shader). Switches and the sidebar's
-light move on springs. Most durations are `Theme`'s (`fade`, `lock`,
-`settle`, `rise`, `drift`, `stagger`); a few controls keep their own where
-they measured better (a button's glow and press, a check's tick, a wheel
-notch's glide and bounce, a notice's drop, a hint's wait, the caret's
-blink, a skeleton's sweep, the spinner). Nothing moves without saying what
+light land with a spring. Every length and curve is `Theme`'s, and nothing
+else writes a number of milliseconds or an `Easing` (the QML lint warns of
+one; `// not a token: <why>` beside a deliberate one, like Luna's night
+sound fading over a minute): `snap` (a press), `flicker` (a glitch's or a
+shake's step), `lock`, `fade`, `settle`, `turn` (a page arriving), `count`
+(a figure counting up), `rise`, `wash` (a colour over the whole window) and
+`stagger`, all nothing for `SOL_SHOT_CALM` pictures; `sweep` (a busy mark),
+`drift`, `crossing` (the comet), `scene` (a moment), `notchGlide` and
+`touchGlide` (the page under a wheel or a touchpad), which never are; and
+the curves `ease`, `easeOut`, `spring` (a tenth past its place and back)
+and `easeInOut`, given whole: `easing: Theme.easeOut`. Timers that decide
+something (a hint's wait, the caret's blink, a search's pause) keep their
+own. Nothing moves without saying what
 changed, and nothing loops while the window is hidden or behind another
 (`Theme.alive`). `SOL_FPS=1` writes the frames painted a second to the
 journal: 170 on a 170 Hz screen.

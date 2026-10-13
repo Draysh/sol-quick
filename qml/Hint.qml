@@ -55,7 +55,7 @@ Item {
             height: words.implicitHeight + 12
             shade: 0.86
             opacity: 0
-            transform: Translate { id: lift; y: root.above ? 3 : -3; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
+            transform: Translate { id: lift; y: root.above ? 3 : -3; Behavior on y { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } } }
             Component.onCompleted: { opacity = 1; lift.y = 0 }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
             // A long line wraps inside the window.

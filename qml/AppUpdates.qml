@@ -14,6 +14,7 @@ Card {
     readonly property string downloads: Sol.server ? Sol.server + "/worlds/" + Sol.world : ""
 
     title: "Updates"
+    jp: "更新"
 
     readonly property var how: ({ dev: "a development build", loose: "not installed", portable: "by itself, for you", unsupported: "by hand" })
     readonly property string installed: status ? (status.here.state === "installed" ? how[status.here.kind] : how[status.here.state]) : ""
@@ -29,7 +30,7 @@ Card {
         text: root.name + " runs from where you unpacked it. Install it to find it in your app menu and have it keep itself up to date." }
     Button { visible: !!root.status && root.status.here.state === "loose"; variant: "primary"; text: "Install " + root.name; onClicked: root.act("install_app") }
 
-    DataRows { width: parent.width; rows: root.status ? [{ label: "Version", value: root.status.current }, { label: "Installed", value: root.installed }] : [] }
+    DataRows { ledger: true; width: parent.width; rows: root.status ? [{ label: "Version", value: root.status.current }, { label: "Installed", value: root.installed }] : [] }
 
     Words { visible: !!root.status && !!root.status.rolled_back; width: parent.width; small: true; color: Theme.dangerText
         text: root.status && root.status.rolled_back ? "Version " + root.status.rolled_back.version + " didn’t start on this computer, so " + root.name + " went back to " + root.status.rolled_back.back_to + ". It won’t install that version by itself again." : "" }

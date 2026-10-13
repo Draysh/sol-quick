@@ -93,6 +93,7 @@ Item {
         host.capturing = false
         host.stagedComet = false
         host.stagedSky = ""
+        host.stagedHour = -1
         while (Notices.list.count) Notices.dismiss(Notices.list.get(0).key)
     }
     function ready() {
@@ -174,6 +175,7 @@ Item {
         if (stage._moment) { did(); stageMoment(stage._moment) }
         if (stage._comet) { did(); host.stagedComet = true }
         if (stage._sky) { did(); host.stagedSky = stage._sky }
+        if (stage._hour) { did(); host.stagedHour = Number(stage._hour) }
         return any
     }
     /** Plays one of the window's moments (or a carried moon's, or the kit's `star`) by `<name>[:<arg>]`, without its occasion. */

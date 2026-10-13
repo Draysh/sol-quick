@@ -1,7 +1,7 @@
 import QtQuick
 
 /*
-    A display figure: thin, big, counting up to its value as it appears, so
+    A display figure: big, in the HUD face, counting up to its value as it appears, so
     a number arrives rather than being there. Follows later values the
     same way.
 
@@ -17,32 +17,38 @@ Text {
     property real shown: 0
     property bool first: true
 
-    // In the Yozora look a figure is the HUD's: the mono face, a little heavier.
-    font.family: Theme.yozora ? Theme.fontMono : Theme.font
-    font.weight: Theme.yozora ? Font.Medium : Theme.weightDisplay
+    // A figure is the HUD's: its squared face, medium.
+    font.family: Theme.fontHud
+    font.weight: Font.Medium
     property int size: 44
     font.pixelSize: size
-    font.letterSpacing: Theme.track(Theme.yozora ? -0.02 : 0.04, size)
+    font.letterSpacing: Theme.track(0.01, size)
     color: Theme.text
     text: format(shown)
 
-    onValueChanged: count()
-    Component.onCompleted: count()
+    // It counts once it is in view (not while far down a page), and with less motion is there at once.
+    property bool seen: false
+    property var forget: null
+    onValueChanged: if (seen) count()
+    Component.onCompleted: forget = Theme.whenSeen(root, () => { seen = true; count() })
+    Component.onDestruction: if (forget) forget()
 
     function count() {
         run.stop()
         const from = first ? 0 : shown
         first = false
+        if (Theme.calm || Theme.count === 0) { shown = value; return }
         run.from = from
         run.to = value
         run.start()
     }
+    Settling { when: run.running }
 
     NumberAnimation {
         id: run
         target: root
         property: "shown"
-        duration: Theme.rise
-        easing.type: Easing.OutCubic
+        duration: Theme.count
+        easing: Theme.easeOut
     }
 }

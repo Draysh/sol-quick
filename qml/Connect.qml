@@ -45,9 +45,9 @@ Item {
             y: scene.height + scene.vmax * 34 - disc
             light: 20
             phase: 0.55
-            // A slow drift, so the scene breathes.
+            // A slow drift, so the scene breathes: three breaths, then it rests.
             transform: Translate { id: breathe; y: 0 }
-            SequentialAnimation { running: Theme.alive; loops: Animation.Infinite; NumberAnimation { target: breathe; property: "y"; to: -6; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
+            SequentialAnimation { running: Theme.alive && !Theme.calm; loops: 3; NumberAnimation { target: breathe; property: "y"; to: -6; duration: Theme.drift / 2; easing: Theme.easeInOut } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing: Theme.easeInOut } }
         }
     }
 
@@ -67,8 +67,7 @@ Item {
         }
         ItemParticle {
             fade: true
-            // By day a mote is a shadow on paper: fainter.
-            delegate: Rectangle { width: 2; height: 2; radius: 1; color: Theme.textBright; opacity: Theme.day ? 0.12 : 0.35 }
+            delegate: Rectangle { width: 2; height: 2; radius: 1; color: Theme.textBright; opacity: 0.35 }
         }
     }
 
@@ -98,8 +97,8 @@ Item {
 
                 Text {
                     text: root.w.name
-                    font.family: Theme.font; font.weight: Theme.weightLabel; font.pixelSize: Theme.textXs
-                    font.letterSpacing: Theme.track(0.32, Theme.textXs); font.capitalization: Font.AllUppercase
+                    font.family: Theme.fontCaps; font.weight: Theme.weightLabel; font.pixelSize: Theme.textXs
+                    font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
                     color: Theme.textBright
                 }
                 Words { text: root.w.tagline; small: true; color: Theme.textValue }
@@ -109,7 +108,7 @@ Item {
                     height: card.implicitHeight
 
                     // Real glass: what is behind the card, blurred, rounded with it.
-                    Glass { anchors.fill: parent; from: scene; blur: 0.8; bend: 0; radius: card.radius; tint: Theme.tint(Theme.veil, 0.72) }
+                    Glass { anchors.fill: parent; from: scene; blur: 0.8; bend: 0; radius: card.radius; tint: Theme.tint(Theme.frost, Theme.light ? 0.86 : 0.72) }
 
                     Card {
                         id: card
@@ -142,7 +141,7 @@ Item {
                                             id: digits
                                             anchors.centerIn: parent
                                             text: root.pairing ? root.pairing.code : ""
-                                            font.family: Theme.font; font.weight: Theme.weightDisplay; font.pixelSize: 30
+                                            font.family: Theme.fontMono; font.weight: Font.Medium; font.pixelSize: 30
                                             font.letterSpacing: Theme.track(0.14, 30)
                                             color: Theme.text
                                         }
@@ -190,6 +189,4 @@ Item {
             }
         }
     }
-
-    Grain { }
 }

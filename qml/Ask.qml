@@ -7,6 +7,9 @@ import QtQuick
         Ask { id: ask }   // once, in the window
         ask.name("New playlist", "Name", "", "Create").then(n => …)
         ask.confirm("Delete playlist", "It goes for every app. The songs stay.", "Delete").then(yes => …)
+
+    A yes that can't be taken back (Delete, Remove, Forget, Unpair, Archive,
+    Stop, Clear) is the vermilion danger button; `danger` says so for any other.
 */
 Item {
     id: ask
@@ -25,8 +28,10 @@ Item {
     function name(title, label, value, action) {
         return new Promise(done => begin({ kind: "name", title: title, label: label, value: value || "", action: action || "Save", done: done }))
     }
-    function confirm(title, body, action) {
-        return new Promise(done => begin({ kind: "confirm", title: title, body: body, action: action || "Yes", done: done }))
+    function confirm(title, body, action, danger) {
+        const yes = action || "Yes"
+        const risky = danger !== undefined ? !!danger : /^(delete|remove|forget|unpair|archive|stop|clear|discard)\b/i.test(yes)
+        return new Promise(done => begin({ kind: "confirm", title: title, body: body, action: yes, danger: risky, done: done }))
     }
     // A new question while one is open answers the open one with "no".
     function begin(question) {
@@ -52,7 +57,7 @@ Item {
     }
 
     Item { anchors.fill: parent; opacity: ask.current ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Glass { anchors.fill: parent; blur: 0.5; tint: Theme.tint(Theme.veil, 0.55) }
+        Glass { anchors.fill: parent; blur: 0.5; tint: Theme.tint(Theme.frost, Theme.light ? 0.86 : 0.55) }
         MouseArea { anchors.fill: parent; enabled: !!ask.current; onClicked: ask.finish(false) } }
 
     Item {
@@ -63,7 +68,7 @@ Item {
         opacity: ask.current ? 1 : 0
         scale: ask.current ? 1 : 0.97
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
         Keys.onEscapePressed: ask.finish(false)
         Keys.onReturnPressed: ask.finish(true)
         Keys.onEnterPressed: ask.finish(true)
@@ -77,7 +82,7 @@ Item {
             Field { id: field; visible: !!ask.shown && ask.shown.kind === "name"; width: parent.width; label: ask.shown ? ask.shown.label || "" : ""; maxLength: 200; onAccepted: ask.finish(true) }
             Words { visible: !!ask.shown && ask.shown.kind === "confirm"; width: parent.width; text: ask.shown ? ask.shown.body || "" : "" }
             Row { spacing: Theme.s2
-                Button { variant: "primary"; text: ask.shown ? ask.shown.action : ""; enabled: !!ask.current && (ask.current.kind !== "name" || field.text.trim() !== ""); onClicked: ask.finish(true) }
+                Button { variant: ask.shown && ask.shown.danger ? "danger" : "primary"; text: ask.shown ? ask.shown.action : ""; enabled: !!ask.current && (ask.current.kind !== "name" || field.text.trim() !== ""); onClicked: ask.finish(true) }
                 Button { variant: "quiet"; text: "Cancel"; enabled: !!ask.current; onClicked: ask.finish(false) } }
         }
     }

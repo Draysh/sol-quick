@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Shapes
 import Sol.Design
 
 /*
@@ -106,7 +107,9 @@ Item {
     }
     onEntriesChanged: at = Math.min(at, Math.max(0, entries.length - 1))
     // The keys' row stays in sight.
-    onAtChanged: Theme.keepInView(rows, at * 44, 44)
+    onAtChanged: Qt.callLater(() => { const it = rowRepeater.itemAt(root.at); if (it) Theme.keepInView(rows, it.y, it.height) })
+    /** The groups the rows come under, by kind: their HUD capitals and Japanese. */
+    readonly property var groups: ({ section: { label: "Go to", jp: "移動" }, command: { label: "Actions", jp: "操作" }, found: { label: "Found", jp: "検索" } })
     /** The whole text, then its start, then a word's start, then anywhere, then the
         letters in order; the earlier in the text, the better ("sett" finds
         "Go to Settings" before a long title with "Settei" in its middle). */
@@ -143,7 +146,7 @@ Item {
 
 
     Item { anchors.fill: parent; opacity: root.open ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Glass { anchors.fill: parent; blur: 0.45; tint: Theme.tint(Theme.veil, 0.5) }
+        Glass { anchors.fill: parent; blur: 0.45; tint: Theme.tint(Theme.frost, Theme.light ? 0.86 : 0.5) }
         MouseArea { anchors.fill: parent; enabled: root.open; onClicked: root.close() } }
 
     Item {
@@ -155,7 +158,7 @@ Item {
         opacity: root.open ? 1 : 0
         scale: root.open ? 1 : 0.97
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
         MouseArea { anchors.fill: parent }
         GlassPanel { anchors.fill: parent; edge: Theme.lineStrong; shade: 0.86 }
 
@@ -163,9 +166,23 @@ Item {
             id: column
             x: 1; y: 1
             width: parent.width - 2
+            // The HUD line along its top.
             Item {
                 width: parent.width
-                height: 56
+                height: 30
+                Row {
+                    x: Theme.s4
+                    anchors.bottom: parent.bottom
+                    spacing: Theme.s2
+                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; rotation: 45; antialiasing: true; color: Theme.hudAccent }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "コマンド"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold; color: Theme.hudAccent }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Command · Ctrl+K"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudAccent }
+                }
+                Text { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.bottom: parent.bottom; text: root.busy ? "Looking…" : root.trail.length ? "Esc · back" : "Esc"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudFaint }
+            }
+            Item {
+                width: parent.width
+                height: 52
                 // In a list opened from a row: its name before the field.
                 Text {
                     id: crumb
@@ -178,7 +195,7 @@ Item {
                     font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue
                     color: Theme.textWorld
                 }
-                Field { id: field; x: crumb.visible ? crumb.x + crumb.width + Theme.s2 : Theme.s4; width: parent.width - x - Theme.s4 - 70; anchors.verticalCenter: parent.verticalCenter; label: ""
+                Field { id: field; bare: true; x: crumb.visible ? crumb.x + crumb.width + Theme.s2 : Theme.s4; width: parent.width - x - Theme.s4; anchors.verticalCenter: parent.verticalCenter; label: ""
                     placeholder: root.trail.length ? "Choose one" : root.find ? "Go somewhere, do something, find anything" : "Go somewhere, do something"
                     Keys.onUpPressed: event => { root.move(-1); event.accepted = true }
                     Keys.onDownPressed: event => { root.move(1); event.accepted = true }
@@ -187,14 +204,13 @@ Item {
                     Keys.onRightPressed: event => { const e = root.entries[root.at]; if (e && e.items && field.input.cursorPosition === field.text.length) { root.enter(e); event.accepted = true } else event.accepted = false }
                     Keys.onLeftPressed: event => { if (field.text === "" && root.leave()) event.accepted = true; else event.accepted = false }
                     onAccepted: root.run() }
-                Quiet { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : root.trail.length ? "Esc · back" : "Esc" }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             }
             // As many rows as the window has room for; the rest scroll, the keys' row in sight.
             Flickable {
                 id: rows
                 width: parent.width
-                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 58 - Theme.s1 - Theme.s4))
+                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 84 - Theme.s1 - Theme.s4))
                 contentHeight: rowColumn.implicitHeight
                 interactive: contentHeight > height
                 boundsBehavior: Flickable.StopAtBounds
@@ -203,36 +219,65 @@ Item {
                     id: rowColumn
                     width: rows.width
                     Repeater {
+                        id: rowRepeater
                         model: root.entries
                         delegate: Item {
                             id: row
                             required property var modelData
                             required property int index
                             readonly property bool on: index === root.at
+                            /** The first of its kind among the rows (at the top only): its group's name over it. */
+                            readonly property var group: root.trail.length ? null : (index === 0 || root.entries[index - 1].kind !== modelData.kind) ? root.groups[modelData.kind] || null : null
+                            readonly property real head: group ? 30 : 0
                             // What the label, the hint and the keys share: the label first.
-                            readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0) - (rowIcon.visible ? rowIcon.width + Theme.s3 : 0)
+                            readonly property real room: width - Theme.s4 * 2 - (keysText.visible ? keysText.implicitWidth + Theme.s3 : 0)
                             width: rowColumn.width
-                            height: 44
-                            // The light on a row, inset from the panel's edges and rounded with it.
-                            Rectangle { anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: row.on ? Theme.surfaceHover : "transparent"; Behavior on color { ColorAnimation { duration: Theme.lock } } }
-                            Rectangle { visible: row.on; x: Theme.s1; width: 2; height: parent.height - 16; y: 8; radius: 1; color: Theme.accent }
+                            height: 44 + head
                             Row {
+                                visible: !!row.group
                                 x: Theme.s4
-                                anchors.verticalCenter: parent.verticalCenter
+                                y: Theme.s3 - 2
+                                spacing: Theme.s2
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.jp : ""; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold; color: Theme.hudQuiet }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.label : ""; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudQuiet }
+                            }
+                            // The light on the chosen row: a slanted bar in the world's light.
+                            Shape {
+                                y: row.head
+                                width: parent.width; height: 44
+                                visible: row.on
+                                preferredRendererType: Shape.CurveRenderer
+                                readonly property real lean: 14
+                                ShapePath {
+                                    strokeWidth: 0; strokeColor: "transparent"
+                                    fillGradient: LinearGradient {
+                                        x1: 0; y1: 0; x2: rowColumn.width; y2: 0
+                                        GradientStop { position: 0; color: Theme.tint(Theme.hudAccent, 0.26) }
+                                        GradientStop { position: 1; color: Theme.tint(Theme.hudAccent, 0.02) }
+                                    }
+                                    startX: Theme.s2 + 14; startY: 4
+                                    PathLine { x: rowColumn.width - Theme.s2; y: 4 }
+                                    PathLine { x: rowColumn.width - Theme.s2 - 14; y: 40 }
+                                    PathLine { x: Theme.s2; y: 40 }
+                                    PathLine { x: Theme.s2 + 14; y: 4 }
+                                }
+                            }
+                            Row {
+                                x: Theme.s4 + Theme.s1
+                                y: row.head + (44 - height) / 2
                                 spacing: Theme.s3
-                                Icon { id: rowIcon; visible: !!row.modelData.icon; name: row.modelData.icon || "close"; size: 16; color: row.on ? Theme.textBright : Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter; Behavior on color { ColorAnimation { duration: Theme.lock } } }
-                                Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue; color: row.modelData.danger ? Theme.dangerText : row.on ? Theme.textBright : Theme.text }
+                                Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: row.on ? Theme.weightName : Theme.weightValue; color: row.modelData.danger ? Theme.dangerText : row.on ? Theme.textBright : Theme.text }
                                 Text { readonly property real spare: row.room - labelText.width - Theme.s3; visible: !!row.modelData.hint && spare >= 60; text: row.modelData.hint || ""; width: Math.max(0, Math.min(implicitWidth, spare)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
                             }
                             // Its keys, or for a row with a list of its own, the way in.
-                            Quiet { id: keysText; visible: !!row.modelData.keys || !!row.modelData.items; anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: row.modelData.items ? "›" : row.modelData.keys || "" }
-                            MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
+                            Quiet { id: keysText; visible: !!row.modelData.keys || !!row.modelData.items; anchors.right: parent.right; anchors.rightMargin: Theme.s4; y: row.head + (44 - height) / 2; text: row.modelData.items ? "›" : row.modelData.keys || "" }
+                            MouseArea { y: row.head; width: parent.width; height: 44; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
                         }
                     }
                 }
             }
             Item { visible: root.entries.length === 0; width: parent.width; height: 44
-                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; font.capitalization: Font.MixedCase } }
+                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; caps: false } }
             // Room under the last row, so its light clears the panel's corners.
             Item { width: parent.width; height: Theme.s1 }
         }

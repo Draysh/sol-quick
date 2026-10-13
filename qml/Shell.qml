@@ -28,7 +28,8 @@ import Sol.Design as Design
     (`{ "/calendar": "/schedule?tab=calendar" }`).
 
     The world's light marks the current section and glides to the next one
-    when it changes; each screen settles into the pane as it opens.
+    when it changes; each screen settles into the pane as it opens, under
+    the world's own way of turning a page (`PageTurn`).
 
         Shell {
             world: "terra"
@@ -125,18 +126,15 @@ Item {
     }
     property bool keys: false
 
-    // The accent: the world's own colour, or the one chosen for this device; the photo's colours to choose from.
-    // The world's own colour from `world` itself: when the world changes, `w` may not have followed yet.
-    // A moon's pages are in the moon's own colour.
+    // The accent: every page, a moon's too, wears the flavour's own light; a moon with a
+    // flavour of its own (Luna's evening) wears that one while its page is open.
     function accent() {
         const of = here >= 0 && history[here] ? worldOf(history[here].path) : world
-        Theme.worldId = world
-        // In the Yozora look every page, a moon's too, wears the flavour's own light.
-        Theme.world = Theme.yozora ? Theme.hudAccent : of !== world ? Worlds.get(of).color : Theme.chosenAccent !== "" ? Theme.chosenAccent : Worlds.get(world).color
+        Theme.worldId = Theme.yozoraLooks[of] ? of : world
+        Theme.world = Theme.hudAccent
         // And in its own voice.
         Sounds.world = of
     }
-    Tone { source: shell.w.image; onPicksChanged: Theme.picks = picks }
     Component.onCompleted: { accent(); go(home) }
     onWorldChanged: accent()
 
@@ -221,7 +219,7 @@ Item {
         flight.stop(); land.stop()
         flyer.source = hero.url
         flyer.x = from.x; flyer.y = from.y; flyer.width = hero.item.width; flyer.height = hero.item.height
-        flyer.radius = cornerOf(hero.item)
+        flyerScale.xScale = 1; flyerScale.yScale = 1
         flyer.opacity = 1; flyer.visible = true
         // The new page's hero has its place once the page is laid out (after
         // the next frame, when its Columns have placed it); where it rests,
@@ -248,18 +246,22 @@ Item {
             const target = screen ? screen.hero : null
             if (!target || !target.visible) { flyer.visible = false; return }
             const to = screen.restingPoint(target, shell)
-            toX.to = to.x; toY.to = to.y; toW.to = target.width; toH.to = target.height; toR.to = shell.cornerOf(target)
+            // The flyer takes the landing's size at once and is scaled back down to where it
+            // left from: the flight moves and scales it (the compositor's work), never resizes it.
+            const fromW = flyer.width, fromH = flyer.height
+            flyer.width = target.width; flyer.height = target.height
+            flyerScale.xScale = target.width > 0 ? fromW / target.width : 1
+            flyerScale.yScale = target.height > 0 ? fromH / target.height : 1
+            toX.to = to.x; toY.to = to.y
             flight.start()
         }
     }
-    /** A picture's corners (a rounded Picture's), for the flight to keep and change them. */
-    function cornerOf(item) { return item && item.rounded ? item.radius : 0 }
     Item {
         id: flyer
         property alias source: flyerImage.source
-        property real radius: 0
         visible: false
         z: 40
+        transform: Scale { id: flyerScale }
         layer.enabled: visible
         layer.effect: MultiEffect { shadowEnabled: true; shadowBlur: 1; shadowOpacity: 0.6; shadowVerticalOffset: 10 }
         Image {
@@ -273,17 +275,16 @@ Item {
             // Decoded no wider than a Picture ever asks for, however large the file.
             sourceSize.width: 1280
         }
-        Rounded { anchors.fill: parent; image: flyerImage; radius: flyer.radius }
+        Rounded { anchors.fill: parent; image: flyerImage; radius: 0 }
     }
     Settling { when: flight.running || land.running || landing.running || leave.running }
     SequentialAnimation {
         id: flight
         ParallelAnimation {
-            NumberAnimation { id: toX; target: flyer; property: "x"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { id: toY; target: flyer; property: "y"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { id: toW; target: flyer; property: "width"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { id: toH; target: flyer; property: "height"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { id: toR; target: flyer; property: "radius"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { id: toX; target: flyer; property: "x"; duration: Theme.settle; easing: Theme.easeOut }
+            NumberAnimation { id: toY; target: flyer; property: "y"; duration: Theme.settle; easing: Theme.easeOut }
+            NumberAnimation { target: flyerScale; property: "xScale"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
+            NumberAnimation { target: flyerScale; property: "yScale"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
         }
         ScriptAction { script: land.start() }
     }
@@ -350,13 +351,16 @@ Item {
         accent()
         if (was && was !== item) {
             // The page that was here leaves under the one arriving; one coming back settles in again.
+            // Saturn's cut: the page that was here is gone at once, as in a film; with less motion, a fade only.
+            const cut = Theme.hud.motif === "dusk" && !Theme.calm
             leaving.target = was
             slideOut.target = was
-            slideOut.to = dir === "out" ? 40 : 0
-            slideOut.duration = dir === "out" ? Theme.settle : Theme.lock
-            leaving.duration = dir === "out" ? Theme.settle : Theme.lock
+            slideOut.to = dir === "out" && !Theme.calm && !cut ? 40 : 0
+            slideOut.duration = cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
+            leaving.duration = cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
             leave.restart()
             if (item.hasOwnProperty("reveal")) item.reveal(dir === "out" ? "back" : dir)
+            turn.play(dir === "out" ? "back" : dir)
         }
         shell.forceActiveFocus()
         const screen = page as Design.Screen
@@ -374,7 +378,7 @@ Item {
         id: leave
         ParallelAnimation {
             NumberAnimation { id: leaving; property: "opacity"; to: 0; duration: Theme.lock }
-            NumberAnimation { id: slideOut; property: "x"; to: 0; duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { id: slideOut; property: "x"; to: 0; duration: Theme.lock; easing: Theme.easeOut }
         }
         ScriptAction { script: shell.settleLeaving() }
     }
@@ -455,13 +459,12 @@ Item {
     }
 
     // ---- The frame ----------------------------------------------------------
-    Rectangle { anchors.fill: parent; color: Theme.space; visible: !Theme.yozora }
-    /** Under everything in the Yozora look (`Theme.look`): the page's still in the world's grade, which HudGlass blurs; null otherwise. */
-    readonly property Item ground: groundLoader.item
+    /** Under everything: the page's still in the world's grade, which HudGlass blurs. */
+    readonly property Item ground: groundItem
     /** The ground blurred once for the whole window: every HudGlass on a page reads the part under it. */
-    readonly property Item groundBlur: groundBlurLoader.item
+    readonly property Item groundBlur: groundBlurItem
     /** The world's stills on this computer (`Theme.groundsOf`). */
-    readonly property var stills: Theme.yozora ? Theme.groundsOf(world) : []
+    readonly property var stills: Theme.groundsOf(world)
     /**
         The still under the page on screen: its own `ground` (a title's key art), else
         one of the world's stills, the same for every page of a section (a moon's
@@ -469,7 +472,6 @@ Item {
         it has some), so going from section to section turns the stills over.
     */
     readonly property string groundSource: {
-        if (!Theme.yozora) return ""
         const screen = page as Design.Screen
         if (screen && screen.ground !== "") return screen.ground
         // A page opened from another stands on the still of the section it came from.
@@ -485,55 +487,57 @@ Item {
         return stills[(row ? row.top : 0) % stills.length]
     }
     /**
-        What the world's navigator says (the Yozora look's Navigator, in the
-        sidebar's foot): the page's own `say`, its empty state's line, a
-        greeting on the first page, else what the section is for.
+        What the world's navigator says (the Navigator, in the sidebar's
+        foot), in English and in Japanese: the page's own `say` and
+        `sayJp`, else a greeting on the first page, else nothing (it keeps
+        quiet). While the page's empty state speaks beside its own
+        portrait (`Screen.emptySay`), this one keeps quiet and steps away
+        (`navigatorAway`): one navigator and one bubble at a time.
     */
-    readonly property string navigatorLine: {
-        if (!Theme.yozora) return ""
+    /** The page's empty state has the navigator beside it: the sidebar's steps away meanwhile. */
+    readonly property bool navigatorAway: { const screen = page as Design.Screen; return !!screen && screen.emptySay !== "" }
+    readonly property string navigatorLine: navigatorSays.line
+    readonly property string navigatorJp: navigatorSays.jp
+    readonly property var navigatorSays: {
         const screen = page as Design.Screen
-        if (screen && screen.say !== "") return screen.say
-        if (screen && screen.emptySay !== "") return screen.emptySay
-        if (path === home) {
-            const h = Worlds.now.getHours()
-            return "おかえり。" + (h < 5 ? "Still up? " : h < 12 ? "Good morning. " : h < 18 ? "Good afternoon. " : "Good evening. ") + "Here is where you left off."
-        }
-        const row = rows[currentRow]
-        return row && row.hint ? row.hint + "." : ""
+        if (!screen || screen.emptySay !== "") return { jp: "", line: "" }
+        if (screen.say !== "" || screen.sayJp !== "") return { jp: screen.sayJp, line: screen.say }
+        if (path !== home) return { jp: "", line: "" }
+        const h = Worlds.now.getHours()
+        return h < 5 || h >= 23 ? { jp: "まだ起きてるの？", line: "Still up? Welcome back." }
+            : h < 11 ? { jp: "おはよう。", line: "Good morning. Welcome back." }
+            : h < 17 ? { jp: "おかえり。", line: "Good afternoon. Welcome back." }
+            : { jp: "こんばんは。", line: "Good evening. Welcome back." }
     }
-    Loader {
-        id: groundLoader
+    /** How far the navigator reaches past the sidebar into the pane: a sparse page's big title keeps clear of it. */
+    readonly property real navigatorReach: side.navigatorReach
+
+    Design.DuskGround { id: groundItem; anchors.fill: parent; source: shell.groundSource }
+    // Drawn only into the panels that read it: a quarter of the pixels, blurred, redrawn
+    // only when the ground changes (a still fading in), never while it rests.
+    MultiEffect {
+        id: groundBlurItem
         anchors.fill: parent
-        active: Theme.yozora
-        sourceComponent: DuskGround { source: shell.groundSource }
-    }
-    Loader {
-        id: groundBlurLoader
-        anchors.fill: parent
-        active: Theme.yozora
-        // Drawn only into the panels that read it: a quarter of the pixels, blurred, redrawn
-        // only when the ground changes (a still fading in), never while it rests.
-        sourceComponent: MultiEffect {
+        visible: false
+        source: groundPicture
+        blurEnabled: true
+        // Enough to make words on glass read, little enough that the shapes of the still show through.
+        blur: 0.78
+        blurMax: 48
+        autoPaddingEnabled: false
+        layer.enabled: true
+        ShaderEffectSource {
+            id: groundPicture
+            anchors.fill: parent
             visible: false
-            source: groundPicture
-            blurEnabled: true
-            blur: 0.9
-            blurMax: 48
-            autoPaddingEnabled: false
-            layer.enabled: true
-            ShaderEffectSource {
-                id: groundPicture
-                anchors.fill: parent
-                visible: false
-                live: true
-                sourceItem: shell.ground
-                textureSize: Qt.size(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)))
-            }
+            live: true
+            sourceItem: groundItem
+            textureSize: Qt.size(Math.max(1, Math.round(width / 2)), Math.max(1, Math.round(height / 2)))
         }
     }
 
-    // In the Yozora look the sidebar floats on its own glass, clear of the window's edges.
-    readonly property real sideInset: Theme.yozora && !rail ? Theme.s4 : 0
+    // The sidebar floats on its own glass, clear of the window's edges.
+    readonly property real sideInset: !rail ? Theme.s4 : 0
     Sidebar { id: side; frame: shell; x: shell.sideInset; y: shell.sideInset; height: parent.height - shell.sideInset * 2 }
 
     // The pane: the pages, and a footer that is always there.
@@ -549,9 +553,10 @@ Item {
             width: parent.width
             height: parent.height - footSlot.height
         }
+        // The world's way of turning a page, over the page as it arrives.
+        Design.PageTurn { id: turn; anchors.fill: paneSlot; z: 5 }
         // Behind the footer, outside it, so the footer's height follows what is in it.
-        Rectangle { visible: !Theme.yozora; anchors.fill: footSlot; color: Theme.deep }
-        Design.HudGlass { visible: Theme.yozora && footSlot.height > 0; anchors.fill: footSlot; cuts: [0, 0, 0, 0] }
+        Design.HudGlass { visible: footSlot.height > 0; anchors.fill: footSlot; cuts: [0, 0, 0, 0] }
         Item {
             id: footSlot
             anchors.bottom: parent.bottom
@@ -566,6 +571,4 @@ Item {
         active: shell.keys
         sourceComponent: Shortcuts { tour: !!shell.Window.window && !!shell.Window.window.tour && shell.Window.window.tour.length > 0; onTourAsked: shell.takeTour(); shortcuts: shell.shortcuts; actions: (shell.Window.window && shell.Window.window.allCommands) || []; finderShown: side.finder.usable; search: shell.search !== ""; sections: shell.sections.length; onClosed: shell.keys = false }
     }
-
-    Grain { }
 }

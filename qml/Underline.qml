@@ -28,7 +28,7 @@ Item {
     }
     Rectangle {
         anchors.fill: parent
-        color: line.invalid ? Theme.danger : Theme.yozora ? Theme.hudAccent : Theme.textBright
-        transform: Scale { origin.x: 0; xScale: line.lit ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
+        color: line.invalid ? Theme.danger : Theme.hudAccent
+        transform: Scale { origin.x: 0; xScale: line.lit ? 1 : 0; Behavior on xScale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } } }
     }
 }

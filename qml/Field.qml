@@ -2,8 +2,11 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
-    A label and an underlined input. Errors say what to do, in sentence
-    case. Focus lights the line from the left.
+    A label and an input in a bracketed well (FieldFrame): the brackets
+    take the world's light under the pointer and with the keys, when a light
+    runs in along its foot. `bare` leaves the well out, for a field that
+    sits in a panel of its own (the palette's). Errors say what to do, in
+    sentence case.
 
         Field { label: "New line"; placeholder: "What happened?"; onAccepted: add() }
 */
@@ -22,6 +25,8 @@ FocusScope {
     property bool time: false
     /** A number, with a validator to match. */
     property bool numeric: false
+    /** No well: only the text, for a field in a panel of its own. */
+    property bool bare: false
     property alias readOnly: input.readOnly
     property alias input: input
     signal accepted()
@@ -48,16 +53,19 @@ FocusScope {
             width: parent.width
             height: Theme.control
 
+            FieldFrame { id: well; visible: !root.bare; anchors.fill: parent; lit: input.activeFocus; hovered: hover.hovered; invalid: root.invalid }
             TextInput {
                 id: input
                 anchors.fill: parent
+                anchors.leftMargin: root.bare ? 0 : well.pad
+                anchors.rightMargin: root.bare ? 0 : well.pad
                 verticalAlignment: TextInput.AlignVCenter
                 font.family: root.jp ? Theme.fontJp : Theme.font
                 font.pixelSize: Theme.textM
                 font.weight: Theme.weightValue
                 color: root.enabled ? Theme.text : Theme.textFaint
                 selectionColor: Theme.text
-                selectedTextColor: Theme.space
+                selectedTextColor: Theme.textInverse
                 maximumLength: root.maxLength
                 echoMode: root.password ? TextInput.Password : TextInput.Normal
                 passwordCharacter: "•"
@@ -87,8 +95,8 @@ FocusScope {
                 color: Theme.textFaint
                 elide: Text.ElideRight
             }
-            // The resting line, and the light that comes in from the left on focus.
-            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: input.activeFocus; hovered: hover.hovered; invalid: root.invalid }
+            // A bare field keeps only its foot's light.
+            Underline { visible: root.bare; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; resting: false; lit: input.activeFocus; invalid: root.invalid }
             HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 

@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
-    Neptune's glitch in the Yozora look: as a page opens, a scan line runs
+    Neptune's glitch: as a page opens, a scan line runs
     down it and a few bands of the picture tear sideways in red and cyan,
     for a quarter of a second, then nothing. Only with Neptune's flavour
     (`Theme.hud.motif` "neon") and full motion; at rest it draws nothing.
@@ -13,8 +13,8 @@ import QtQuick
 Item {
     id: root
 
-    /** Whether it plays at all: the look on, Neptune's flavour, full motion. */
-    readonly property bool wanted: Theme.yozora && Theme.hud.motif === "neon" && !Theme.calm
+    /** Whether it plays at all: Neptune's flavour, full motion. */
+    readonly property bool wanted: Theme.hud.motif === "neon" && !Theme.calm
     /** A new pattern of tears each time. */
     property int seed: 0
 
@@ -65,7 +65,7 @@ Item {
     Timer { id: ticks; interval: 45; repeat: true; running: run.running }
     SequentialAnimation {
         id: run
-        NumberAnimation { target: scan; property: "y"; from: -scan.height; to: root.height; duration: 260; easing.type: Easing.InOutQuad }
+        NumberAnimation { target: scan; property: "y"; from: -scan.height; to: root.height; duration: Theme.fade; easing: Theme.easeInOut }
     }
     Settling { when: run.running }
 }

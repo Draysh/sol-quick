@@ -88,6 +88,6 @@ Item {
         height: parent.height
         opacity: 0.6
         gradient: Gradient { orientation: Gradient.Horizontal; GradientStop { position: 0; color: "transparent" } GradientStop { position: 0.5; color: Theme.tint(Theme.ink, 0.035) } GradientStop { position: 1; color: "transparent" } }
-        NumberAnimation on x { running: root.visible && Theme.alive; loops: Animation.Infinite; from: -sweep.width; to: root.width; duration: 1600; easing.type: Easing.InOutSine }
+        NumberAnimation on x { running: root.visible && Theme.alive; loops: Animation.Infinite; from: -sweep.width; to: root.width; duration: Theme.sweep; easing: Theme.easeInOut }
     }
 }

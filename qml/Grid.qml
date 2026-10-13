@@ -8,6 +8,9 @@ import QtQuick
     nothing but their content. A card may take two columns or the whole
     row (`Card.span`). With `masonry`, each card goes into the shortest
     column instead, so cards of very different heights leave no holes.
+    A pair (a card across two columns beside the cards that fill the rest
+    of its band) ends level: the shorter ones are drawn as tall as the
+    tallest, so their feet meet on one line.
     When the grid places them again (a card grows, hides or shows), cards
     glide to their new place.
 
@@ -77,6 +80,8 @@ Item {
 
     /** The cards placed last time, and the width they were placed at: only those glide, and not while the width changes. */
     property var placed: []
+    /** The cards drawn taller than their own height last time, to end level with their pair. */
+    property var stretched: []
     property real placedWidth: 0
 
     property bool placing: false
@@ -102,48 +107,87 @@ Item {
         // How many columns a card takes: its `span` (1, 2, or "row" for all), never more than there are.
         const spanOf = c => c.span === "row" ? grid.columns : Math.max(1, Math.min(grid.columns, Math.round(Number(c.span) || 1)))
         // Placed again somewhere else, a card glides there (Card.glide); not the first time, nor while the width changes.
-        const put = (c, x, y, w) => {
+        const put = (c, x, y, w, h) => {
             if (glide && placed.indexOf(c) >= 0 && typeof c.glide === "function" && (c.x !== x || c.y !== y)) c.glide(c.x - x, c.y - y)
             c.width = w
             c.x = x
             c.y = y
+            // Drawn taller to end level with its pair, or back to its own height; a card that can
+            // centres what it holds in the room (`spare`).
+            if (h > c.implicitHeight + 0.5) c.height = h
+            else if (stretched.indexOf(c) >= 0) c.height = Qt.binding(() => c.implicitHeight)
+            if (c.hasOwnProperty("spare")) c.spare = Math.max(0, h - c.implicitHeight)
+        }
+        // Where each card goes, `tall` holding the heights of the cards drawn taller than their own.
+        const lay = tall => {
+            const out = []
+            const heightOf = c => tall.has(c) ? tall.get(c) : c.implicitHeight
+            if (masonry) {
+                // Each card where the columns it takes are lowest, the leftmost of those level.
+                const heights = Array(grid.columns).fill(0)
+                for (const c of cards) {
+                    const s = spanOf(c)
+                    let at = 0, top = Infinity
+                    for (let k = 0; k + s <= grid.columns; k++) {
+                        const t = Math.max(...heights.slice(k, k + s))
+                        if (t < top - 0.5) { at = k; top = t }
+                    }
+                    out.push({ c: c, x: at * step, y: top, s: s })
+                    for (let k = at; k < at + s; k++) heights[k] = top + heightOf(c) + grid.gap
+                }
+            } else {
+                let col = 0, y = 0, rowHeight = 0
+                for (const c of cards) {
+                    const s = spanOf(c)
+                    // A card wider than what is left of the row starts the next.
+                    if (col > 0 && col + s > grid.columns) {
+                        col = 0
+                        y += rowHeight + grid.gap
+                        rowHeight = 0
+                    }
+                    out.push({ c: c, x: col * step, y: y, s: s })
+                    rowHeight = Math.max(rowHeight, c.implicitHeight)
+                    col += s
+                    if (col >= grid.columns) {
+                        col = 0
+                        y += rowHeight + grid.gap
+                        rowHeight = 0
+                    }
+                }
+            }
+            return out
+        }
+        // A pair: cards starting on one line that fill every column between them, one across
+        // more than one. They end level, as tall as the tallest; masonry then places the rest
+        // under them again (twice at most: a band found the second time is rare).
+        const pairs = spots => {
+            const tall = new Map()
+            const bands = {}
+            for (const p of spots) (bands[Math.round(p.y)] = bands[Math.round(p.y)] || []).push(p)
+            for (const key in bands) {
+                const band = bands[key]
+                if (band.length < 2 || !band.some(p => p.s > 1 && p.s < grid.columns)) continue
+                if (band.reduce((n, p) => n + p.s, 0) !== grid.columns) continue
+                const h = Math.max(...band.map(p => p.c.implicitHeight))
+                for (const p of band) if (p.c.implicitHeight < h - 0.5) tall.set(p.c, h)
+            }
+            return tall
+        }
+        let tall = new Map()
+        let spots = lay(tall)
+        for (let pass = 0; pass < 2; pass++) {
+            const next = pairs(spots)
+            if (next.size === tall.size && [...next].every(([c, h]) => tall.get(c) === h)) break
+            tall = next
+            spots = lay(tall)
         }
         let bottom = 0
-        if (masonry) {
-            // Each card where the columns it takes are lowest, the leftmost of those level.
-            const heights = Array(grid.columns).fill(0)
-            for (const c of cards) {
-                const s = spanOf(c)
-                let at = 0, top = Infinity
-                for (let k = 0; k + s <= grid.columns; k++) {
-                    const t = Math.max(...heights.slice(k, k + s))
-                    if (t < top - 0.5) { at = k; top = t }
-                }
-                put(c, at * step, top, across(s))
-                for (let k = at; k < at + s; k++) heights[k] = top + c.implicitHeight + grid.gap
-                bottom = Math.max(bottom, top + c.implicitHeight)
-            }
-        } else {
-            let col = 0, y = 0, rowHeight = 0
-            for (const c of cards) {
-                const s = spanOf(c)
-                // A card wider than what is left of the row starts the next.
-                if (col > 0 && col + s > grid.columns) {
-                    col = 0
-                    y += rowHeight + grid.gap
-                    rowHeight = 0
-                }
-                put(c, col * step, y, across(s))
-                rowHeight = Math.max(rowHeight, c.implicitHeight)
-                bottom = y + rowHeight
-                col += s
-                if (col >= grid.columns) {
-                    col = 0
-                    y += rowHeight + grid.gap
-                    rowHeight = 0
-                }
-            }
+        for (const p of spots) {
+            const h = tall.has(p.c) ? tall.get(p.c) : p.c.implicitHeight
+            put(p.c, p.x, p.y, across(p.s), h)
+            bottom = Math.max(bottom, p.y + h)
         }
+        stretched = [...tall.keys()]
         placed = cards
         placedWidth = grid.width
         grid.implicitHeight = bottom

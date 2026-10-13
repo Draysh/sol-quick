@@ -13,13 +13,14 @@ import QtQuick
 Item {
     id: tabs
 
-    /** `{ value, label, count?, hint?, jp? }` (`id` in place of `value` too, as a PageHead's tabs have it); `jp` goes before the label in the Yozora look: "道". */
+    /** `{ value, label, count?, hint?, jp? }` (`id` in place of `value` too, as a PageHead's tabs have it); `jp` goes before the label: "道". */
     property var options: []
     property string value: ""
     property bool line: true
     /** What its ends fade into when it scrolls: the page, or the bar it sits on. */
     property color ground: Theme.space
     signal chosen(string value)
+    onChosen: Sounds.tick()
 
     function valueOf(o) { return o.value !== undefined ? String(o.value) : String(o.id) }
     /** Where the one that is on is among the options, or -1. */
@@ -53,8 +54,8 @@ Item {
                     id: row
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
-                    Text { visible: Theme.yozora && !!tab.modelData.jp; y: (row.height - height) / 2; rightPadding: 2; text: tab.modelData.jp || ""; font.family: Theme.fontTitle; font.weight: Font.Bold; font.pixelSize: Theme.textXs + 2; color: tab.on ? Theme.hudAccent : Theme.textQuiet }
-                    Text { y: (row.height - height) / 2; text: tab.modelData.label; font.family: Theme.fontCaps; font.weight: Theme.yozora && tab.on ? Font.Bold : Font.Normal; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: tab.on ? Theme.textBright : mouse.containsMouse ? Theme.textValue : Theme.textQuiet; Behavior on color { ColorAnimation { duration: Theme.fade } } }
+                    Text { visible: !!tab.modelData.jp; y: (row.height - height) / 2; rightPadding: 2; text: tab.modelData.jp || ""; font.family: Theme.fontTitle; font.weight: Font.Bold; font.pixelSize: Theme.textXs + 2; font.features: Theme.titleFeatures; color: tab.on ? Theme.hudAccent : Theme.textQuiet }
+                    Text { y: (row.height - height) / 2; text: tab.modelData.label; readonly property bool caps: Theme.capsFor(text); font.family: caps ? Theme.fontCaps : Theme.font; font.weight: tab.on ? Font.Bold : Font.Normal; font.pixelSize: caps ? Theme.textXs : Theme.textS; font.letterSpacing: caps ? Theme.track(Theme.trackCaps, Theme.textXs) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase; color: tab.on ? Theme.textBright : mouse.containsMouse ? Theme.textValue : Theme.textQuiet; Behavior on color { ColorAnimation { duration: Theme.fade } } }
                     Text { visible: tab.modelData.count !== undefined; text: tab.modelData.count === undefined ? "" : String(tab.modelData.count); font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightValue; color: Theme.textQuiet }
                 }
                 MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tabs.chosen(tabs.valueOf(tab.modelData)) }
@@ -80,23 +81,23 @@ Item {
                 // Placed at once the first time; after that it slides.
                 property bool shown: false
                 onUnderChanged: if (under) Qt.callLater(() => underline.shown = true)
-                // In the Yozora look a bar in the world's light, its ends slanted.
+                // A bar in the world's light, its ends slanted.
                 y: parent.height - height
                 width: 100
-                height: Theme.yozora ? 3 : 1
-                color: Theme.yozora ? Theme.hudAccent : Theme.textBright
-                antialiasing: Theme.yozora
+                height: 3
+                color: Theme.hudAccent
+                antialiasing: true
                 opacity: under ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Theme.fade } }
                 transform: [
                     Scale {
                         xScale: underline.under ? underline.under.width / 100 : 0
-                        Behavior on xScale { enabled: underline.shown && !Theme.calm; NumberAnimation { id: stretching; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                        Behavior on xScale { enabled: underline.shown && !Theme.calm; NumberAnimation { id: stretching; duration: Theme.settle; easing: Theme.easeOut } }
                     },
-                    Matrix4x4 { matrix: Theme.yozora ? Qt.matrix4x4(1, -1, 0, 1.5, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) : Qt.matrix4x4() },
+                    Matrix4x4 { matrix: Qt.matrix4x4(1, -1, 0, 1.5, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1) },
                     Translate {
                         x: underline.under ? underline.under.x : 0
-                        Behavior on x { enabled: underline.shown && !Theme.calm; NumberAnimation { id: sliding; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                        Behavior on x { enabled: underline.shown && !Theme.calm; NumberAnimation { id: sliding; duration: Theme.settle; easing: Theme.easeOut } }
                     }
                 ]
             }

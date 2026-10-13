@@ -40,7 +40,7 @@ FocusScope {
     opacity: open ? 1 : 0
     enabled: open
     Settling { when: tourFade.running }
-    Behavior on opacity { NumberAnimation { id: tourFade; duration: Theme.calm ? Theme.fade : Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+    Behavior on opacity { NumberAnimation { id: tourFade; duration: Theme.calm ? Theme.fade : Theme.rise; easing: Theme.easeOut } }
 
     /** Opens the tour at its first card. */
     function show() {
@@ -98,8 +98,8 @@ FocusScope {
             PropertyAction { target: body; property: "opacity"; value: 0 }
             PropertyAction { target: shift; property: "x"; value: Theme.calm ? 0 : 14 }
             ParallelAnimation {
-                NumberAnimation { target: body; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-                NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+                NumberAnimation { target: body; property: "opacity"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
+                NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.settle; easing: Theme.easeOut }
             }
         }
 
@@ -118,7 +118,7 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                     color: Theme.tint(Theme.world, 0.12)
                     border.width: 1; border.color: Theme.tint(Theme.world, 0.35)
-                    Icon { anchors.centerIn: parent; name: root.card.icon || "info"; size: 20; color: Theme.mark(Theme.world) }
+                    Icon { anchors.centerIn: parent; name: root.card.icon || "info"; size: 20; color: Theme.world }
                 }
                 Quiet {
                     anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
@@ -168,7 +168,7 @@ FocusScope {
                         delegate: Rectangle {
                             required property int index
                             width: index === root.at ? 16 : 6; height: 6; radius: 3
-                            color: index === root.at ? Theme.mark(Theme.world) : Theme.lineStrong
+                            color: index === root.at ? Theme.world : Theme.lineStrong
                             Behavior on width { NumberAnimation { duration: Theme.fade } }
                         }
                     }

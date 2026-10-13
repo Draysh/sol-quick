@@ -2,8 +2,8 @@ import QtQuick
 
 /*
     A hanko: a small vermilion seal with one kanji pressed into it, set a
-    little askew, as a stamp lands. Mercury's mark beside a heading in the
-    Yozora look (HudLabel draws one there); anything else may use it for a
+    little askew, as a stamp lands. Mercury's mark beside a heading
+    (HudLabel draws one there); anything else may use it for a
     day stamped done. `round` makes it a summer stamp card's round stamp
     (Terra's habits, Luna's nights).
 
@@ -40,7 +40,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: root.text
-            font.family: Theme.fontTitle; font.weight: Font.Black; font.pixelSize: Math.round(root.size * 0.6)
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: Math.round(root.size * 0.6)
             color: root.paper
         }
     }

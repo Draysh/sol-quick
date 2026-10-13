@@ -4,8 +4,7 @@ import QtQuick.Shapes
 /*
     A tiny crescent in the world's colour, for navigation and lists: a disc
     for a star, the lit sliver for a planet or a moon. Drawn as its own
-    shape, so it sits on any ground (a card, the sidebar, glass) and, by
-    day, deepened enough to show on the pale sky.
+    shape, so it sits on any ground (a card, the sidebar, glass).
 */
 Item {
     id: root
@@ -15,7 +14,7 @@ Item {
     property bool hollow: false
 
     readonly property var w: Worlds.get(world)
-    readonly property color tone: Theme.mark(w.color)
+    readonly property color tone: w.color
     readonly property bool disc: hollow || w.kind === "star"
     width: size
     height: size

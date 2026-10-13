@@ -27,7 +27,7 @@ FocusScope {
     /** What it is, for a screen reader, when no label shows (the question is above it). */
     property string name: ""
     property alias edit: edit
-    /** The colour of what is written: the theme's text, or ink on paper (Terra's notebook in the Yozora look). */
+    /** The colour of what is written: the theme's text, or ink on paper (Terra's notebook). */
     property color ink: Theme.text
     /** A rule under every line, as on a notebook's page, in this colour; with one the underline gives way to it. Transparent for none. */
     property color ruled: "transparent"
@@ -66,7 +66,7 @@ FocusScope {
                 font.weight: Theme.weightValue
                 color: root.enabled ? root.ink : root.inked ? Theme.tint(root.ink, 0.62) : Theme.textFaint
                 selectionColor: root.ink
-                selectedTextColor: root.inked ? "#ffffff" : Theme.space
+                selectedTextColor: root.inked ? "#ffffff" : Theme.textInverse
                 wrapMode: TextEdit.Wrap
                 textFormat: TextEdit.PlainText
                 focus: true

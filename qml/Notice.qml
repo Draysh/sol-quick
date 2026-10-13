@@ -25,8 +25,8 @@ Item {
     Component.onCompleted: arrive.start()
     ParallelAnimation {
         id: arrive
-        NumberAnimation { target: root; property: "opacity"; to: 1; duration: 320; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-        NumberAnimation { target: drop; property: "y"; to: 0; duration: 320; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
+        NumberAnimation { target: drop; property: "y"; to: 0; duration: Theme.settle; easing: Theme.easeOut }
     }
 
     GlassPanel { id: panel; anchors.fill: parent; edge: root.error ? Theme.danger : Theme.lineMid; shade: 0.84 }
@@ -34,24 +34,36 @@ Item {
     Row {
         id: content
         x: 18; y: 14
-        width: parent.width - 18 - Theme.target
+        width: parent.width - 18 - Theme.s3
         spacing: 14
         WorldGlyph { world: root.world; size: 14; y: 2 }
         Column {
             width: parent.width - 28
             spacing: 2
-            Label { text: root.title; width: parent.width }
+            // The title, and the way to put it away at the end of its line.
+            Item {
+                width: parent.width
+                height: Math.max(titleLabel.implicitHeight, close.height)
+                Label { id: titleLabel; text: root.title; width: parent.width - close.width - Theme.s2; anchors.verticalCenter: parent.verticalCenter }
+                Text {
+                    id: close
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 20; height: 20
+                    text: "×"
+                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    font.family: Theme.font; font.pixelSize: Theme.textL
+                    color: closeMouse.containsMouse ? Theme.textBright : Theme.textQuiet
+                    Behavior on color { ColorAnimation { duration: Theme.fade } }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: "Dismiss"
+                    MouseArea { id: closeMouse; anchors.fill: parent; anchors.margins: -6; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Notices.dismiss(root.key) }
+                }
+            }
             Words { visible: root.body !== ""; text: root.body; width: parent.width; small: true }
             Item { visible: root.action !== ""; width: 1; height: Theme.s2 }
             Button { visible: root.action !== ""; variant: "quiet"; text: root.action; onClicked: Notices.act(root.key) }
         }
-    }
-    Button {
-        variant: "round"
-        icon: "close"
-        anchors.right: parent.right; anchors.rightMargin: 4
-        y: 2
-        onClicked: Notices.dismiss(root.key)
     }
 
     // How long it stays: a line that runs out, between the corners.
@@ -59,7 +71,7 @@ Item {
         id: time
         x: panel.radius; y: parent.height - 2
         width: parent.width - panel.radius * 2; height: 1
-        color: root.error ? Theme.danger : Theme.yozora ? Theme.hudAccent : Theme.lineStrong
+        color: root.error ? Theme.danger : Theme.hudAccent
         transform: Scale { id: left; origin.x: 0; xScale: 1 }
         // The line is the time: when it has run out, the notice goes.
         NumberAnimation {

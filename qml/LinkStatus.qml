@@ -16,10 +16,15 @@ Column {
     property string warn: ""
     /** Just the dots, centred (the Shell's rail): the words are in their hints. */
     property bool compact: false
+    /** How wide its words may run (the sidebar keeps the navigator's head chip clear); its width unless set. */
+    property real room: width
 
     readonly property string line: online
         ? (busy !== "" ? busy : unsent ? "Sending " + unsent : "In sync")
         : (unsent ? "Offline · " + unsent + " to send" : "Offline")
+    /** What waits, on a line of its own when the whole line doesn't fit its room: "313 to send". */
+    readonly property string waiting: !online && unsent ? unsent + " to send" : ""
+    readonly property bool split: waiting !== "" && !compact && whole.implicitWidth + 11 > room
     readonly property string title: online
         ? (unsent ? unsent + " change" + (unsent === 1 ? "" : "s") + " on the way to Sol" : "Connected to Sol; every change reaches it at once")
         : "Sol can't be reached; " + (unsent ? unsent + " change" + (unsent === 1 ? " waits" : "s wait") + " here until it can" : "changes made now wait here until it can")
@@ -42,11 +47,15 @@ Column {
             RectangularShadow { anchors.fill: dotRect; radius: 2.5; blur: 8; color: Theme.tint(line.dot, line.glow ? 1 : 0); Behavior on color { ColorAnimation { duration: Theme.fade } } }
             Rectangle { id: dotRect; anchors.fill: parent; radius: 2.5; color: line.dot; Behavior on color { ColorAnimation { duration: Theme.fade } } }
         }
-        Quiet { visible: !root.compact; text: line.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.width - 12) }
+        Quiet { visible: !root.compact; text: line.text; anchors.verticalCenter: parent.verticalCenter; width: Math.min(implicitWidth, root.room - 12) }
         HoverHandler { id: hover }
         Hint { text: root.compact ? line.text + " · " + line.hint : line.hint; when: hover.hovered; above: true }
     }
 
     Line { visible: root.warn !== ""; text: root.warn; dot: Theme.danger; hint: root.warn }
-    Line { text: root.line; dot: root.online ? Theme.ok : Theme.textFaint; glow: root.online; hint: root.title }
+    Line { text: root.split ? "Offline" : root.line; dot: root.online ? Theme.ok : Theme.textFaint; glow: root.online; hint: root.title }
+    // What waits, under "Offline", lined up with its words.
+    Quiet { visible: root.split; x: 11; text: root.waiting }
+    // The whole line, measured.
+    Quiet { id: whole; visible: false; text: root.line }
 }

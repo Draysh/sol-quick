@@ -3,7 +3,7 @@ import QtQuick
 /*
     A world, lit from one side, drawn on the GPU: the photograph on a
     sphere lit by a distant sun, a terminator opposite the light (soft where
-    there is air), a night side nearly black (see-through by day), and, for
+    there is air), a night side nearly black, and, for
     a world with an atmosphere, a thin rim of it lit on the sunny limb.
     `disc` is the disc's diameter; the item is wider than that (the glow
     needs room) and centred on it.
@@ -56,7 +56,7 @@ Item {
         property vector2d away: Qt.vector2d(root.away_x, root.away_y)
         // Small (the sidebar, the bar), a body keeps at least a crescent, so a new moon still shows.
         property real phase: Math.min(1, Math.max(root.disc < 48 ? 0.2 : 0, root.phase))
-        Behavior on phase { NumberAnimation { duration: Theme.rise; easing.type: Easing.InOutSine } }
+        Behavior on phase { NumberAnimation { duration: Theme.rise; easing: Theme.easeInOut } }
         property color world: root.w.color
         property int mode: root.w.render === "star" ? 1 : root.w.render === "photo" ? 2 : 0
         property int effect: root.w.effect === "haze" ? 1 : 0
@@ -67,12 +67,13 @@ Item {
         property real air: root.w.air || 0
         property real green: root.green
         property real cloudy: root.cloudy
-        Behavior on green { NumberAnimation { duration: Theme.calm ? 0 : 2400; easing.type: Easing.InOutSine } }
-        Behavior on cloudy { NumberAnimation { duration: Theme.calm ? 0 : 2400; easing.type: Easing.InOutSine } }
+        Behavior on green { NumberAnimation { duration: Theme.calm ? 0 : Theme.wash; easing: Theme.easeInOut } }
+        Behavior on cloudy { NumberAnimation { duration: Theme.calm ? 0 : Theme.wash; easing: Theme.easeInOut } }
         property real aspect: photo.status === Image.Ready && photo.implicitWidth > 0 ? photo.implicitHeight / photo.implicitWidth : 0.484
         property real time: 0
         property int live: root.w.live === "clouds" ? 1 : root.w.live === "corona" ? 2 : 0
-        property real day: Theme.day ? 1 : 0
+        // The shader's daylight (a see-through night side): never, now that every sky is a night's.
+        property real day: 0
         supportsAtlasTextures: false
         // Alive: a second a second, while the window is awake and the body is
         // big enough to see it; it picks up where it stopped.
@@ -85,8 +86,8 @@ Item {
         Component.onCompleted: if (root.animated) rise.start()
         ParallelAnimation {
             id: rise
-            NumberAnimation { target: shade; property: "opacity"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { target: shade; property: "scale"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { target: shade; property: "opacity"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
+            NumberAnimation { target: shade; property: "scale"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
         }
     }
 }

@@ -26,8 +26,8 @@ Row {
             running: true
             PauseAnimation { duration: dot.wait }
             ParallelAnimation {
-                NumberAnimation { target: dot; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-                NumberAnimation { target: dot; property: "scale"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+                NumberAnimation { target: dot; property: "opacity"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
+                NumberAnimation { target: dot; property: "scale"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
             }
         }
     }
@@ -43,7 +43,7 @@ Row {
             x: 26; y: 6; width: 46; height: 1
             color: Theme.tint(Theme.textBright, 0.6)
             transform: Scale { id: line; origin.x: 0; xScale: 0 }
-            SequentialAnimation { running: true; PauseAnimation { duration: Theme.stagger * 4 } NumberAnimation { target: line; property: "xScale"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+            SequentialAnimation { running: true; PauseAnimation { duration: Theme.stagger * 4 } NumberAnimation { target: line; property: "xScale"; to: 1; duration: Theme.settle; easing: Theme.easeOut } }
         }
     }
     Item { width: 10; height: 1 }

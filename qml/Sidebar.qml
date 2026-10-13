@@ -10,10 +10,10 @@ import Sol.Design as Design
     sections with the world's light on the current one (a section with
     children opens out to them while one of them is open, as a carried
     moon's group does), the doors to other apps, and where the app stands
-    with Sol at the bottom. On the rail (a
-    narrow window) only the icons and marks show, and the field folds away
-    behind a button until it is used. The Shell makes one and reads
-    `finder` back.
+    with Sol at the bottom. On the rail (a narrow window) it is the same
+    glass: the world's kanji in its diamond, each section's number over
+    its short Japanese, and the field folded away behind a button until it
+    is used. The Shell makes one and reads `finder` back.
 */
 Item {
     id: side
@@ -29,24 +29,34 @@ Item {
     z: 2
     width: side.frame.rail ? Theme.rail : Theme.sidebar
     height: parent.height
-    Behavior on width { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+    // Folding to the rail or opening out, its width changes at once and it glides from where its
+    // edge was: a transform, so nothing is laid out again on the way (never with less motion).
+    property real lastWidth: -1
+    Component.onCompleted: lastWidth = width
+    onWidthChanged: {
+        if (lastWidth >= 0 && !Theme.calm) { fold.stop(); edge.x = lastWidth - width; fold.start() }
+        lastWidth = width
+    }
+    transform: Translate { id: edge }
+    NumberAnimation { id: fold; target: edge; property: "x"; to: 0; duration: Theme.settle; easing: Theme.easeOut }
+    Design.Settling { when: fold.running }
 
-    // The chrome sits a step deeper than the pane; in the Yozora look it is a rail of glass over
-    // the art, its bottom-right corner cut.
-    readonly property bool hud: Theme.yozora && !side.frame.rail
-    Rectangle { visible: !side.hud; anchors.fill: parent; color: Theme.deep }
-    Rectangle { visible: !side.hud; anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
-    Design.HudGlass { visible: side.hud; anchors.fill: parent; cuts: [0, 0, Theme.hudCut + 6, 0] }
-    Design.HudBrackets { visible: side.hud; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.7); cuts: [0, 0, Theme.hudCut + 6, 0] }
+    // A rail of glass over the art, its bottom-right corner cut (narrow, it meets the window's edges).
+    readonly property bool hud: true
+    Design.HudGlass { anchors.fill: parent; cuts: [0, 0, side.frame.rail ? 0 : Theme.hudCut + 6, 0] }
+    Design.HudBrackets { visible: !side.frame.rail; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.7); cuts: [0, 0, Theme.hudCut + 6, 0] }
+    Rectangle { visible: side.frame.rail; anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
 
     // The brand: the world's disc, its name, and what the app is for.
     Item {
         id: brand
         x: side.frame.rail ? 0 : 20
         width: side.frame.rail ? parent.width : parent.width - 36
-        height: Theme.navHeight
+        // As tall as its words (the name in Japanese, the name, what the app is for), never less than a bar.
+        height: Math.max(Theme.navHeight, brandRow.implicitHeight + Theme.s3)
         y: Theme.s2
         Row {
+            id: brandRow
             anchors.verticalCenter: parent.verticalCenter
             // A binding, not a conditional anchor (see SidebarRow).
             x: side.frame.rail ? (parent.width - width) / 2 : 0
@@ -55,9 +65,8 @@ Item {
                 width: 22; height: 22
                 anchors.verticalCenter: parent.verticalCenter
                 scale: brandMouse.containsMouse ? 1.08 : 1
-                Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-                Body { visible: !side.hud; world: side.frame.world; disc: 22; animated: false }
-                // The Yozora look: the world's kanji in a diamond.
+                Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
+                // On the floating rail: the world's kanji in a diamond.
                 Rectangle {
                     visible: side.hud
                     anchors.centerIn: parent
@@ -71,7 +80,7 @@ Item {
                     visible: side.hud
                     anchors.centerIn: parent
                     text: Theme.jpOf(side.frame.world).charAt(0)
-                    font.family: Theme.fontTitle; font.weight: Font.Black; font.pixelSize: 14
+                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 14
                     color: Theme.hudText
                 }
             }
@@ -79,19 +88,18 @@ Item {
                 visible: !side.frame.rail
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 3
-                // The world's name in Japanese over the name, in the Yozora look.
+                // The world's name in Japanese over the name.
                 Text {
-                    visible: side.hud
                     text: Theme.jpOf(side.frame.world)
-                    font.family: Theme.fontTitle; font.weight: Font.Black; font.pixelSize: Theme.textM + 2
+                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: Theme.textM + 2
                     color: Theme.hudText
                 }
                 Text {
                     text: side.frame.w.name
                     width: Math.min(implicitWidth, brand.width - 34)
                     elide: Text.ElideRight
-                    font.family: side.hud ? Theme.fontMono : Theme.font; font.weight: side.hud ? Font.Bold : Theme.weightLabel; font.pixelSize: Theme.textS
-                    font.letterSpacing: Theme.track(side.hud ? 0.32 : 0.28, Theme.textS); font.capitalization: Font.AllUppercase
+                    font.family: Theme.fontCaps; font.weight: Font.Bold; font.pixelSize: Theme.textS
+                    font.letterSpacing: Theme.track(Theme.trackHud, Theme.textS); font.capitalization: Font.AllUppercase
                     color: Theme.textBright
                 }
                 Text {
@@ -140,7 +148,7 @@ Item {
         readonly property bool usable: filtering || side.frame.search !== ""
         visible: usable && (!side.frame.rail || side.frame.finding)
         x: side.frame.rail ? side.width + Theme.s4 : 20
-        y: side.frame.rail ? Theme.s2 : brand.y + brand.height
+        y: side.frame.rail ? Theme.s2 : brand.y + brand.height + Theme.s1
         width: side.frame.rail ? Math.min(320, side.frame.width - side.width - Theme.s4 * 2) : parent.width - 36
         label: ""
         placeholder: filtering ? "Filter · /" : "Search · /"
@@ -161,7 +169,7 @@ Item {
             : finder.visible ? finder.y + finder.height + Theme.s3 : brand.y + brand.height + Theme.s2
         y: from
         width: parent.width
-        height: Math.max(0, (navigator.shown ? navigator.y : statusSlot.y) - from - Theme.s2)
+        height: Math.max(0, (navigator.holds ? navigator.y : statusSlot.y) - from - Theme.s2)
         contentHeight: doorColumn.visible ? doorColumn.y + doorColumn.height : list.height
         interactive: contentHeight > height
         clip: interactive
@@ -187,17 +195,17 @@ Item {
         Rectangle {
             id: light
             x: 0
-            // In the Yozora look, a bar in amber the row's height.
-            width: side.hud ? 3 : 2
-            height: side.hud ? Theme.control : Theme.control - 18
-            color: side.hud ? Theme.hudAccent : Theme.accent
+            // On the floating rail, a bar in the world's light the row's height.
+            width: 3
+            height: row ? row.full - row.rowTop : Theme.control
+            color: Theme.hudAccent
             opacity: side.frame.currentRow >= 0 ? 1 : 0
             // On the current row (a moon's group has its name above it).
             readonly property var row: sectionRepeater.count > 0 ? sectionRepeater.itemAt(Math.max(0, side.frame.currentRow)) : null
-            y: (row ? row.y + row.rowTop : 0) + (side.hud ? 0 : 9)
+            y: row ? row.y + row.rowTop : 0
             property bool moved: false
             onYChanged: moved = true
-            Behavior on y { enabled: light.moved; SpringAnimation { spring: 3.2; damping: 0.28; mass: 0.9 } }
+            Behavior on y { enabled: light.moved; NumberAnimation { duration: Theme.settle; easing: Theme.spring } }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
             RectangularShadow { anchors.fill: parent; blur: 8; spread: 0; color: light.color; z: -1 }
         }
@@ -207,13 +215,15 @@ Item {
             width: parent.width
             Repeater {
                 id: sectionRepeater
-                model: side.frame.rows
+                // By count, so a row's badge or hint changing (a card graded, Today's count going
+                // down) updates its row in place instead of making every row and its arrival again.
+                model: side.frame.rows.length
                 // A carried moon's sections are a group under its name (on the rail, a line above);
                 // a section's children follow it, a step in.
                 delegate: Item {
                     id: entry
-                    required property var modelData
                     required property int index
+                    readonly property var modelData: side.frame.rows[index] || ({ top: 0 })
                     readonly property bool first: !!modelData.group && !modelData.child && (modelData.top === 0 || side.frame.sections[modelData.top - 1].group !== modelData.group)
                     readonly property real caption: !first ? 0 : side.frame.rail ? Theme.s3 : 30
                     // The gap above it, as a Column's spacing would put it.
@@ -235,7 +245,7 @@ Item {
                     property real shown: folded ? 0 : 1
                     property bool ready: false
                     Component.onCompleted: Qt.callLater(() => entry.ready = true)
-                    Behavior on shown { enabled: entry.ready && !Theme.calm; NumberAnimation { id: folding; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                    Behavior on shown { enabled: entry.ready && !Theme.calm; NumberAnimation { id: folding; duration: Theme.settle; easing: Theme.easeOut } }
                     height: full * shown
                     visible: shown > 0.01
                     opacity: shown
@@ -248,15 +258,26 @@ Item {
                         height: 1
                         color: Theme.line
                     }
-                    Text {
+                    // A moon's group: 衛星 (a moon, in the title serif), then its name in capitals.
+                    Row {
                         visible: entry.first && !side.frame.rail
-                        x: side.hud ? 18 : Theme.s3
-                        y: entry.gap + Theme.s3
-                        // A moon's group: "衛星 / Titan" in the Yozora look.
-                        text: (side.hud ? "衛星 / " : "") + (entry.modelData.group || "")
-                        font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
-                        font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
-                        color: Theme.textQuiet
+                        x: 18
+                        // A little higher than a line of capitals alone: the serif's 衛星 is taller.
+                        y: entry.gap + Theme.s3 - 3
+                        spacing: Theme.s2
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "衛星"
+                            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold
+                            color: Theme.textQuiet
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: entry.modelData.group || ""
+                            font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
+                            font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
+                            color: Theme.textQuiet
+                        }
                     }
                     Design.SidebarRow {
                         id: row
@@ -315,22 +336,31 @@ Item {
 
     }
 
-    // The Yozora look's navigator, over the status, while the rows leave it room.
+    // The navigator, over the status, while the rows leave it room; else its head chip, on
+    // the rail's edge beside the status (on the narrow rail, over it).
     Design.Navigator {
         id: navigator
         /** The room the rows leave above the status. */
         readonly property real room: statusSlot.y - Theme.s3 - scroller.from - Theme.s2 - scroller.contentHeight
-        readonly property bool shown: side.hud && here && room >= compactHeight
-        compact: room < fullHeight
+        /** Whether it takes room from the rows (the chip beside the status takes none). */
+        readonly property bool holds: here && (!chip || narrow)
+        narrow: side.frame.rail
         space: room
-        visible: shown
-        x: 18
-        width: parent.width - 36
+        x: side.frame.rail ? 0 : 18
+        width: parent.width - x * 2
+        edge: x
         height: implicitHeight
-        y: statusSlot.y - Theme.s3 - height
+        // The chip's middle on the status line, or the whole of it over the status.
+        y: holds ? statusSlot.y - Theme.s3 - height : statusSlot.y + 1 + statusSlot.spacing + (statusSlot.height - 1 - statusSlot.spacing - height) / 2
+        z: 3
         world: side.frame.world
+        jp: side.frame.navigatorJp
         line: side.frame.navigatorLine
+        looking: side.frame.path
+        away: side.frame.navigatorAway
     }
+    /** How far the navigator reaches past the sidebar's edge into the page (the Screen keeps its big title clear). */
+    readonly property real navigatorReach: navigator.here ? Math.max(0, navigator.reach) : 0
 
     // The bottom: where the app stands with Sol.
     Column {
@@ -341,6 +371,10 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.s3
         spacing: Theme.s2
+        /** How far its words may run: short of the navigator's head chip when that sits beside them
+            (the diamond's edge at the words' height, a little apart). */
+        readonly property real room: navigator.here && navigator.chip && !side.frame.rail
+            ? Math.min(width, navigator.x + navigator.chipEdge(Theme.textXs / 2) - x - Theme.s1) : width
         Rectangle { width: statusSlot.width; height: 1; color: Theme.line }
     }
 }

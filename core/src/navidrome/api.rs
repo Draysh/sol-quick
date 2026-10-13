@@ -524,7 +524,7 @@ fn artist(lib: &Library, st: &State, a: &Artist) -> Value {
         .iter()
         .filter(|al| lib.artist_of(al) == a)
         .count();
-    let mut v = json!({ "id": a.id, "name": a.name, "coverArt": a.id, "albumCount": albums,
+    let mut v = json!({ "id": a.id, "name": a.name, "albumCount": albums,
                         "artistImageUrl": "" });
     starred(st, &a.id, &mut v);
     v
@@ -544,7 +544,7 @@ fn album(lib: &Library, st: &State, a: &Album, with_songs: bool) -> Value {
     let played: u64 = a.songs.iter().map(|&s| plays(st, &lib.songs[s])).sum();
     let mut v = json!({
         "id": a.id, "name": a.name, "title": a.name, "album": a.name, "artist": artist.name,
-        "artistId": artist.id, "coverArt": a.id, "songCount": a.songs.len(), "duration": duration,
+        "artistId": artist.id, "songCount": a.songs.len(), "duration": duration,
         "created": a.created, "year": a.year, "genre": a.genre, "isDir": true,
     });
     if played > 0 {
@@ -568,7 +568,7 @@ fn song(lib: &Library, st: &State, s: &Song) -> Value {
     let mut v = json!({
         "id": s.id, "parent": album.id, "isDir": false, "title": s.title, "album": album.name,
         "artist": artist.name, "track": s.track, "discNumber": 1, "year": album.year,
-        "genre": album.genre, "coverArt": album.id, "size": Silence::new(s.duration).len,
+        "genre": album.genre, "size": Silence::new(s.duration).len,
         "contentType": "audio/wav", "suffix": "wav", "duration": s.duration,
         "bitRate": Silence::kbps(), "path": format!("{}/{}/{:02} {}.wav", artist.name, album.name, s.track, s.title),
         "created": album.created, "albumId": album.id, "artistId": artist.id, "type": "music",
@@ -584,7 +584,6 @@ fn playlist(lib: &Library, st: &State, pl: &Playlist, with_entries: bool) -> Val
         "id": pl.id, "name": pl.name, "comment": pl.comment, "owner": super::USER, "public": false,
         "songCount": songs.len(), "duration": songs.iter().map(|s| s.duration).sum::<u32>(),
         "created": "2025-09-01T18:00:00Z", "changed": pl.changed,
-        "coverArt": songs.first().map(|s| lib.album_of(s).id.clone()),
     });
     if with_entries {
         v["entry"] = songs

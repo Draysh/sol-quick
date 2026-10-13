@@ -77,7 +77,7 @@ Item {
                         color: !root.enabled ? Theme.textFaint : root.shown ? Theme.textBright : Theme.textQuiet
                         // The disc stretches towards where it is going while pressed.
                         transform: Scale { origin.x: root.shown ? disc.width : 0; xScale: mouse.pressed && root.enabled ? 1.3 : 1; Behavior on xScale { NumberAnimation { duration: Theme.lock } } }
-                        Behavior on x { SpringAnimation { spring: 4; damping: 0.32; mass: 0.8 } }
+                        Behavior on x { NumberAnimation { duration: Theme.settle; easing: Theme.spring } }
                         Behavior on color { ColorAnimation { duration: Theme.lock } }
                     }
                 }

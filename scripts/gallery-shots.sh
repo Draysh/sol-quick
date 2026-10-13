@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The one look after a kit change: builds the gallery once, then takes a
-# picture of every page, night and day (and two narrow), into <folder>,
-# and says what the journal had to say about the QML while they were taken.
+# picture of every page in each world's flavour (Saturn's, Mercury's,
+# Neptune's, Terra's), with less motion and narrow, into <folder>, and says
+# what the journal had to say about the QML while they were taken.
 #
 #   scripts/gallery-shots.sh [--build] <folder> [name…]
 #
@@ -10,12 +11,16 @@
 # pictures without building; it builds when anything else changed, when a
 # .qml file was added or removed (the module lists them), or with --build.
 #
-# With names (e.g. `night-controls day-panels`), only the pictures whose
-# names start with one of them. The pictures are taken in a few runs of the
-# gallery (night, day, with less motion, narrow), each on a hidden display
-# of its own (scripts/hidden.sh) and taking its pictures one after another
-# as each page is ready (SOL_SHOTS): no window ever opens on the person's
-# desktop.
+# With names (e.g. `saturn-controls terra-panels`), only the pictures whose
+# names start with one of them. Each page is taken from its top to its end, a
+# view at a time (`saturn-panels`, `saturn-panels-2` … `saturn-panels-end`),
+# so every component is in a picture; a view that only repeats the one
+# before (the page ended sooner) is dropped. The pictures are taken in a few
+# runs of the gallery (one per flavour, SOL_FLAVOUR=<world>, Luna's too; with
+# less motion; narrow),
+# each on a hidden display of its own (scripts/hidden.sh) and taking its
+# pictures one after another as each page is ready (SOL_SHOTS): no window
+# ever opens on the person's desktop.
 set -euo pipefail
 
 build=
@@ -61,6 +66,19 @@ shoot() {
     batch+=("$out/$1.png=$2")
     names+=("$1")
 }
+# down <name> <path> <views>: the page from its top to its end, a view (700 px, a little less than the window) at a time:
+# <name>, <name>-2 … and <name>-end; the views that repeat the one before are dropped at the end.
+step=700
+downs=()
+down() {
+    local name=$1 path=$2 views=$3 sep='?' k
+    [[ $path == *\?* ]] && sep='&'
+    shoot "$name" "$path"
+    for ((k = 1; k < views; k++)); do shoot "$name-$((k + 1))" "$path${sep}_scroll=$((k * step))"; done
+    shoot "$name-end" "$path${sep}_scroll=end"
+    wanted "$name" && downs+=("$name:$views")
+    return 0
+}
 # run [VAR=value…]: takes the gathered pictures in one run of the gallery;
 # once more for any that didn't come (a window the desktop never showed).
 run() {
@@ -82,72 +100,92 @@ run() {
     batch=() names=()
 }
 
-# Mercury and Sol, which have no moons, last: a Sheet whose world gains a moon while it shows
-# places the moon's link wrong (only the gallery changes its world while running).
-worlds=(terra luna saturn titan neptune triton mercury sol)
 echo "Pictures in $out:"
-for light in night day; do
+# Each flavour's run: its own world's page (and its moon's), then every page of the gallery.
+# Luna's flavour is her own (a moon's), worn on its own run.
+declare -A moon=([saturn]=titan [mercury]= [neptune]=triton [terra]=luna [luna]=)
+for f in saturn mercury neptune terra luna; do
     # First: the problem takes the place of the Shell, which then loads for the rest.
-    if [[ $light == night ]]; then shoot "night-problem-newer" "/?_problem=newer"; else shoot "day-problem-damaged" "/?_problem=damaged"; fi
-    for w in "${worlds[@]}"; do shoot "$light-worlds-$w" "/?_world=$w"; done
-    shoot "$light-worlds-lower" "/?_world=terra&_scroll=1100"
-    shoot "$light-controls" "/controls"
-    shoot "$light-controls-lower" "/controls?_scroll=900"
-    shoot "$light-panels" "/panels"
-    shoot "$light-panels-lower" "/panels?_scroll=1000"
-    shoot "$light-panels-end" "/panels?_scroll=2300"
-    shoot "$light-panels-long" "/panels?_scroll=5700"
-    shoot "$light-overlays" "/overlays"
-    shoot "$light-overlays-menu" "/overlays?_menu=1"
-    shoot "$light-sky" "/sky"
-    if [[ $light == night ]]; then
-        # The states one picture can't hold, at night only.
-        shoot "night-controls-field" "/controls?_focus=field"
-        shoot "night-controls-textarea" "/controls?_focus=textarea"
-        shoot "night-overlays-palette" "/overlays?_palette=1"
-        shoot "night-overlays-ask" "/overlays?_ask=1"
-        shoot "night-overlays-notice" "/overlays?_notice=1"
-        shoot "night-overlays-notice-button" "/overlays?_notice=button"
-        shoot "night-overlays-kept" "/overlays?_kept=1"
-        shoot "night-overlays-moment" "/overlays?_moment=1"
+    if [[ $f == saturn ]]; then shoot "saturn-problem-newer" "/?_problem=newer"; fi
+    if [[ $f == terra ]]; then shoot "terra-problem-damaged" "/?_problem=damaged"; fi
+    down "$f-worlds" "/?_world=$f" 3
+    [[ -n ${moon[$f]} ]] && shoot "$f-worlds-${moon[$f]}" "/?_world=${moon[$f]}"
+    down "$f-controls" "/controls" 3
+    down "$f-panels" "/panels" 10
+    down "$f-overlays" "/overlays" 2
+    shoot "$f-overlays-menu" "/overlays?_menu=1"
+    shoot "$f-overlays-moment" "/overlays?_moment=1"
+    shoot "$f-sky" "/sky"
+    down "$f-tabs" "/tabs" 2
+    down "$f-settings" "/settings" 2
+    if [[ $f == saturn ]]; then
+        # The states one picture can't hold, in one flavour only.
+        shoot "saturn-controls-field" "/controls?_focus=field"
+        shoot "saturn-controls-textarea" "/controls?_focus=textarea"
+        shoot "saturn-overlays-palette" "/overlays?_palette=1"
+        shoot "saturn-overlays-ask" "/overlays?_ask=1"
+        shoot "saturn-overlays-notice" "/overlays?_notice=1"
+        shoot "saturn-overlays-notice-button" "/overlays?_notice=button"
+        shoot "saturn-overlays-kept" "/overlays?_kept=1"
         # Quick capture: its own window's picture lands beside, as <name>-capture.png.
-        shoot "night-overlays-capture" "/overlays?_capture=walk"
-        shoot "night-overlays-tour" "/overlays?_tour=1"
-        # The Sky's own: a star chosen, the comet and the full moon on Luna's Sheet, a star lighting.
-        shoot "night-sky-chosen" "/sky?star=ghibli/spirited"
-        shoot "night-worlds-comet" "/?_world=luna&_comet=1&_sky=full-moon"
-        shoot "night-sky-star" "/sky?_moment=star"
+        shoot "saturn-overlays-capture" "/overlays?_capture=walk"
+        shoot "saturn-overlays-tour" "/overlays?_tour=1"
+        # The Sky's own: a star chosen, the full moon on Luna's Sheet, a star lighting.
+        shoot "saturn-sky-chosen" "/sky?star=ghibli/spirited"
+        shoot "saturn-worlds-full-moon" "/?_world=luna&_sky=full-moon"
+        shoot "saturn-sky-star" "/sky?_moment=star"
         # A carried moon: its group in the sidebar, its pages in its colour, on its own link; its sky a tab
         # of the Sky and its settings a part of Settings, which its old paths still open.
-        shoot "night-moon" "/moon"
-        shoot "night-moon-sky" "/moon/sky"
-        shoot "night-settings" "/settings"
-        shoot "night-moon-settings" "/moon/settings"
-        # Structure: a masonry grid, a section's children open, a page's tabs, things' menus, the palette's nested row.
-        shoot "night-panels-masonry" "/panels?_scroll=4900"
-        shoot "night-tabs" "/tabs"
-        shoot "night-tabs-calendar" "/tabs?tab=calendar"
-        shoot "night-menus" "/menus"
-        shoot "night-menus-open" "/menus?_nested=1"
-        shoot "night-overlays-palette-rate" "/overlays?_palette=rate"
+        shoot "saturn-moon" "/moon"
+        shoot "saturn-moon-sky" "/moon/sky"
+        shoot "saturn-moon-settings" "/moon/settings"
+        # Structure: a section's children open, a page's tabs, things' menus, the palette's nested row.
+        shoot "saturn-tabs-calendar" "/tabs?tab=calendar"
+        shoot "saturn-menus" "/menus"
+        shoot "saturn-menus-open" "/menus?_nested=1"
+        shoot "saturn-overlays-palette-rate" "/overlays?_palette=rate"
         # Last: the open list stays open over what comes after.
-        shoot "night-controls-select" "/controls?_focus=select"
-    else
-        shoot "day-overlays-moment" "/overlays?_moment=1"
-        shoot "day-overlays-kept" "/overlays?_kept=1"
-        shoot "day-overlays-tour" "/overlays?_tour=2"
-        shoot "day-tabs" "/tabs?tab=timeline"
-        shoot "day-panels-masonry" "/panels?_scroll=4900"
+        shoot "saturn-controls-select" "/controls?_focus=select"
     fi
-    run SOL_LIGHT="$light"
+    run SOL_FLAVOUR="$f"
 done
-shoot "night-overlays-moment-calm" "/overlays?_moment=1"
-run SOL_LIGHT=night SOL_CALM=1
+shoot "calm-overlays-moment" "/overlays?_moment=1"
+run SOL_CALM=1
 # Narrow: the sidebar as a rail, one column.
 shoot "narrow-worlds" "/?_world=saturn"
 shoot "narrow-controls" "/controls"
 shoot "narrow-tabs" "/tabs"
-run SOL_LIGHT=night QT_SCALE_FACTOR=3
+run QT_SCALE_FACTOR=3
+
+# The views that only repeat the one before them (the page ended sooner): dropped.
+if [ ${#downs[@]} -gt 0 ]; then
+    python3 - "$out" "${downs[@]}" <<'PY'
+import sys
+from pathlib import Path
+from PIL import Image, ImageChops
+out = Path(sys.argv[1])
+def same(a, b):
+    if not (a.exists() and b.exists()):
+        return False
+    x, y = Image.open(a).convert("RGB"), Image.open(b).convert("RGB")
+    if x.size != y.size:
+        return False
+    d = ImageChops.difference(x, y).convert("L").point(lambda v: 255 if v > 24 else 0)
+    return d.histogram()[255] < 300
+for arg in sys.argv[2:]:
+    name, views = arg.rsplit(":", 1)
+    names = [name] + [f"{name}-{k}" for k in range(2, int(views) + 1)] + [f"{name}-end"]
+    kept = None
+    for n in names:
+        p = out / f"{n}.png"
+        if not p.exists():
+            continue
+        if kept is not None and same(kept, p):
+            p.unlink()
+            continue
+        kept = p
+PY
+fi
 
 echo "The journal since $start:"
 if journalctl --user -S "$start" | grep 'gallery\[' \

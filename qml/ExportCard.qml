@@ -27,6 +27,7 @@ Card {
     property bool importing: false
 
     title: "Export and import"
+    jp: "書き出し"
 
     function exportAll() {
         exporting = true

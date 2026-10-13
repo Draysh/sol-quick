@@ -63,8 +63,9 @@ Rectangle {
     /** How long a flight takes, in ms. */
     property int flightMs: Theme.calm ? 0 : Theme.rise
 
-    /** How warm the panel's dark is (the world's colour in it, top; the foot has a little more). */
-    property real tinge: 0.04
+    /** How much of the ground lies over the still behind the night (top; the foot has a little more): little, so the film shows round the stars. */
+    // Over a light flavour's bright noon still the night is laid deeper, so its names still read.
+    property real dark: Theme.light ? 0.56 : 0.34
     /** The far dust: its own seed per map, how thinly it lies (square pixels to a grain), and how much of it is warm (warm dust is a little brighter). */
     property int dustSeed: 20261012
     property real dustSpread: 1500
@@ -122,9 +123,9 @@ Rectangle {
 
     ParallelAnimation {
         id: flight
-        NumberAnimation { id: toX; target: field; property: "cx"; duration: field.flightMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-        NumberAnimation { id: toY; target: field; property: "cy"; duration: field.flightMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-        NumberAnimation { id: toZoom; target: field; property: "zoom"; duration: field.flightMs; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { id: toX; target: field; property: "cx"; duration: field.flightMs; easing: Theme.easeOut }
+        NumberAnimation { id: toY; target: field; property: "cy"; duration: field.flightMs; easing: Theme.easeOut }
+        NumberAnimation { id: toZoom; target: field; property: "zoom"; duration: field.flightMs; easing: Theme.easeOut }
     }
 
     // The names wait for the view: at most every few frames while it moves,
@@ -142,12 +143,12 @@ Rectangle {
     border.width: 1
     border.color: Theme.line
     gradient: Gradient {
-        GradientStop { position: 0; color: Theme.yozora ? Theme.tint(Theme.hud.ground, 0.62) : Qt.tint("#05060a", Theme.tint(Theme.world, field.tinge)) }
-        GradientStop { position: 1; color: Theme.yozora ? Theme.tint(Theme.hud.ground, 0.8) : Qt.tint("#0a0b12", Theme.tint(Theme.world, field.tinge + 0.04)) }
+        GradientStop { position: 0; color: Theme.tint(Theme.hud.ground, field.dark) }
+        GradientStop { position: 1; color: Theme.tint(Theme.hud.ground, Math.min(1, field.dark + 0.2)) }
     }
-    // In the Yozora look the night is glass over the still, darkened, its corners bracketed.
-    HudGlass { visible: Theme.yozora; z: -1; anchors.fill: parent; cuts: [0, 0, 0, 0]; motif: "" }
-    HudBrackets { visible: Theme.yozora; z: 5; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.8) }
+    // The night is the still itself, a little darkened, its corners bracketed: no glass, so the
+    // constellations float on the film.
+    HudBrackets { z: 5; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.8) }
 
     // Far dust, drawn once, drifting a little as the sky moves.
     Canvas {

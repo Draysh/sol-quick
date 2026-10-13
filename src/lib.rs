@@ -40,6 +40,7 @@ pub use sol_quick_core::*;
 
 pub mod app;
 pub mod bridge;
+mod fonts;
 mod live;
 
 pub use app::{run, run_with};

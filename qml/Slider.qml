@@ -54,7 +54,7 @@ Item {
         opacity: root.activeFocus ? 1 : 0
         scale: root.activeFocus ? 1 : 1.4
         Behavior on opacity { NumberAnimation { duration: Theme.lock } }
-        Behavior on scale { NumberAnimation { duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on scale { NumberAnimation { duration: Theme.lock; easing: Theme.easeOut } }
     }
     MouseArea {
         id: mouse

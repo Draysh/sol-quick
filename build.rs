@@ -1,6 +1,6 @@
 //! Builds the `Sol.Design` QML module: every `.qml` file in `qml/` (a file
 //! that starts with `pragma Singleton` is registered as one), the assets
-//! (fonts, the worlds' photographs, grain) and the compiled shaders, plus
+//! (fonts, the worlds' photographs) and the compiled shaders, plus
 //! the Rust QObjects in `src/bridge.rs`. `export()` hands the module to the
 //! app that depends on this crate. The Qt version it was built against goes
 //! into the binary as `SOL_QT_VERSION` (`--version` says it, and updates
@@ -61,7 +61,7 @@ fn main() {
         .qt_module("Network")
         .qt_module("Quick")
         .qt_module("Multimedia")
-        .files(["src/bridge.rs", "src/live.rs"])
+        .files(["src/bridge.rs", "src/fonts.rs", "src/live.rs"])
         .qrc_resources(resources)
         .build()
         .export();

@@ -70,7 +70,7 @@ Item {
         font.letterSpacing: label.font.letterSpacing
         font.capitalization: label.font.capitalization
         color: Theme.textBright
-        selectionColor: Theme.text; selectedTextColor: Theme.space
+        selectionColor: Theme.text; selectedTextColor: Theme.textInverse
         clip: true
         onAccepted: { root.keep(); root.forceActiveFocus() }
         onActiveFocusChanged: if (!activeFocus && root.editing) root.keep()

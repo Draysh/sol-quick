@@ -1,47 +1,31 @@
 #!/usr/bin/env bash
 # The Yozora look's pictures, fetched for this computer only: each world's
 # grounds (wide stills from a Makoto Shinkai film, from TMDB's image CDN)
-# and its navigator (a character's portrait, from AniList), into
+# and its navigator (a character's portrait, from AniList's), into
 # ~/.local/share/sol-yozora/ as <world>-ground-<n>.jpg and
-# <world>-mascot.jpg. The pictures belong to their makers: they are never
-# copied into a repository, a fixture or a release. This script holds only
-# where they come from.
+# <world>-mascot.<jpg|png>. The pictures belong to their makers: they are
+# never copied into a repository, a fixture or a release. Where they come
+# from is core/yozora-art.json, the list every Sol app also reads to fetch
+# what is missing when it starts; this script is for choosing new ones.
 #
 #   scripts/yozora-art.sh            fetch what is missing
 #   scripts/yozora-art.sh --again    fetch every one again
 #   scripts/yozora-art.sh --stills <tmdb-film-id> <folder>
 #                                    small copies of every textless still of a
-#                                    film, to choose grounds from
+#                                    film, to choose grounds from (put the
+#                                    chosen one's path in the list)
+#   scripts/yozora-art.sh --portrait <anilist-media-id> <character's full name>
+#                                    the address of a character's portrait,
+#                                    for a mascot's `url` in the list
 #
-# The TMDB key is Saturn's own (its settings in the installed app's local
-# copy), or $TMDB_KEY; it is handed to curl on stdin, never printed or put
-# on a command line. AniList needs no key.
+# Only --stills needs a TMDB key: Saturn's own (its settings in the
+# installed app's local copy), or $TMDB_KEY; it is handed to curl on stdin,
+# never printed or put on a command line. AniList needs no key.
 set -euo pipefail
 
 out=${SOL_YOZORA_DIR:-$HOME/.local/share/sol-yozora}
 saturn_db=$HOME/.local/share/digital.sachi.sol.saturn/saturn.db
-
-# Each world's grounds: "<tmdb film id>:<still's file>" (Saturn and Titan:
-# Suzume; Mercury: Your Name; Neptune and Triton: Weathering With You;
-# Terra: midsummer skies from Weathering With You and 5 Centimeters per
-# Second). A moon with grounds of its own stands on them instead of its
-# planet's (Luna: the sky after sunset and the moon, from 5 Centimeters per
-# Second).
-declare -A grounds=(
-    [saturn]="916224:/4AqzAaqztV2rEOJswoV12G7I4jF.jpg 916224:/sx0CyonBRpLjas1g1qyxRao7rMf.jpg 916224:/fLvSBInChNHZbwVkix1p8cri7B1.jpg"
-    [mercury]="372058:/9l7yHJVCuqgZn5IvnsRl5XDvOpy.jpg 372058:/u4DNyWCQ6VTjJY4GisbeAXSJz9a.jpg 372058:/rjs5IfIv6Psl2YCSHKcluhTQGjJ.jpg"
-    [neptune]="568160:/rf4KVKAjV8z6JtSiwaadvpBzS6H.jpg 568160:/mBl7B4r5k0PFTBPd0uTacm2ml4O.jpg 568160:/kXoFwmhLuWs2tY720IsuTBSolKX.jpg"
-    [terra]="568160:/uoWyHkGQindLosblL7fAnkVaZlj.jpg 38142:/10oKmdkzxChD6m2DsPZhWkFxVIY.jpg 568160:/hcnPXKjHeJtLpYjjVwUAX9MsFcJ.jpg"
-    [luna]="38142:/n7dz2NHNuEvoreUM4qXFR0Yh0pw.jpg 38142:/8kH9XcdkQbh2kSx4mdPu3vSrSbh.jpg"
-)
-# Each world's navigator: "<AniList media id>:<the character's full name>"
-# (Suzume Iwato, Mitsuha Miyamizu, Lucy of Cyberpunk: Edgerunners, Hina Amano).
-declare -A mascots=(
-    [saturn]="142770:Suzume Iwato"
-    [mercury]="21519:Mitsuha Miyamizu"
-    [neptune]="120377:Lucy"
-    [terra]="106286:Hina Amano"
-)
+list=$(cd "$(dirname "$0")/.." && pwd)/core/yozora-art.json
 
 tmdb_key() {
     if [[ -n ${TMDB_KEY:-} ]]; then printf '%s' "$TMDB_KEY"; return; fi
@@ -68,14 +52,18 @@ tmdb() {
 fetch() {
     local url=$1 to=$2
     curl -fsSL --max-time 120 -o "$to.part" "$url"
-    # A portrait may come as a PNG: kept as a JPEG, as its name says.
-    if [[ $url == *.png ]] && command -v magick >/dev/null; then
-        magick "png:$to.part" -quality 92 "jpg:$to" && rm "$to.part"
-    else
-        mv "$to.part" "$to"
-    fi
+    mv "$to.part" "$to"
     printf '%s\t%s\t%s\n' "$(basename "$to")" "$(du -h "$to" | cut -f1)" "$url"
 }
+
+if [[ ${1:-} == --portrait ]]; then
+    media=${2:?an AniList media id}; name=${3:?the full name of the character}
+    query='query($id:Int){Media(id:$id){characters(perPage:50){nodes{name{full}image{large}}}}}'
+    curl -fsS --max-time 30 -H 'Content-Type: application/json' \
+        -d "{\"query\":\"$query\",\"variables\":{\"id\":$media}}" https://graphql.anilist.co \
+        | python3 -I -c 'import json,sys; name=sys.argv[1]; nodes=json.load(sys.stdin)["data"]["Media"]["characters"]["nodes"]; print(next(n["image"]["large"] for n in nodes if n["name"]["full"] == name))' "$name"
+    exit 0
+fi
 
 if [[ ${1:-} == --stills ]]; then
     film=${2:?a TMDB film id}; folder=${3:?a folder}
@@ -94,23 +82,21 @@ again=
 [[ ${1:-} == --again ]] && again=1
 mkdir -p "$out"
 
-for world in "${!grounds[@]}"; do
-    n=0
-    for one in ${grounds[$world]}; do
-        n=$((n + 1))
-        to="$out/$world-ground-$n.jpg"
-        [[ -z $again && -s $to ]] && continue
-        fetch "https://image.tmdb.org/t/p/original${one#*:}" "$to"
-    done
-done
-
-for world in "${!mascots[@]}"; do
-    to="$out/$world-mascot.jpg"
-    [[ -z $again && -s $to ]] && continue
-    media=${mascots[$world]%%:*}; name=${mascots[$world]#*:}
-    query='query($id:Int){Media(id:$id){characters(perPage:50){nodes{name{full}image{large}}}}}'
-    url=$(curl -fsS --max-time 30 -H 'Content-Type: application/json' \
-        -d "{\"query\":\"$query\",\"variables\":{\"id\":$media}}" https://graphql.anilist.co \
-        | python3 -I -c 'import json,sys; name=sys.argv[1]; nodes=json.load(sys.stdin)["data"]["Media"]["characters"]["nodes"]; print(next(n["image"]["large"] for n in nodes if n["name"]["full"] == name))' "$name")
-    fetch "$url" "$to"
+# Every picture in the list, a line each: <file name> <address> (a mascot's name without its extension).
+python3 -I - "$list" <<'PY' | while read -r name url; do
+import json, sys
+art = json.load(open(sys.argv[1]))
+for world, grounds in art["grounds"].items():
+    for n, g in enumerate(grounds, 1):
+        print(f"{world}-ground-{n}.jpg https://image.tmdb.org/t/p/original{g['path']}")
+for world, m in art["mascots"].items():
+    print(f"{world}-mascot {m['url']}")
+PY
+    if [[ $name != *.jpg ]]; then
+        # A portrait keeps the kind it comes as.
+        [[ -z $again && ( -s $out/$name.jpg || -s $out/$name.png ) ]] && continue
+        name=$name.${url##*.}
+    fi
+    [[ -z $again && -s $out/$name ]] && continue
+    fetch "$url" "$out/$name"
 done

@@ -3,23 +3,23 @@ import QtQuick
 import QtQuick.Effects
 
 /*
-    The band across the top of a world's first screen: the lit body, its
-    name in a reticle, a callout, moon links and data rows along the
-    bottom. It is a header, not a hero: the working surface starts right
-    under it. It arrives in order: the body rises, the reticle finds the
-    name, the callout and the strip of facts settle after it.
+    The band across the top of a world's first screen: a title card over
+    the world's still. A HUD line, the page's Japanese (`jp`, the world's
+    name in Japanese unless given) in the title serif, the callout as the
+    English under it, then what sits under the title (moon links, the
+    screen's main action) beside two or three big figures with their
+    Japanese tags (`figures`, drawn as HeroFigures); Mercury's has a line
+    written down the right (`vertical`). The HUD line is the world, the day
+    and the hour unless the page says what is on (`hud`, `hudJp`). On a few
+    days a year a comet crosses its sky. It is a header, not a hero: the
+    working surface starts right under it, and in a window under 1300 px
+    wide it is a compact card (about 220 px), so the page's own first card
+    shows in the first view.
 
-    `drift` is the pane's scroll: the bodies sink a little slower than the
+    `drift` is the pane's scroll: the title sinks a little slower than the
     band, so the sheet has depth.
 
-    In the Yozora look it is a title card over the world's still instead:
-    a HUD line, the page's Japanese (`jp`, the world's name in Japanese
-    unless given) in the title serif, the callout as the English under
-    it, what sits under the name, and the facts on glass; Mercury's has a
-    line written down the right (`vertical`). The HUD line is the world,
-    the day and the hour unless the page says what is on (`hud`, `hudJp`).
-
-        Sheet { world: "terra"; callout: ["Walk = done"]; rows: [[{ label: "Streak", value: "12 days" }], [{ label: "Sol", value: "in sync" }]] }
+        Sheet { world: "terra"; callout: ["Walk = done"]; figures: [{ value: "12", label: "Streak", jp: "連続" }, { value: "3/5", label: "Today", jp: "今日" }] }
 */
 Item {
     id: root
@@ -28,44 +28,38 @@ Item {
     /** Defaults to the world's name. */
     property string name: ""
     property var callout: []
-    /** Up to three blocks of rows: left, centre and right. */
-    property var rows: []
+    /** Two or three big figures beside what sits under the title: `{ value, label, jp }` ("06", "Watching", "視聴中"). */
+    property var figures: []
     /** `{ label, open }` links to the world's moons, shown under the name. */
     property var moons: []
     /** Extra content under the name, such as the screen's main action. */
     default property alias under: underRow.data
     property real drift: 0
-    /** The title in Japanese, for the Yozora look: "続きから。". The world's name in Japanese when not given. */
+    /** The title in Japanese: "続きから。". The world's name in Japanese when not given. */
     property string jp: ""
-    /** The HUD line over the title in the Yozora look, and its Japanese: "Now playing · 3 of 11", "再生中". The world, the day and the hour when "". */
+    /** The HUD line over the title, and its Japanese: "Now playing · 3 of 11", "再生中". The world, the day and the hour when "". */
     property string hud: ""
     property string hudJp: ""
-    /** A line written down the right, top to bottom, for the Yozora look (Mercury's flavour shows one). */
-    property string vertical: Theme.yozora && Theme.hud.motif === "shrine" ? "今日も一歩ずつ" : ""
-    /** Faint rings round the world, one for each (Mercury: a week of reviews in a row, up to 12). */
-    property int rings: 0
+    /** A line written down the right, top to bottom (Mercury's flavour shows one); with the flavour's `signs`, a lit sign (katakana reads best). */
+    property string vertical: Theme.hud.motif === "shrine" ? "今日も一歩ずつ" : ""
     /** 0 at rest, 1 shrunk to a bar; the Screen drives it when the Sheet is pinned. */
     property real collapse: 0
     readonly property real compact: Theme.navHeight
 
     readonly property var w: Worlds.get(world)
     readonly property bool portrait: width < 700
+    /** A window under 1300 px wide: the title card is compact, so the page's first card is in view. */
+    readonly property bool tight: !portrait && (Window.window ? Window.window.width : width + Theme.sidebar) < 1300
     readonly property real u: portrait ? width / 390 : width / 1600
-    readonly property real frameH: portrait ? 580 : 900
-    // Never shorter than the name and what sits under it (a narrow pane stacks a button and
+    /** Its title card and what sits under it, with their room above and below. */
+    readonly property real contentH: hero.implicitHeight + (center.height > 0 ? center.height + Theme.s3 : 0) + (tight ? Theme.s3 * 2 : Theme.s4 * 2)
+    // Never shorter than the title and what sits under it (a narrow pane stacks a button and
     // the moons in lines of their own).
-    readonly property real bandH: Math.max(portrait ? Math.max(240, Math.min(360, u * 340)) : Math.max(260, Math.min(400, u * 470)),
-                                           center.implicitHeight + Theme.s4 * 2)
-    /** The frame's unit for heights and sizes: as `u`, until the band stops growing; then the
-        bodies stop growing too, so the band always shows the frame's middle 470 (340 in portrait). */
-    readonly property real v: Math.min(u, bandH / (portrait ? 340 : 470))
-    /** How far the name rises from the band's middle so what sits under it stays in the band. */
-    readonly property real lift: Math.max(0, bandH / 2 - reticle / 2 + center.implicitHeight - (bandH - Theme.s4))
-    readonly property real reticle: portrait ? 140 : Math.max(140, Math.min(210, u * 200))
+    readonly property real bandH: tight ? Math.max(200, contentH)
+        : Math.max(portrait ? Math.max(240, Math.min(360, u * 340)) : Math.max(260, Math.min(400, u * 470)), contentH)
 
     width: parent ? parent.width : 1200
-    readonly property real stripH: rows.length ? stripRow.implicitHeight + Theme.s2 * 2 + 1 : 0
-    readonly property real fullHeight: bandH + stripH
+    readonly property real fullHeight: bandH
     implicitHeight: fullHeight
     height: Math.round(fullHeight - (fullHeight - compact) * collapse)
     // Shrinking, nothing of it draws past its edge over the page.
@@ -74,54 +68,63 @@ Item {
     Item {
         id: band
         width: parent.width
-        height: Math.max(root.compact, root.height - root.stripH * Math.max(0, 1 - root.collapse * 2))
+        height: Math.max(root.compact, root.height)
         clip: true
 
-        // The bar it becomes: the body small at the left, the name beside it.
+        // The bar it becomes: the world small at the left, the name beside it.
         Row {
             x: Theme.margin(root.width)
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.s3
             opacity: Math.max(0, (root.collapse - 0.6) / 0.4)
             z: 2
-            Item { width: 24; height: 24; anchors.verticalCenter: parent.verticalCenter; Body { world: root.world; disc: 24; animated: false } }
+            // The world's kanji in a diamond, as the rail has it.
+            Item {
+                width: 24; height: 24
+                anchors.verticalCenter: parent.verticalCenter
+                Rectangle { anchors.centerIn: parent; width: 18; height: 18; rotation: 45; antialiasing: true; color: Theme.tint(Theme.hudAccent, 0.12); border.width: 1.5; border.color: Theme.hudAccent }
+                Text { anchors.centerIn: parent; text: Theme.jpOf(root.world).charAt(0); font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 12; color: Theme.hudText }
+            }
             Text { text: root.name !== "" ? root.name : root.w.name; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.weight: Theme.weightName; font.pixelSize: Theme.textM; font.letterSpacing: Theme.track(0.12, Theme.textM); font.capitalization: Font.AllUppercase; color: Theme.textBright }
-            Text { visible: root.rows.length > 0 && root.rows[0].length > 0 && width >= 80; text: root.rows.length ? root.rows[0].map(r => r.label + " " + r.value).join(" · ") : ""; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
+            Text { visible: root.figures.length > 0 && width >= 80; text: root.figures.map(f => f.value + " " + f.label).join(" · "); anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
         }
 
-        Rectangle { visible: !Theme.yozora; anchors.fill: parent; color: Theme.deep }
-        // Shrunk to a bar in the Yozora look, it is glass.
-        HudGlass { visible: Theme.yozora && root.collapse > 0.05; opacity: Math.min(1, root.collapse * 2); anchors.fill: parent; cuts: [0, 0, 0, 0] }
+        // Shrunk to a bar, it is glass; a light flavour's frost comes in later, once the white title
+        // over the still has mostly gone, so the two never stand faint on each other.
+        HudGlass { visible: root.collapse > 0.05; opacity: Theme.light ? Math.max(0, Math.min(1, (root.collapse - 0.35) / 0.4)) : Math.min(1, root.collapse * 2); anchors.fill: parent; cuts: [0, 0, 0, 0] }
 
-        // The Yozora look's title card: the HUD line, the Japanese, the English under it.
+        // On a few days a year a comet crosses the still, behind the title card: catch it with a click.
+        Comet { anchors.fill: parent; opacity: Math.max(0, 1 - root.collapse * 2) }
+
+        // The title card: the HUD line, the Japanese, the English under it.
         Column {
             id: hero
-            visible: Theme.yozora
             x: Theme.margin(root.width)
-            width: parent.width - x * 2 - (tategaki.visible ? tategaki.width + Theme.s4 : 0)
-            y: Math.max(Theme.s3, (band.height - height - (underBox.visible ? underBox.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
+            width: parent.width - x * 2 - (tategaki.visible ? tategaki.width + Theme.s4 : sign.visible ? sign.width + Theme.s5 : 0)
+            y: Math.max(Theme.s3, (band.height - height - (center.height > 0 ? center.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
             opacity: Math.max(0, 1 - root.collapse * 1.6)
             spacing: Theme.s1
             // A soft dark glow behind the words, so they read on a bright still (Terra's noon).
-            layer.enabled: visible
-            layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.hud.ground; shadowOpacity: 1; shadowBlur: 1; shadowScale: 1.02; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
+            layer.enabled: true
+            layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.hud.dim || Theme.hud.ground; shadowOpacity: 1; shadowBlur: 1; shadowScale: 1.02; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
             HudLabel {
                 text: root.hud !== "" ? root.hud : [root.name !== "" ? root.name : root.w.name, Qt.formatDate(Worlds.now, "ddd d MMM"), Qt.formatTime(Worlds.now, "HH:mm")].join(" · ")
                 jp: root.hudJp
-                color: Theme.hudAccent
+                color: Theme.artAccent
+                light: Theme.artAccent
                 size: Theme.textS - 1
             }
-            Text {
+            // Neptune's splits its colours at the edges (the flavour's `chroma`).
+            ChromaText {
                 id: heroTitle
                 width: parent.width
                 text: root.jp !== "" ? root.jp : Theme.jpOf(root.world)
                 elide: Text.ElideRight
-                readonly property real size: Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
-                font.family: Theme.fontTitle; font.weight: Font.Black; font.pixelSize: size
+                readonly property real size: root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
+                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: size
                 // A long title (a song's, a station's) shrinks to its line before it is cut short.
                 fontSizeMode: Text.HorizontalFit; minimumPixelSize: 40
-                font.letterSpacing: -size * 0.03
-                color: Theme.hudText
+                color: Theme.artBright
             }
             Text {
                 visible: text !== ""
@@ -131,105 +134,78 @@ Item {
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
-                font.family: Theme.fontTitle; font.pixelSize: Math.round(Theme.textLede * 0.8); font.weight: Font.Medium
-                color: Theme.tint(Theme.hudText, 0.92)
+                // English: the sans, as written (the serif is for the Japanese).
+                font.family: Theme.font; font.pixelSize: Math.round(Theme.textLede * 0.8); font.weight: Theme.weightName
+                color: Theme.tint(Theme.artBright, 0.92)
             }
         }
         // Mercury's line, written down the right.
         Text {
             id: tategaki
-            visible: Theme.yozora && root.vertical !== "" && !root.portrait
+            visible: root.vertical !== "" && !root.portrait && !sign.wanted
             x: band.width - Theme.margin(root.width) - width
-            y: Theme.s4
-            opacity: Math.max(0, 1 - root.collapse * 1.6)
-            text: root.vertical.split("").join("\n")
+            y: root.tight ? Theme.s3 : Theme.s4
+            // Gone before the shrinking band reaches its foot, so it is never cut.
+            opacity: Math.max(0, 1 - root.collapse * 3)
+            // Written down: the punctuation and the long vowel take their upright forms (︑ ︒ ︱).
+            text: root.vertical.split("").map(c => ({ "、": "\ufe11", "。": "\ufe12", "ー": "\ufe31" })[c] || c).join("\n")
             horizontalAlignment: Text.AlignHCenter
             lineHeight: 1.05
-            font.family: Theme.fontTitle; font.pixelSize: 22; font.weight: Font.Medium
-            color: Theme.tint(Theme.hud.washi || Theme.hudText, 0.85)
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.tight ? 17 : 22; font.weight: Font.Black
+            color: Theme.tint(Theme.hud.washi || Theme.artBright, 0.85)
         }
 
-        // The frame (16:9, or the phone's) spans the band's width, and the band shows its middle;
-        // past the width where the band stops growing, the frame widens instead (`v`).
+        // Neptune's is a lit sign down the right (the flavour's `signs`), as a shop's over the street.
+        NeonSign {
+            id: sign
+            readonly property bool wanted: !!Theme.hud.signs
+            visible: wanted && root.vertical !== "" && !root.portrait
+            text: root.vertical
+            size: root.tight ? 22 : 28
+            room: root.fullHeight - y - Theme.s3
+            x: band.width - Theme.margin(root.width) - width
+            y: root.tight ? Theme.s3 : Theme.s4
+            opacity: Math.max(0, 1 - root.collapse * 3)
+        }
+
+        // What sits under the title card: the moons and the main action, then the figures
+        // beside them (under them when the pane has no room for both on one line).
         Item {
-            id: frame
-            width: parent.width
-            height: root.v * root.frameH
-            y: band.height / 2 - height / 2 - root.drift * 0.18 - root.lift
-            opacity: 1 - root.collapse
-            // Shrunk to the bar, the bodies are gone: nothing of them draws or moves (nor in the Yozora look).
-            visible: root.collapse < 1 && !Theme.yozora
-            scale: 1 - root.collapse * 0.15
-            transformOrigin: Item.Top
-            // A slow drift when the scene comes (or the window does), so it breathes, then rests.
-            transform: Translate { id: breathe; y: 0 }
-            SequentialAnimation { running: Theme.alive && !Theme.calm && root.visible && root.collapse < 1; loops: 1; NumberAnimation { target: breathe; property: "y"; to: -4; duration: Theme.drift / 2; easing.type: Easing.InOutSine } NumberAnimation { target: breathe; property: "y"; to: 0; duration: Theme.drift / 2; easing.type: Easing.InOutSine } }
-
-            component Placed: Body {
-                id: placed
-                property var at
-                disc: root.v * placed.at.r * 2
-                x: root.u * placed.at.cx - root.v * placed.at.r
-                y: root.v * (placed.at.cy - placed.at.r)
-                // The real sky where the world follows it, else where the sheet sets it.
-                light: placed.sky ? placed.sky.light : placed.at.light
-                phase: placed.sky ? placed.sky.phase : placed.at.phase
-            }
-
-            Placed { id: mainBody; world: root.world; at: root.portrait ? root.w.portrait : root.w.hero }
-            Rings {
-                visible: root.rings > 0
-                cx: mainBody.x + mainBody.disc / 2
-                cy: mainBody.y + mainBody.disc / 2
-                body: mainBody.disc / 2
-                radii: Array.from({ length: Math.min(12, root.rings) }, (_, i) => 1.03 + i * 0.028)
-                color: Theme.mark(root.w.color)
-                alpha: 0.32
-            }
-            Repeater {
-                model: root.portrait ? [] : (root.w.companions || [])
-                delegate: Placed { required property var modelData; world: modelData.world; at: modelData }
-            }
-        }
-
-        // The name in its reticle, and what sits under it.
-        Column {
             id: center
-            // Under the title card on the left in the Yozora look.
-            x: Theme.yozora ? hero.x - (width - underBox.width) / 2 : parent.width / 2 - width / 2
-            y: Theme.yozora ? hero.y + hero.height + Theme.s3 : band.height / 2 - root.reticle / 2 - root.lift
-            spacing: Theme.s2
+            x: hero.x
+            y: hero.y + hero.height + Theme.s3
             opacity: Math.max(0, 1 - root.collapse * 1.6)
-            scale: 1 - root.collapse * 0.3
-            transformOrigin: Item.Center
-            width: Math.max(root.reticle, nameText.implicitWidth + 40)
+            readonly property bool both: underBox.visible && figureRow.visible
+            readonly property bool beside: !both || underBox.width + Theme.s6 + figureRow.implicitWidth <= root.width - Theme.margin(root.width) * 2
+            width: Math.max(underBox.visible ? underBox.width : 0, figureRow.visible ? figureRow.x + figureRow.implicitWidth : 0)
+            height: Math.max(underBox.visible ? underBox.height : 0, figureRow.visible ? figureRow.y + figureRow.implicitHeight : 0)
 
-            Reticle {
-                visible: !Theme.yozora
-                size: root.reticle
-                tilt: root.w.tilt
-                anchors.horizontalCenter: parent.horizontalCenter
-                Text {
-                    id: nameText
-                    text: root.name !== "" ? root.name : root.w.name
-                    font.family: Theme.font
-                    font.weight: Theme.weightName
-                    readonly property int size: root.portrait ? 24 : Math.max(20, Math.min(34, root.u * 36))
-                    font.pixelSize: size
-                    font.capitalization: Font.AllUppercase
-                    color: Theme.text
-                    style: Text.Outline; styleColor: Theme.tint(Theme.veil, 0.35)
-                    // The name comes into focus: from wide-spaced and faint to set.
-                    property real focusT: 0
-                    font.letterSpacing: Theme.track(0.3 - 0.22 * focusT, size)
-                    opacity: focusT
-                    SequentialAnimation { running: true; PauseAnimation { duration: Theme.rise / 4 } NumberAnimation { target: nameText; property: "focusT"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+            Row {
+                id: figureRow
+                visible: root.figures.length > 0
+                // Clear of the moon links and the action, and each figure clear of the one before.
+                x: center.both && center.beside ? underBox.width + Theme.s6 : 0
+                y: center.both && !center.beside ? underBox.height + Theme.s3 : center.both ? (underBox.height - implicitHeight) / 2 : 0
+                spacing: Theme.s5
+                Repeater {
+                    // Two on a narrow pane, where three would run off its edge. By count, so a figure
+                    // that changes is the same one counting on, not a new one arriving.
+                    model: Math.min(root.figures.length, root.portrait ? 2 : 3)
+                    delegate: Settle {
+                        id: fig
+                        required property int index
+                        readonly property var modelData: root.figures[index] || ({ value: "", label: "" })
+                        place: 3 + index
+                        width: figure.implicitWidth
+                        height: figure.implicitHeight
+                        HeroFigure { id: figure; value: fig.modelData.value; label: fig.modelData.label; jp: fig.modelData.jp || ""; lead: fig.index === 0; compact: root.tight || root.portrait }
+                    }
                 }
             }
+
             Settle {
                 id: underBox
                 wait: Theme.rise / 2
-                anchors.horizontalCenter: parent.horizontalCenter
                 width: underRow.implicitWidth
                 height: underRow.implicitHeight
                 // Moons, or anything else put under the name (the Repeater is a child too).
@@ -245,7 +221,7 @@ Item {
                     onRoomChanged: place()
                     onChildrenChanged: watch()
                     Component.onCompleted: watch()
-                    Repeater { id: moonRepeater; model: root.moons; delegate: MoonLink { required property var modelData; text: modelData.label; hint: modelData.hint || ""; onClicked: modelData.open() } }
+                    Repeater { id: moonRepeater; model: root.moons; delegate: MoonLink { required property var modelData; text: modelData.label; jp: modelData.id ? Theme.jpOf(modelData.id) : ""; hint: modelData.hint || ""; onClicked: modelData.open() } }
 
                     property var watched: []
                     function watch() {
@@ -291,22 +267,6 @@ Item {
             }
         }
 
-        // The callout: a leader from the body and what comes next.
-        Item {
-            id: calloutBox
-            visible: !root.portrait && root.callout.length > 0 && root.collapse < 0.5 && !Theme.yozora
-            // Where the world puts it, kept inside the band (a narrow pane leaves less room
-            // beside the name than the frame does).
-            readonly property real edge: Theme.margin(root.width)
-            x: Math.max(edge, Math.min(band.width - width - edge, root.u * root.w.callout.x - (root.w.callout.flip ? width : 0)))
-            y: Math.max(Theme.s3, Math.min(band.height - height - Theme.s3, frame.y + root.v * root.w.callout.y))
-            width: calloutView.implicitWidth
-            height: calloutView.implicitHeight
-            opacity: 0
-            SequentialAnimation { running: true; PauseAnimation { duration: Theme.rise / 2 } NumberAnimation { target: calloutBox; property: "opacity"; to: 1; duration: Theme.fade } }
-            Callout { id: calloutView; lines: root.callout; flip: !!root.w.callout.flip }
-        }
-
         // Tonight's real sky, where the world follows it (a full moon in Luna,
         // Saturn's opposition in Saturn): a quiet line at the bottom right.
         Settle {
@@ -341,9 +301,9 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignRight
                             text: ev.modelData.title
-                            font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
+                            font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightLabel
                             font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
-                            color: Theme.textWorld
+                            color: Theme.artAccent
                             elide: Text.ElideLeft
                         }
                         Text {
@@ -353,84 +313,13 @@ Item {
                             text: ev.modelData.line
                             wrapMode: Text.WordWrap
                             font.family: Theme.font; font.pixelSize: Theme.textXs + 1
-                            color: Theme.textQuiet
+                            color: Theme.artQuiet
                         }
                     }
                 }
             }
         }
 
-        // On a few days a year, a comet crosses.
-        Comet { visible: !Theme.yozora; anchors.fill: parent; z: 3; opacity: Math.max(0, 1 - root.collapse * 2) }
-
-        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
-    }
-
-    // The facts, on a strip of their own under the band.
-    Item {
-        id: strip
-        y: band.height
-        width: parent.width
-        height: visible ? root.stripH : 0
-        visible: root.rows.length > 0 && root.collapse < 0.5
-        opacity: Math.max(0, 1 - root.collapse * 2)
-        clip: true
-        readonly property real margin: Theme.margin(width)
-        /** The widest fact of the first `n` blocks, label and value side by side. */
-        function widest(n) {
-            let w = 0
-            for (const block of root.rows.slice(0, n)) for (const r of block)
-                w = Math.max(w, labelFont.advanceWidth(String(r.label).toUpperCase() + ":") + 4
-                                + valueFont.advanceWidth(r.keepCase ? String(r.value) : String(r.value).toUpperCase()) + 2)
-            return w
-        }
-        /** Three across (two in portrait); one under another when that would cut a fact short. */
-        readonly property int cols: {
-            const across = root.portrait ? 2 : 3
-            const room = width - margin * 2
-            return widest(across) <= (room - Theme.s4 * (across - 1)) / across ? across : 1
-        }
-        readonly property bool single: cols === 1
-        readonly property var blocks: root.rows.slice(0, single || !root.portrait ? 3 : 2)
-        // DataRows' type, to measure the facts with.
-        FontMetrics { id: labelFont; font.family: Theme.fontCaps; font.weight: Theme.weightLabel; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
-        FontMetrics { id: valueFont; font.family: Theme.fontCaps; font.weight: Theme.weightName; font.pixelSize: 12; font.letterSpacing: Theme.track(Theme.trackRows, 12) }
-
-        Rectangle { visible: !Theme.yozora; anchors.fill: parent; color: Theme.deep }
-        HudGlass { visible: Theme.yozora; anchors.fill: parent; cuts: [0, 0, 0, 0] }
-        Item {
-            id: stripRow
-            x: strip.margin; y: Theme.s2
-            width: parent.width - strip.margin * 2
-            /** Each block's height, by its place; one column stacks them a step apart. */
-            readonly property var heights: Array.from(stripRow.children).filter(c => c.hasOwnProperty("blockHeight")).sort((a, b) => a.index - b.index).map(c => c.blockHeight)
-            function offsetOf(i) { let y = 0; for (let k = 0; k < i && k < heights.length; k++) y += heights[k] + Theme.s2; return y }
-            implicitHeight: strip.single ? Math.max(1, offsetOf(heights.length) - Theme.s2) : Math.max(1, ...heights)
-            readonly property real cell: (width - Theme.s4 * (strip.cols - 1)) / strip.cols
-            Repeater {
-                id: blockRepeater
-                model: strip.blocks
-                delegate: Settle {
-                    id: block
-                    required property var modelData
-                    required property int index
-                    readonly property int slot: strip.single ? 0 : strip.blocks.length === 3 ? index : index === 0 ? 0 : strip.cols - 1
-                    readonly property real blockHeight: rowsView.implicitHeight
-                    wait: Theme.rise / 3
-                    place: index * 3
-                    x: slot * (stripRow.cell + Theme.s4)
-                    y: strip.single ? stripRow.offsetOf(index) : 0
-                    width: stripRow.cell
-                    height: rowsView.implicitHeight
-                    DataRows {
-                        id: rowsView
-                        width: parent.width
-                        rows: block.modelData
-                        align: strip.single || block.slot === 0 ? Text.AlignLeft : block.slot === strip.cols - 1 ? Text.AlignRight : Text.AlignHCenter
-                    }
-                }
-            }
-        }
-        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
+        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: root.collapse > 0.5 ? Theme.line : Theme.artLine }
     }
 }

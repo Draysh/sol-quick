@@ -16,7 +16,7 @@ Item {
     id: glass
 
     property real blur: 0.7
-    property color tint: Theme.tint(Theme.veil, 0.74)
+    property color tint: Theme.tint(Theme.frost, Theme.light ? 0.86 : 0.74)
     /** How far in from the edge the picture bends, in pixels; 0 for flat glass. */
     property real bend: 14
     /** Its corners. */

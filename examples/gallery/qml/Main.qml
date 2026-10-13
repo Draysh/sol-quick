@@ -72,7 +72,6 @@ AppWindow {
     commands: [
         { label: "Show a notice", icon: "info", hint: "A notice drops in over the page", run: () => Notices.show({ world: app.world, title: "Saved", body: "A notice, on glass, over the page." }) },
         { label: "Ask for a name", icon: "edit", hint: "The dialog, with a field", run: () => app.ask.name("New list", "Name", "", "Create") },
-        { label: "Night or day", icon: "moon", hint: "Turns the light over for this run", run: () => Theme.mode = Theme.day ? "night" : "day" },
         // A nested entry: one row that opens its own list ("rate 8" finds the number inside too).
         { label: "Rate…", icon: "star", hint: "A nested entry, its numbers inside", items: Array.from({ length: 10 }, (_, n) => ({ label: String(n + 1), run: () => Notices.show({ world: app.world, title: "Rated " + (n + 1), body: "From the palette’s nested list." }) })) }
     ]

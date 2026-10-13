@@ -2,8 +2,9 @@ pragma ComponentBehavior: Bound
 import QtQuick
 
 /*
-    A label and a choice from a short list, underlined like a field. The
-    list drops out of the line; focus lights the line from the left. Space,
+    A label and a choice from a short list, in a field's bracketed well
+    (FieldFrame), lit in the world's light under the pointer and with the
+    keys. The list drops out of the well. Space,
     Enter or Down opens it, Up and Down choose, Enter takes the choice,
     Escape, Tab or a click elsewhere closes it. `value` is the caller's:
     `chosen` says what was picked, and the caller sets it.
@@ -19,6 +20,7 @@ FocusScope {
     property string placeholder: "Choose…"
     property string hint: ""
     signal chosen(string value)
+    onChosen: Sounds.tick()
 
     readonly property var current: options.find(o => o.value === value)
     property bool open: false
@@ -89,8 +91,9 @@ FocusScope {
             width: parent.width
             height: Theme.control
 
+            FieldFrame { id: well; anchors.fill: parent; lit: root.activeFocus || root.open; hovered: mouse.containsMouse }
             Text {
-                anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: 24
+                anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: well.pad; anchors.rightMargin: 24 + well.pad
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.current ? root.current.label : root.placeholder
                 font.family: Theme.font
@@ -101,14 +104,13 @@ FocusScope {
             }
             Icon {
                 name: "chevron-down"; size: 10
-                color: root.enabled ? Theme.textQuiet : Theme.textFaint
-                anchors.right: parent.right; anchors.rightMargin: 4
+                color: !root.enabled ? Theme.textFaint : root.open || mouse.containsMouse ? Theme.hudAccent : Theme.textQuiet
+                anchors.right: parent.right; anchors.rightMargin: well.pad
                 anchors.verticalCenter: parent.verticalCenter
                 transform: Translate { y: mouse.containsMouse ? 1 : 0; Behavior on y { NumberAnimation { duration: Theme.settle } } }
                 rotation: root.open ? 180 : 0
-                Behavior on rotation { SpringAnimation { spring: 3; damping: 0.25 } }
+                Behavior on rotation { NumberAnimation { duration: Theme.settle; easing: Theme.spring } }
             }
-            Underline { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; lit: root.activeFocus || root.open; hovered: mouse.containsMouse }
             MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; enabled: root.enabled; cursorShape: Qt.PointingHandCursor; onClicked: { root.forceActiveFocus(); if (root.open) root.open = false; else root.show() } }
         }
 
@@ -137,9 +139,9 @@ FocusScope {
             opacity: root.open ? 1 : 0
             transformOrigin: drop.up ? Item.Bottom : Item.Top
             scale: root.open ? 1 : 0.97
-            transform: Translate { y: root.open ? 0 : drop.up ? 6 : -6; Behavior on y { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
+            transform: Translate { y: root.open ? 0 : drop.up ? 6 : -6; Behavior on y { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } } }
             Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+            Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
             Flickable {
                 id: rows
                 x: 1; y: 1
@@ -164,7 +166,7 @@ FocusScope {
                             height: Theme.control
                             // The light on a row, inset from the panel's edges and rounded with it.
                             Rectangle { anchors.fill: parent; anchors.leftMargin: Theme.s1; anchors.rightMargin: Theme.s1; radius: Theme.radiusM; color: hover.containsMouse || option.index === root.at ? Theme.surfaceHover : option.chosen ? Theme.surface : "transparent" }
-                            Rectangle { visible: option.index === root.at; x: Theme.s1; width: 2; height: parent.height - 16; y: 8; radius: 1; color: Theme.accent }
+                            Rectangle { visible: option.index === root.at; x: Theme.s1; width: 2; height: parent.height - 16; y: 8; radius: 1; color: Theme.hudAccent }
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter; x: 12
                                 width: parent.width - 24

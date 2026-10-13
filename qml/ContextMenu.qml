@@ -204,7 +204,7 @@ Item {
         transformOrigin: Item.TopLeft
         scale: menu.open ? 1 : 0.96
         opacity: menu.open ? 1 : 0
-        Behavior on scale { NumberAnimation { duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on scale { NumberAnimation { duration: Theme.lock; easing: Theme.easeOut } }
         Behavior on opacity { NumberAnimation { duration: Theme.lock } }
         MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onPressed: mouse => mouse.accepted = true }
         Column {

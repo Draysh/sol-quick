@@ -1,19 +1,19 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Effects
 import QtQuick.Shapes
 
 /*
-    Hairlines and capitals. `primary` is the only filled shape on a screen:
-    use it once, for the screen's main action; it carries the world's glow.
-    `ghost` otherwise, `quiet` for low-stakes actions, `round` for icon-only
-    controls (give it an `icon`); any other may lead with an `icon` too, a
-    hairline glyph before its label (`Icon` names), for the few actions a
-    glyph makes quicker to find. Its corners are `Theme.radiusM` (a round
-    one is a circle). Focus locks two corner ticks on; a press gives a
-    little; while busy, a hairline sweeps along the bottom. In the Yozora
-    look the words are in the mono face, the primary is a parallelogram
-    in the world's light and a round one a diamond.
+    Hairlines and HUD capitals (a label of more than three words as
+    written, in the sans). `primary` is the only filled shape on a screen:
+    use it once, for the screen's main action; it is a parallelogram in the
+    world's light. `ghost` otherwise, `quiet` for low-stakes actions,
+    `round` for icon-only controls (a diamond; give it an `icon`);
+    `danger` for what can't be taken back (deleting, unpairing): the same
+    slant, outlined in vermilion, never the world's light; any
+    other may lead with an `icon` too, a hairline glyph before its label
+    (`Icon` names), for the few actions a glyph makes quicker to find.
+    Focus locks two corner ticks on; a press gives a little; while busy, a
+    hairline sweeps along the bottom.
 
         Button { text: "Log it"; variant: "primary"; busy: saving; onClicked: save() }
 */
@@ -27,19 +27,25 @@ Item {
     property bool busy: false
     /** A line about it, shown on hover. */
     property string hint: ""
+    /** A colour that marks a ghost or quiet one, its outline and label (an answer picked wrong, in vermilion); none by default. */
+    property color tone: "transparent"
+    readonly property bool toned: tone.a > 0 && !angled && !round
     signal clicked()
+    // A press ticks (quietly, when the device has sounds on).
+    onClicked: Sounds.tick()
 
     readonly property bool primary: variant === "primary"
     readonly property bool quiet: variant === "quiet"
     readonly property bool round: variant === "round"
+    readonly property bool danger: variant === "danger"
     readonly property bool live: enabled && !busy
     readonly property bool hovered: mouse.containsMouse && live
     readonly property bool pressed: mouse.pressed && live
 
     /** Its padding either side of the label, both together. */
     readonly property real pad: quiet ? 20 : 32
-    /** The Yozora look's primary: a parallelogram, its top leaning this far past its foot. */
-    readonly property bool angled: Theme.yozora && primary
+    /** The primary: a parallelogram, its top leaning this far past its foot. */
+    readonly property bool angled: primary || danger
     readonly property real lean: angled ? Math.round(Theme.control * 0.36) : 0
     readonly property real iconRoom: icon !== "" ? glyph.size + (text !== "" ? Theme.s2 : 0) : 0
     readonly property real natural: round ? Theme.control : iconRoom + (text !== "" ? label.implicitWidth : 0) + pad + lean
@@ -80,52 +86,48 @@ Item {
         if (!live) return
         if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             event.accepted = true
-            if (!event.isAutoRepeat) root.clicked()
+            if (!event.isAutoRepeat) { root.pulse(); root.clicked() }
         }
     }
 
-    // The press gives, like a real key.
-    transform: Translate { y: root.pressed ? 1 : 0; Behavior on y { NumberAnimation { duration: 40 } } }
-
-    // The world's light behind the main action; it breathes three slow breaths when the button
-    // comes (or the window does), then rests, so nothing is drawn while nothing happens.
-    property real breath: 0
-    SequentialAnimation { running: root.primary && root.enabled && root.visible && Theme.alive && !Theme.calm; loops: 3
-        NumberAnimation { target: root; property: "breath"; to: 1; duration: 2600; easing.type: Easing.InOutSine }
-        NumberAnimation { target: root; property: "breath"; to: 0; duration: 2600; easing.type: Easing.InOutSine } }
-    RectangularShadow {
-        anchors.fill: face
-        radius: face.radius
-        visible: root.primary && root.enabled && !root.angled
-        blur: (root.hovered ? 56 : 40) + root.breath * 8
-        spread: 0
-        color: Theme.tint(Theme.world, (root.hovered ? 0.5 : 0.3) + root.breath * 0.06)
-        Behavior on blur { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-        Behavior on color { ColorAnimation { duration: Theme.fade } }
+    // The press gives, like a real key: in a pixel and a little smaller, and springs back.
+    transform: [
+        Translate { y: root.pressed ? 1 : 0; Behavior on y { NumberAnimation { duration: Theme.snap } } },
+        Scale {
+            origin.x: root.width / 2; origin.y: root.height / 2
+            xScale: root.pressed && !Theme.calm ? 0.95 : 1
+            yScale: xScale
+            Behavior on xScale { NumberAnimation { duration: root.pressed ? Theme.snap : Theme.settle; easing: root.pressed ? Theme.easeOut : Theme.spring } }
+        },
+        Scale { id: tap; origin.x: root.width / 2; origin.y: root.height / 2 }
+    ]
+    /** Gives as if pressed, for a press that came from a key (a review's grade by its number). */
+    function pulse() { if (!Theme.calm && Theme.snap > 0) tapping.restart() }
+    SequentialAnimation {
+        id: tapping
+        NumberAnimation { target: tap; properties: "xScale,yScale"; to: 0.93; duration: Theme.snap; easing: Theme.easeOut }
+        NumberAnimation { target: tap; properties: "xScale,yScale"; to: 1; duration: Theme.settle; easing: Theme.spring }
     }
 
     Rectangle {
         id: face
         anchors.fill: parent
         visible: !root.angled && !root.diamond
-        radius: root.round ? height / 2 : Theme.radiusM
-        // The main action keeps its fill while it works, a little dimmed.
-        color: root.primary && root.busy && root.enabled ? Theme.tint(Theme.text, 0.55)
-            : !root.live ? "transparent"
-            : root.primary ? (root.hovered ? Theme.textBright : Theme.text)
-            : root.quiet ? "transparent"
+        radius: Theme.radiusM
+        color: root.toned ? Theme.tint(root.tone, 0.12)
+            : !root.live || root.quiet ? "transparent"
             : root.hovered ? Theme.surfaceHover : "transparent"
-        border.width: root.quiet ? 0 : 1
-        border.color: !root.enabled ? Theme.lineMid
-            : root.primary ? face.color
+        border.width: root.quiet && !root.toned ? 0 : 1
+        border.color: root.toned ? root.tone
+            : !root.enabled ? Theme.lineMid
             : root.hovered ? Theme.text
             : root.round ? Theme.tint(Theme.ink, 0.35) : Theme.tint(Theme.ink, 0.4)
         Behavior on color { ColorAnimation { duration: Theme.fade } }
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
     }
 
-    // A round one is a diamond in the Yozora look.
-    readonly property bool diamond: Theme.yozora && round
+    // A round one is a diamond.
+    readonly property bool diamond: round
     Rectangle {
         visible: root.diamond
         anchors.fill: parent
@@ -137,15 +139,16 @@ Item {
         border.color: face.border.color
     }
 
-    // The Yozora look's primary: a parallelogram in the world's light.
+    // The primary: a parallelogram in the world's light.
     Shape {
         visible: root.angled
         anchors.fill: parent
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
-            strokeWidth: root.activeFocus ? 1 : 0
-            strokeColor: root.activeFocus ? Theme.hudText : "transparent"
-            fillColor: !root.live ? Theme.tint(Theme.hudAccent, root.busy && root.enabled ? 0.55 : 0.25) : root.hovered ? Qt.lighter(Theme.hudAccent, 1.1) : Theme.hudAccent
+            strokeWidth: root.danger || root.activeFocus ? 1 : 0
+            strokeColor: root.danger ? (root.live ? Theme.danger : Theme.tint(Theme.danger, 0.4)) : root.activeFocus ? Theme.hudText : "transparent"
+            fillColor: root.danger ? (root.hovered ? Theme.tint(Theme.danger, 0.22) : "transparent")
+                : !root.live ? Theme.tint(Theme.hudPrimary, root.busy && root.enabled ? 0.55 : 0.25) : root.hovered ? Qt.lighter(Theme.hudPrimary, 1.1) : Theme.hudPrimary
             startX: root.lean; startY: 0.5
             PathLine { x: root.width - 0.5; y: 0.5 }
             PathLine { x: root.width - root.lean; y: root.height - 0.5 }
@@ -174,13 +177,16 @@ Item {
             text: root.text
             width: Math.max(0, Math.min(implicitWidth, root.width - root.pad - root.iconRoom - root.lean))
             elide: Text.ElideRight
-            font.family: Theme.fontCaps
-            font.weight: Theme.yozora ? Font.Bold : Theme.weightLabel
-            font.pixelSize: Theme.textXs
-            font.letterSpacing: Theme.track(0.16, Theme.textXs)
-            font.capitalization: Font.AllUppercase
-            color: !root.enabled ? Theme.textFaint
-                : root.primary ? (root.angled && !root.live ? Theme.hudText : Theme.space)
+            readonly property bool caps: Theme.capsFor(text)
+            font.family: caps ? Theme.fontCaps : Theme.font
+            font.weight: caps ? Font.Bold : Font.DemiBold
+            font.pixelSize: caps ? Theme.textXs : Theme.textS
+            font.letterSpacing: caps ? Theme.track(Theme.trackLabel, Theme.textXs) : 0
+            font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
+            color: root.toned ? root.tone
+                : !root.enabled ? Theme.textFaint
+                : root.danger ? Theme.dangerText
+                : root.primary ? (!root.live ? Theme.hudText : Theme.space)
                 : root.busy ? Theme.textQuiet
                 : root.quiet ? (root.hovered ? Theme.textBright : Theme.textQuiet)
                 : Theme.text
@@ -210,9 +216,8 @@ Item {
                 loops: Animation.Infinite
                 from: -sweep.width
                 to: sweep.parent.width
-                duration: 1100
-                easing.type: Easing.BezierSpline
-                easing.bezierCurve: Theme.ease
+                duration: Theme.sweep
+                easing: Theme.ease
             }
         }
     }

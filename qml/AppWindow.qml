@@ -117,6 +117,8 @@ Window {
     property bool stagedComet: false
     /** `_sky=full-moon|perseids|opposition`: that night of the real sky on the Sheet, for a picture. */
     property string stagedSky: ""
+    /** `_hour=N`: the hour the navigator keeps for a picture (sleepy from 23 to 5), -1 for the clock's. */
+    property int stagedHour: -1
     /** What the app shows on the desktop when asked to (a Component), and what it is called: "Now playing". */
     property Component widget: null
     property string widgetName: ""
@@ -294,18 +296,19 @@ Window {
             if (sourceComponent !== waiting) shots.begin()
         }
         Settling { when: frameIn.running }
-        NumberAnimation { id: frameIn; target: frame; property: "opacity"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { id: frameIn; target: frame; property: "opacity"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
     }
-    // Notices drop in at the top of the pages: over the frame, not in it,
-    // so their glass blurs the pages and not themselves.
+    // Notices drop in at the top right of the pages, clear of a first page's title
+    // card on the left: over the frame, not in it, so their glass blurs the pages
+    // and not themselves.
     // A view, not a column, so a notice that goes fades out and the rest
     // close up after it instead of jumping.
     ListView {
         id: noticeStack
         readonly property Item area: win.shell ? win.shell.pageArea : null
-        x: area ? area.x + (area.width - width) / 2 : (win.width - width) / 2
-        y: Theme.s3
-        width: Math.min(440, (area ? area.width : win.width) - 32)
+        x: area ? area.x + area.width - width - Theme.s4 : win.width - width - Theme.s4
+        y: Theme.s4
+        width: Math.min(380, (area ? area.width : win.width) - 32)
         height: contentHeight
         spacing: Theme.s2
         z: 50
@@ -314,11 +317,11 @@ Window {
         delegate: Notice { width: noticeStack.width }
         remove: Transition {
             ParallelAnimation {
-                NumberAnimation { property: "opacity"; to: 0; duration: Theme.fade; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.ease }
-                NumberAnimation { property: "scale"; to: 0.97; duration: Theme.fade; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.ease }
+                NumberAnimation { property: "opacity"; to: 0; duration: Theme.fade; easing: Theme.ease }
+                NumberAnimation { property: "scale"; to: 0.97; duration: Theme.fade; easing: Theme.ease }
             }
         }
-        displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.settle; easing: Theme.easeOut } }
     }
     Tour { id: tourBox; world: win.world; cards: win.tour; go: path => win.shell && win.shell.go(path); onClosed: if (!Sol.preview) tourPrefs.toured = true }
     Moment { id: momentBox }
@@ -364,7 +367,6 @@ Window {
         id: problemView
         Item {
             Rectangle { anchors.fill: parent; color: Theme.space }
-            Grain { }
             Card {
                 anchors.centerIn: parent
                 width: Math.min(460, parent.width - 32)
@@ -401,7 +403,7 @@ Window {
             home: win.home
             search: win.search
             shortcuts: win.shortcuts
-            status: LinkStatus { width: parent.width; compact: theShell.rail; online: Sol.online; unsent: Sol.unsent; busy: win.busy; warn: win.warn }
+            status: LinkStatus { width: parent.width; room: parent.room; compact: theShell.rail; online: Sol.online; unsent: Sol.unsent; busy: win.busy; warn: win.warn }
             footer: Loader { width: parent.width; sourceComponent: win.footer }
             // The doors are the world's: another world (the gallery's, a picture's `_world`) has its own.
             onWorldChanged: Sol.doors(win.world).then(d => theShell.doors = d)

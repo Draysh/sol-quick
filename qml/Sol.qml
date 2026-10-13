@@ -132,6 +132,8 @@ QtObject {
                 Notices.show({ world: from, title: o.title, body: o.body || "", action: "Undo",
                     run: () => back().then(() => { Sounds.off(); if (o.undone) o.undone() }).catch(why => failIn(w, "Not taken back", why)) })
             else Notices.show({ world: from, title: o.title, body: o.body || "" })
+            // A soft "done" (a world's voice that follows at once takes its place).
+            Sounds.done()
             return r.result
         })
     }
@@ -225,6 +227,17 @@ QtObject {
 
     /** A count on the app's icon and in the Sol tray (`"due"`, `"habits left"`); 0 clears it. */
     function badge(count, what) { SolBackend.setBadge(count || 0, what || "") }
+
+    /**
+        The world's navigator reacts to something the person just did:
+        `Sol.cheer()` after the world's main good act (an episode watched, a
+        habit ticked, a card remembered), a warm light over the portrait and
+        a few sparks. `react(kind)` names the reaction; "happy" is the one
+        there is.
+    */
+    function cheer() { reacted("happy") }
+    function react(kind) { reacted(kind) }
+    signal reacted(string kind)
 
     /** A world's own event for its screens: `Connections { target: Sol; function onEvent(name, data) { … } }`. */
     signal event(string name, var data)

@@ -3,7 +3,7 @@
 //! (`Commands`, Undo), the desktop around the app (`desktop::Desktop`: the
 //! bar's status, actions, the launcher's finds, quick capture), the
 //! questions worlds ask each other and the door they go through, moments,
-//! the sky,
+//! the sky, the look's pictures (`look_art`),
 //! export and import, the shared engine slot, and the helpers for tests
 //! (`testing`). The `sol-quick` crate re-exports all of it under the same
 //! paths and adds the window (`sol_quick::run`, the QML module and the
@@ -23,6 +23,7 @@ pub mod door;
 pub mod engine;
 pub mod exchange;
 pub mod kept;
+pub mod look_art;
 pub mod moments;
 #[cfg(feature = "fake-navidrome")]
 pub mod navidrome;

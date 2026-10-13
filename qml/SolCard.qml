@@ -13,8 +13,10 @@ Card {
     readonly property var status: root.sol.status
 
     title: "Sol"
+    jp: "ソル"
 
     DataRows {
+        ledger: true
         width: parent.width
         rows: [].concat(
             [{ label: "Address", value: root.sol.server, keepCase: true },
@@ -45,7 +47,7 @@ Card {
         visible: root.confirm
         width: parent.width
         spacing: Theme.s2
-        Button { text: "Unpair this device"; onClicked: root.sol.call("forget").catch(why => Notices.failed(root.sol.world, "Not unpaired", why)) }
+        Button { variant: "danger"; text: "Unpair this device"; onClicked: root.sol.call("forget").catch(why => Notices.failed(root.sol.world, "Not unpaired", why)) }
         Button { variant: "quiet"; text: "Keep it"; onClicked: root.confirm = false }
     }
 }

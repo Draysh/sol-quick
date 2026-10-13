@@ -1,6 +1,8 @@
 //! What the stand-in serves besides JSON: covers drawn as PNGs (a
-//! gradient and a ring in colours of the id's own) and streams of silence
-//! as WAV, both made without any library.
+//! gradient and a ring in colours of the id's own), for a client that
+//! asks by id, and streams of silence as WAV, both made without any
+//! library. Its albums, songs and playlists name no cover, so the apps
+//! show the kit's card for missing art on them.
 
 use super::library::hash;
 

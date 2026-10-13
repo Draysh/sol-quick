@@ -1,10 +1,10 @@
 //! A stand-in Navidrome for the previews of the music worlds (Neptune and
 //! Triton) and for their tests: a made-up library of 11 artists, 28 albums
-//! and 181 tracks (13 of them anime openings and endings) with covers drawn
-//! on the fly, three playlists, starred
+//! and 181 tracks (13 of them anime openings and endings), naming no
+//! covers (the apps show their card for missing art), three playlists, starred
 //! things, play counts, similar songs and lyrics, served over the part of
 //! the Subsonic API those worlds ask for. Streams are silence of each
-//! track's length; covers are drawn PNGs. It listens on 127.0.0.1 only, at
+//! track's length; a cover asked for by id is a drawn PNG. It listens on 127.0.0.1 only, at
 //! a port of its own, and ends with the app. Behind the `fake-navidrome`
 //! feature.
 //!

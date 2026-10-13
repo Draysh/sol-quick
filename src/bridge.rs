@@ -57,14 +57,13 @@ pub mod qobject {
         #[qproperty(bool, fps)]
         /// `SOL_DRIVE=<file.qml>`: a script that drives the window, to check it end to end.
         #[qproperty(QString, drive)]
-        /// `SOL_LIGHT=night|day`: this run's light, whatever the device's setting says.
-        #[qproperty(QString, light)]
         /// `SOL_CALM=1`: this run with less motion, whatever the device's setting says.
         #[qproperty(bool, calm)]
-        /// `SOL_LOOK=yozora`: a look to try for this run (`Theme.look`); "" is the apps' own.
-        #[qproperty(QString, look)]
+        /// `SOL_FLAVOUR=<world>`: another world's flavour worn for this run (the gallery's
+        /// pictures of each); "" is the window's own (`Theme.lookWorld`).
+        #[qproperty(QString, flavour)]
         /// The look's pictures on this computer (`~/.local/share/sol-yozora/`), as a JSON list of
-        /// file names; `[]` without a look or without the folder (`Theme.yozoraArt`).
+        /// file names; `[]` without the folder (`Theme.yozoraArt`). Set again once missing ones have come.
         #[qproperty(QString, look_art, cxx_name = "lookArt")]
         /// The page to open first (`--open /title?key=x`, or asked for while starting).
         #[qproperty(QString, open_path, cxx_name = "openPath")]
@@ -232,6 +231,7 @@ use orbit::link::Update;
 use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 
 use crate::app::{self, Runtime, ToWindow};
+use crate::look_art;
 
 pub struct Backend {
     world: QString,
@@ -252,9 +252,8 @@ pub struct Backend {
     tray: bool,
     fps: bool,
     drive: QString,
-    light: QString,
     calm: bool,
-    look: QString,
+    flavour: QString,
     look_art: QString,
     open_path: QString,
     trace_on: bool,
@@ -301,10 +300,9 @@ impl Default for Backend {
             tray: rt.tray.load(Ordering::Relaxed),
             fps: std::env::var_os("SOL_FPS").is_some(),
             drive: QString::from(&std::env::var("SOL_DRIVE").unwrap_or_default()),
-            light: QString::from(&std::env::var("SOL_LIGHT").unwrap_or_default()),
             calm: std::env::var_os("SOL_CALM").is_some(),
-            look: QString::from(&std::env::var("SOL_LOOK").unwrap_or_default()),
-            look_art: QString::from(&look_art()),
+            flavour: QString::from(&std::env::var("SOL_FLAVOUR").unwrap_or_default()),
+            look_art: QString::from(&look_art_json()),
             open_path: QString::from(&app::take_pending_open().unwrap_or_default()),
             trace_on: std::env::var_os("SOL_TRACE").is_some(),
             moons: QString::from("{}"),
@@ -409,6 +407,22 @@ impl cxx_qt::Initialize for qobject::SolBackend {
                 });
             }
         });
+        // The look's pictures that are missing come in the background; once any
+        // has, the window lists the folder again, so the ground and the
+        // navigator appear without a restart. Never while pictures are taken:
+        // they don't wait on the network.
+        let shooting = ["SOL_SHOT", "SOL_SHOTS"]
+            .iter()
+            .any(|v| std::env::var_os(v).is_some_and(|s| !s.is_empty()));
+        if let (false, Some(folder)) = (shooting, look_art::folder()) {
+            let qt = qt.clone();
+            rt.tokio.spawn(async move {
+                if look_art::fetch_missing(&folder).await > 0 {
+                    let art = look_art_json();
+                    let _ = qt.queue(move |me| me.set_look_art(QString::from(&art)));
+                }
+            });
+        }
         // Each carried moon is followed the same way, into `moons`.
         for c in &rt.carried {
             follow_moon(c, qt.clone());
@@ -718,23 +732,12 @@ impl qobject::SolBackend {
     }
 }
 
-/// The pictures a look tried with `SOL_LOOK` stands on, as a JSON list of file names: the
-/// `.jpg` and `.png` files in `~/.local/share/sol-yozora/`, read once as the window opens.
-fn look_art() -> String {
-    if std::env::var("SOL_LOOK").unwrap_or_default().is_empty() {
-        return "[]".into();
-    }
-    let Some(folder) = dirs::data_dir().map(|d| d.join("sol-yozora")) else {
-        return "[]".into();
-    };
-    let mut files: Vec<String> = std::fs::read_dir(folder)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "jpg" || x == "png"))
-        .map(|p| p.to_string_lossy().into_owned())
-        .collect();
-    files.sort();
+/// The pictures the look stands on, as a JSON list of file names: the `.jpg` and `.png`
+/// files in `~/.local/share/sol-yozora/`, read as the window opens and again once the
+/// missing ones have come (`look_art`).
+fn look_art_json() -> String {
+    let files = look_art::folder()
+        .map(|f| look_art::list(&f))
+        .unwrap_or_default();
     serde_json::to_string(&files).unwrap_or_else(|_| "[]".into())
 }

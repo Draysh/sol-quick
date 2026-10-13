@@ -1,10 +1,11 @@
 import QtQuick
 
 /*
-    One row of the Shell's sidebar: a section (its icon, or a small mark
-    without one; its name; a count) or, with `door`, a door to another app
-    (its world's glyph, its name and under it what it is for). On the rail
-    only the icon or the mark shows, and the hint names the row. A `child`
+    One row of the Shell's sidebar: a section (its number, its Japanese,
+    its name, a count) or, with `door`, a door to another app (its world's
+    kanji in a small diamond, its name and under it what it is for). On the
+    rail the number shows over a short Japanese name (two characters at
+    most), a door's diamond alone, and the hint names the row. A `child`
     (a page under a section) sits a step in. The Sidebar lays them out.
 */
 Settle {
@@ -27,22 +28,24 @@ Settle {
     property bool door: false
     /** A page under a section: a step in from the section's row. */
     property bool child: false
-    /** The Yozora look (`Theme.look`): its number in the mono face for its mark, and a wash in the world's light while current. */
+    /** On the floating rail (not the narrow one): its number in the HUD face for its mark, and a wash in the world's light while current. */
     property bool hud: false
-    /** Its name in Japanese, before the English in that look: "書庫". */
+    /** Its name in Japanese, before the English: "書庫". */
     property string jp: ""
     /** A carried moon's row: its number in the world's second light. */
     property bool moon: false
-    /** The number it shows in that look: its place, from 01. */
+    /** The number it shows on the floating rail: its place, from 01. */
     readonly property string number: (place + 1 < 10 ? "0" : "") + (place + 1)
-    readonly property bool numbered: hud && !door && !rail
+    readonly property bool numbered: hud && !door
+    /** Its Japanese on the rail, under the number: only when it is short enough to read there. */
+    readonly property string railJp: jp.length > 0 && jp.length <= 2 ? jp : ""
     signal clicked()
 
     readonly property bool iconed: row.icon !== "" && row.world === ""
     // The mark's box: an icon takes a little more room than the dot.
-    readonly property int markSize: row.iconed ? 16 : 10
+    readonly property int markSize: row.iconed || row.world !== "" ? 16 : 10
 
-    height: Theme.control
+    height: rail && numbered && railJp !== "" ? Theme.target + 4 : Theme.control
 
     Rectangle {
         visible: !row.hud
@@ -51,7 +54,7 @@ Settle {
         color: row.current ? Theme.surfaceHover : rowMouse.containsMouse ? Theme.surface : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.fade } }
     }
-    // The Yozora look's wash: amber from the left, fading out to the right.
+    // The wash: the world's light from the left, fading out to the right.
     Rectangle {
         visible: row.hud
         anchors.fill: parent
@@ -64,7 +67,27 @@ Settle {
             GradientStop { position: 1; color: Theme.tint(Theme.hudAccent, 0) }
         }
     }
+    // On the rail: the number over the short Japanese.
+    Column {
+        visible: row.rail && row.numbered
+        anchors.centerIn: parent
+        spacing: 0
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: row.number
+            font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
+            color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
+        }
+        Text {
+            visible: row.railJp !== ""
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: row.railJp
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Font.Bold
+            color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
+        }
+    }
     Row {
+        visible: !(row.rail && row.numbered)
         anchors.verticalCenter: parent.verticalCenter
         // One binding, not an anchor that comes and goes: a released anchor
         // leaves the row where it was put (off by a few pixels after the
@@ -72,11 +95,11 @@ Settle {
         x: row.rail ? (row.width - width) / 2 : (row.child ? Theme.s4 : 0) + (row.hud ? 18 : 12)
         spacing: row.iconed ? 10 : 12
         Text {
-            visible: row.numbered
+            visible: row.numbered && !row.rail
             anchors.verticalCenter: parent.verticalCenter
             text: row.number
-            font.family: Theme.fontMono; font.pixelSize: Theme.textXs; font.weight: Font.Bold
-            font.letterSpacing: Theme.track(0.08, Theme.textXs)
+            font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
+            font.letterSpacing: Theme.track(0.06, Theme.textXs)
             color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
@@ -84,7 +107,9 @@ Settle {
             visible: !row.numbered
             width: row.markSize; height: row.markSize
             anchors.verticalCenter: parent.verticalCenter
-            WorldGlyph { visible: row.world !== ""; world: row.world || "sol"; size: 10 }
+            // Another world: its kanji in a small diamond.
+            Rectangle { visible: row.world !== ""; anchors.centerIn: parent; width: 12; height: 12; rotation: 45; antialiasing: true; color: "transparent"; border.width: 1; border.color: rowMouse.containsMouse ? Theme.hudAccent : Theme.lineStrong }
+            Text { visible: row.world !== ""; anchors.centerIn: parent; text: Theme.jpOf(row.world || "sol").charAt(0); font.family: Theme.fontTitle; font.pixelSize: 8; font.weight: Font.Black; color: Theme.hudText }
             Icon {
                 visible: row.iconed
                 name: row.icon || "close"
@@ -92,7 +117,7 @@ Settle {
                 stroke: 1.25
                 color: row.current || rowMouse.containsMouse ? Theme.textBright : Theme.textQuiet
                 scale: rowMouse.containsMouse && !row.current ? 1.06 : 1
-                Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
                 Behavior on color { ColorAnimation { duration: Theme.fade } }
             }
             Rectangle {
@@ -103,7 +128,7 @@ Settle {
                 border.width: 1
                 border.color: row.current || rowMouse.containsMouse ? Theme.textBright : Theme.lineStrong
                 scale: rowMouse.containsMouse && !row.current ? 1.2 : 1
-                Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
                 Behavior on color { ColorAnimation { duration: Theme.lock } }
                 Behavior on border.color { ColorAnimation { duration: Theme.lock } }
             }
@@ -113,7 +138,7 @@ Settle {
             visible: row.hud && row.jp !== "" && !row.rail
             anchors.verticalCenter: parent.verticalCenter
             text: row.jp
-            font.family: Theme.fontTitle; font.pixelSize: Theme.textS; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Font.Bold
             color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
@@ -127,7 +152,7 @@ Settle {
                 elide: Text.ElideRight
                 font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: row.hud && row.current ? Theme.weightName : Theme.weightValue
                 color: row.current || rowMouse.containsMouse ? Theme.textBright : row.door ? Theme.text : row.hud ? Theme.hudQuiet : Theme.textQuiet
-                transform: Translate { x: !row.door && rowMouse.containsMouse ? 2 : 0; Behavior on x { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } } }
+                transform: Translate { x: !row.door && rowMouse.containsMouse ? 2 : 0; Behavior on x { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } } }
                 Behavior on color { ColorAnimation { duration: Theme.fade } }
             }
             Text {
@@ -147,12 +172,12 @@ Settle {
         x: row.rail ? parent.width / 2 + (row.iconed ? 5 : 3) : parent.width - 12 - width
         y: row.rail ? 2 : (parent.height - height) / 2
         width: Math.max(height, badgeText.implicitWidth + (row.rail ? 6 : 10)); height: row.rail ? 14 : 18; radius: height / 2
-        // The world's light, deepened by day, so the number reads on it in both.
+        // The world's light, the number dark on it.
         color: Theme.textWorld
         border.width: row.rail ? 2 : 0; border.color: row.current ? Theme.surfaceHover : Theme.deep
-        Text { id: badgeText; anchors.centerIn: parent; text: row.badge || ""; font.family: Theme.font; font.pixelSize: row.rail ? 9 : 10; font.weight: Theme.weightLabel; color: Theme.space }
+        Text { id: badgeText; anchors.centerIn: parent; text: row.badge || ""; font.family: Theme.fontHud; font.pixelSize: row.rail ? 9 : 10; font.weight: Font.Bold; color: Theme.space }
         onVisibleChanged: if (visible) pop.restart()
-        SequentialAnimation { id: pop; NumberAnimation { target: badge; property: "scale"; from: 0.6; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        SequentialAnimation { id: pop; NumberAnimation { target: badge; property: "scale"; from: 0.6; to: 1; duration: Theme.settle; easing: Theme.easeOut } }
     }
     MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: row.clicked() }
     Hint { text: row.hint; when: rowMouse.containsMouse }

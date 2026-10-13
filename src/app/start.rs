@@ -543,6 +543,7 @@ fn show_the_window(
         gui.as_mut()
             .set_organization_domain(&QString::from("sachi.digital"));
     }
+    crate::fonts::load();
     let mut engine = QQmlApplicationEngine::new();
     // A window that fails to load (a QML error, a Qt module missing) ends the
     // app, rather than leaving it running with nothing to show.

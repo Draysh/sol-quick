@@ -3,7 +3,7 @@ import QtQuick
 
 /*
     The comet: on a few days a year (a world's own, the same on every
-    device) one crosses the Sheet, slowly, from the upper right down to the
+    device) one crosses the sky behind a first page's title card (the Sheet's, Saturn's Home), slowly, from the upper right down to the
     left. Catch it with a click and it becomes a star in the world's Sky
     (the kit's `catch_comet`, whose `sky.lit` plays the star's moment);
     missed, it crosses again the next time the Sheet is made that day, and
@@ -35,12 +35,13 @@ Item {
     readonly property real angle: Math.atan2(y1 - y0, x1 - x0)
     readonly property real hx: Theme.calm && !staged ? width * 0.56 : x0 + (x1 - x0) * t
     readonly property real hy: Theme.calm && !staged ? height * 0.14 : y0 + (y1 - y0) * t
-    readonly property color tone: Qt.tint("#e8f4ff", Theme.tint(Theme.world, 0.25))
+    // White, warmed by the flavour's second light: Your Name's comet over the title card.
+    readonly property color tone: Qt.tint(Theme.artBright, Theme.tint(Theme.artSecond, 0.35))
 
     visible: due && (crossing.running || staged || rest.running)
     NumberAnimation {
         id: crossing
-        target: root; property: "t"; from: 0; to: 1; duration: 14000
+        target: root; property: "t"; from: 0; to: 1; duration: Theme.crossing
         running: root.due && !root.staged && !Theme.calm && Theme.alive && root.width > 0
         onRunningChanged: if (!running && root.t >= 1) root.day = ""
     }
@@ -78,7 +79,7 @@ Item {
     }
     // The head, and the hand that catches it.
     Rectangle {
-        x: root.hx - 14; y: root.hy - 14; width: 28; height: 28; radius: 14
+        x: root.hx - 22; y: root.hy - 22; width: 44; height: 44; radius: 22
         gradient: Gradient {
             GradientStop { position: 0; color: Theme.tint(root.tone, 0) }
             GradientStop { position: 0.5; color: Theme.tint(root.tone, 0.3) }

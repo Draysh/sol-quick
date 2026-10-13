@@ -13,6 +13,7 @@ Card {
     readonly property var manifest: root.sol.manifest
 
     title: manifest.name + "’s settings"
+    jp: "設定"
     visible: !!manifest.settings && manifest.settings.length > 0
 
     Component.onCompleted: load()
@@ -26,7 +27,7 @@ Card {
         return String(value)
     }
 
-    DataRows { width: parent.width; rows: (root.manifest.settings || []).map(s => ({ label: s.label, value: root.show(s.kind, root.values[s.key]) })) }
+    DataRows { ledger: true; width: parent.width; rows: (root.manifest.settings || []).map(s => ({ label: s.label, value: root.show(s.kind, root.values[s.key]) })) }
     Words { width: parent.width; small: true; quiet: true; text: "Change these in Sol; every device picks them up at once." }
     Button { variant: "quiet"; text: "Change in Sol"; onClicked: root.sol.openInSol() }
 }

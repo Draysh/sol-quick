@@ -3,15 +3,28 @@ import QtQuick
 /*
     A page in the pane. Its `header` (a PageHead) stays put; everything else
     scrolls, padded by the pane's margin. A Sheet as the header is pinned
-    instead: the page scrolls under it and it shrinks to a bar. The Shell
-    keeps a Screen alive while the history leads to it, so going back
-    lands where you left off.
+    instead: the page scrolls under it and it shrinks to a bar (so is a
+    PageHead with a `feature`, which folds away under its band). A page
+    opened from another without a header of its own gets the kit's
+    PageHead with its title and the way back. The Shell keeps a Screen
+    alive while the history leads to it, so going back lands where you
+    left off.
+
+    The content is never wider than `maxWidth` (about 1400 px): a wider
+    pane centres it, or gives the room to the page's `side` column (a
+    cover, art, a navigator), which goes above the content when the pane
+    is too narrow for both. A page with little on it says `sparse`: on a
+    wide pane its title is set large over the still and its content stands
+    under it (beside it, when the title is written down), one group low on
+    the left, so the still's figure keeps the rest of the pane.
 
         Screen {
             title: "Settings"
             header: PageHead { title: "Settings" }
             Grid { Card { … } Card { … } }
         }
+        Screen { title: "Album"; header: PageHead { title: album.name }; side: [Picture { … }]; TrackList { … } }
+        Screen { title: "Dictionary"; sparse: true; header: PageHead { title: "Dictionary"; jp: "辞書" }; Field { … } }
 */
 Item {
     id: screen
@@ -34,17 +47,24 @@ Item {
     property bool filters: false
     /** This page's own actions, `{ label, hint, keys, icon, run }`, in the palette (Ctrl+K) after the window's, and on the `?` sheet: "Rate 8", "Bury this card". */
     property var actions: []
-    /** Key art for the whole window behind this page (a file or web address), where the look draws one (`Theme.look`). */
+    /** Key art for the whole window behind this page (a file or web address), in place of the world's still. */
     property string ground: ""
-    /** What the world's navigator says on this page in the Yozora look: a hint, a sentence or two; "" for the page's empty state or what its section is for. */
+    /**
+        What the world's navigator says on this page, in its own voice:
+        short and warm, about 60 characters at most, never the page's
+        title or its empty state again. "" keeps it quiet.
+    */
     property string say: ""
-    /** The line of the empty state on show, for the navigator (Empty sets it). */
+    /** The same in Japanese, said first: "続き、見よっか。" */
+    property string sayJp: ""
+    /** The line of the empty state on show beside its own portrait (Empty sets it): the sidebar's navigator keeps quiet meanwhile. */
     property string emptySay: ""
     /** The Sheet pinned over the page, shrinking as it scrolls, if there is one. */
     property Item pinned: null
 
-    /** A Sheet given as the header pins itself over the page: the page scrolls under it, and it shrinks to a bar. */
+    /** A Sheet given as the header (or a PageHead with a feature) pins itself over the page: the page scrolls under it, and it shrinks to a bar. */
     function pin(item) {
+        if (pinned === item) return
         pinned = item
         // The page starts under it, a gap below its line.
         screen.topPad = Qt.binding(() => item.fullHeight + Theme.s4)
@@ -53,7 +73,37 @@ Item {
     /** Pad the sides by the pane's margin; off for a page that starts with a Sheet. */
     property bool padded: true
     /** Space above the content (and, on a page with no header, room for the way back floating over it). */
-    property real topPad: (padded ? Theme.s4 : 0) + (floatingBack.visible ? floatingBack.height + Theme.s3 : 0)
+    property real topPad: padded ? Theme.s4 : 0
+    /** The widest the content goes; a wider pane centres it, or gives the rest to `side`. */
+    property real maxWidth: 1400
+    /** A column beside the content on a wide pane (above it on a narrow one): a cover, art, a navigator. */
+    property alias side: sideSlot.data
+    /** The content keeps to the start of a wide pane instead of its middle, leaving the still's figure the other side. */
+    property bool atStart: false
+    /** On a pane too narrow for the side column beside the content, it goes above it; false leaves it out there (a page that keeps the same things in its column then). */
+    property bool sideAbove: true
+    /** A page with little on it: on a wide pane, its title large over the still and its content in a column under it, low on the left. */
+    property bool sparse: false
+    /** The room inside the pane's margins. */
+    readonly property real room: Math.max(0, width - margin * 2)
+    readonly property bool hasSide: sideSlot.children.length > 0 && (sideAbove || room >= 1040)
+    /** The side column beside the content (else above it). */
+    readonly property bool sideBeside: hasSide && room >= 1040
+    readonly property real sideWidth: !hasSide ? 0 : sideBeside ? Math.round(Math.max(300, Math.min(440, room - maxWidth - Theme.s5, room * 0.3))) : room
+    /** Composed to the still: only on a pane wide enough to leave the still its figure. */
+    readonly property bool composed: sparse && padded && room >= 960
+    /** Where the content starts across the pane, and how wide it is (a PageHead lines its words up with it). */
+    readonly property real contentWidth: !padded ? width
+        : composed ? Math.min(560, Math.round(room * 0.46), width - margin - groupX - (bigTitle.down ? bigTitle.downWidth + Theme.s5 : 0))
+        : sideBeside ? Math.min(maxWidth, room - sideWidth - Theme.s5)
+        : Math.min(maxWidth, room)
+    readonly property real contentX: !padded ? 0
+        : composed ? groupX + (bigTitle.down ? bigTitle.downWidth + Theme.s5 : 0)
+        : sideBeside ? margin + Math.max(0, (room - contentWidth - sideWidth - Theme.s5) / 2)
+        : atStart ? margin
+        : margin + (room - contentWidth) / 2
+    /** Where a composed page's group (its big title and its column) starts: clear of the navigator where its frame breaks the sidebar's edge into the pane. */
+    readonly property real groupX: Math.max(margin, shell && shell.navigatorReach > 0 ? shell.navigatorReach + Theme.s6 : 0)
     property alias header: headSlot.data
     default property alias content: column.data
     property alias contentY: flick.contentY
@@ -96,7 +146,7 @@ Item {
         }
         bounce.stop()
         glide.stop(); glide.from = flick.contentY; glide.to = to
-        glide.duration = w.notched ? 240 : 80
+        glide.duration = w.notched ? Theme.notchGlide : Theme.touchGlide
         glide.start()
     }
     /** How far a page key scrolls: the visible height, less a line to keep your place. */
@@ -112,31 +162,31 @@ Item {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: childrenRect.height
         z: 10
-        onChildrenChanged: { for (const h of children) { h.width = Qt.binding(() => headSlot.width); if (h.hasOwnProperty("screen")) h.screen = screen; if (h.hasOwnProperty("collapse") && h.hasOwnProperty("fullHeight")) screen.pin(h) } }
+        onChildrenChanged: { for (const h of children) { h.width = Qt.binding(() => headSlot.width); if (h.hasOwnProperty("screen")) h.screen = screen; if (h.hasOwnProperty("collapse") && h.hasOwnProperty("fullHeight") && h.pins !== false) screen.pin(h) } }
     }
 
-    // The way back floats over the corner when no PageHead shows it.
-    Back {
-        id: floatingBack
-        visible: !!screen.back && headSlot.children.length === 0
-        label: screen.back ? screen.back.label : ""
-        floating: true
-        x: Theme.s3; y: Theme.s3
-        z: 20
-        onGo: screen.back.go()
+    // A page opened from another with no head of its own: the kit's, with its title and the way back.
+    Loader {
+        id: autoHead
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        z: 10
+        active: !!screen.back && headSlot.children.length === 0
+        // (Its own `screen` would hide the page's id inside it: both are set from here.)
+        sourceComponent: PageHead { }
+        onLoaded: { const h = item as PageHead; if (!h) return; h.screen = screen; h.title = Qt.binding(() => screen.title) }
     }
 
     Flickable {
         id: flick
         anchors.left: parent.left; anchors.right: parent.right
         // Under a pinned Sheet the page starts at the top and scrolls beneath it.
-        anchors.top: screen.pinned ? parent.top : headSlot.bottom
+        anchors.top: screen.pinned ? parent.top : autoHead.item ? autoHead.bottom : headSlot.bottom
         anchors.bottom: footSlot.top
         contentWidth: width
-        contentHeight: column.y + column.implicitHeight + Theme.s6
+        contentHeight: Math.max(column.y + column.implicitHeight, screen.sideBeside ? sideSlot.y + sideSlot.height : 0) + Theme.s6
         // Real inertia: a drag past the end gives and springs back; a flick runs out on its own curve.
         boundsBehavior: Flickable.DragAndOvershootBounds
-        rebound: Transition { SpringAnimation { properties: "x,y"; spring: 3; damping: 0.32; mass: 0.9 } }
+        rebound: Transition { NumberAnimation { properties: "x,y"; duration: Theme.settle; easing: Theme.spring } }
         flickDeceleration: 2200
         maximumFlickVelocity: 6000
         clip: true
@@ -146,38 +196,100 @@ Item {
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: event => { screen.wheel(event); event.accepted = true }
         }
-        NumberAnimation { id: glide; target: flick; property: "contentY"; easing.type: Easing.OutCubic }
-        SequentialAnimation { id: bounce; NumberAnimation { id: bounceTo; target: flick; property: "contentY"; duration: 90; easing.type: Easing.OutCubic } ScriptAction { script: flick.returnToBounds() } }
+        NumberAnimation { id: glide; target: flick; property: "contentY"; easing: Theme.easeOut }
+        SequentialAnimation { id: bounce; NumberAnimation { id: bounceTo; target: flick; property: "contentY"; duration: Theme.touchGlide; easing: Theme.easeOut } ScriptAction { script: flick.returnToBounds() } }
 
+        // The side column: beside the content on a wide pane, above it on a narrow one.
+        Item {
+            id: sideSlot
+            visible: screen.hasSide
+            x: screen.sideBeside ? screen.contentX + screen.contentWidth + Theme.s5 : screen.margin
+            y: screen.topPad
+            width: screen.sideWidth
+            height: childrenRect.height
+            onChildrenChanged: { for (const c of children) c.width = Qt.binding(() => sideSlot.width) }
+        }
+        // A page with little on it, on a wide pane: its title large over the still, its content
+        // under it (or beside it, written down), one group low on the left that scrolls together.
+        Column {
+            id: bigTitle
+            readonly property var head: headSlot.children.length ? headSlot.children[0] : null
+            visible: screen.composed
+            x: screen.groupX
+            // Over the column; written down, beside it, their feet on one line.
+            y: down ? column.y + column.implicitHeight - height : column.y - height - Theme.s4
+            width: down ? downWidth : screen.contentWidth
+            spacing: Theme.s2
+            // Written down with the flavour's `tategaki` (Mercury's), as a hanging scroll.
+            readonly property bool down: !!Theme.hud.tategaki
+            readonly property real downSize: 96
+            /** How wide the title is written down: one character, or its English line when that is wider. */
+            readonly property real downWidth: Math.max(downSize, english.visible ? english.implicitWidth : 0)
+            readonly property string jp: head && head.jpTitle ? head.jpTitle : ""
+            ChromaText {
+                width: parent.width
+                text: bigTitle.down ? bigTitle.jp.split("").map(c => ({ "、": "︑", "。": "︒", "ー": "︱" })[c] || c).join("\n") : bigTitle.jp
+                visible: text !== ""
+                elide: bigTitle.down ? Text.ElideNone : Text.ElideRight
+                // Written down, each character a square and a little: the face's own line is far taller.
+                lineHeightMode: bigTitle.down ? Text.FixedHeight : Text.ProportionalHeight
+                lineHeight: bigTitle.down ? Math.round(font.pixelSize * 1.06) : 1
+                horizontalAlignment: bigTitle.down ? Text.AlignHCenter : Text.AlignLeft
+                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black
+                font.pixelSize: bigTitle.down ? bigTitle.downSize : Theme.textHero
+                fontSizeMode: bigTitle.down ? Text.FixedSize : Text.HorizontalFit; minimumPixelSize: 40
+                color: Theme.artBright
+                style: Text.Raised; styleColor: Theme.tint(Theme.hud.dim || Theme.hud.ground, 0.6)
+            }
+            Text {
+                id: english
+                width: parent.width
+                text: bigTitle.head && bigTitle.head.title ? bigTitle.head.title : screen.title
+                horizontalAlignment: bigTitle.down ? Text.AlignHCenter : Text.AlignLeft
+                font.family: Theme.fontCaps; font.pixelSize: Theme.textM; font.weight: Font.DemiBold
+                font.letterSpacing: Theme.track(Theme.trackHud, Theme.textM); font.capitalization: Font.AllUppercase
+                color: Theme.hudAccent
+                visible: Theme.capsFor(text)
+            }
+        }
         Column {
             id: column
-            x: screen.padded ? screen.margin : 0
-            y: screen.topPad
-            width: flick.width - (screen.padded ? screen.margin * 2 : 0)
+            x: screen.contentX
+            // Composed to the still, a short column sits low under its big title (beside it, written
+            // down); a long one starts under the title and scrolls with it.
+            y: screen.composed ? Math.max(screen.topPad + (bigTitle.down ? Math.max(0, bigTitle.height - implicitHeight) : bigTitle.height + Theme.s4), flick.height - implicitHeight - Theme.s6)
+                : screen.topPad + (screen.hasSide && !screen.sideBeside ? sideSlot.height + Theme.s4 : 0)
+            width: screen.contentWidth
             spacing: Theme.s4
         }
 
         // The screen settles into the pane as it opens, and again when the Shell comes back to it.
         opacity: 0
-        transform: Translate { id: shift; y: 6; x: 0 }
+        transform: Translate { id: shift; y: Theme.calm ? 0 : 6; x: 0 }
         Component.onCompleted: { arrive.start(); screen.revealHead("up"); glitch.play() }
+        // Each flavour arrives its own way, under the Shell's PageTurn: Saturn cuts in (at once, a
+        // film gate's small settle), Mercury's ink shows it through slowly without moving it,
+        // Terra's rises softly into the light, Neptune's slides in under its glitch. With less
+        // motion, a fade only.
+        readonly property string motif: Theme.hud.motif
         function reveal(dir) {
             arrive.stop(); flick.opacity = 0
-            shift.y = dir === "in" || dir === "back" ? 0 : 6
-            shift.x = dir === "in" ? 28 : dir === "back" ? -16 : 0
+            const still = Theme.calm || motif === "shrine"
+            shift.y = still ? 0 : motif === "dusk" ? 4 : motif === "summer" ? 10 : dir === "in" || dir === "back" ? 0 : 6
+            shift.x = still || motif === "dusk" ? 0 : dir === "in" ? 28 : dir === "back" ? -16 : 0
             arrive.start()
         }
         ParallelAnimation {
             id: arrive
-            NumberAnimation { target: flick; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { target: flick; property: "opacity"; to: 1; duration: flick.motif === "dusk" && !Theme.calm ? Theme.lock : Theme.turn; easing: Theme.easeOut }
+            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.turn; easing: flick.motif === "dusk" ? Theme.spring : Theme.easeOut }
+            NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
         }
     }
 
     Settling { when: arrive.running }
 
-    // Neptune's glitch in the Yozora look, as the page arrives; nothing otherwise.
+    // Neptune's glitch, as the page arrives; nothing in another flavour.
     HudGlitch { id: glitch; anchors.fill: parent; z: 15 }
 
     // A thin scrollbar, only while the pane moves.

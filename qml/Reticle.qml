@@ -35,10 +35,10 @@ Item {
     SequentialAnimation {
         id: find
         ParallelAnimation {
-            NumberAnimation { target: root; property: "drawn"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+            NumberAnimation { target: root; property: "drawn"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
             SequentialAnimation {
                 PauseAnimation { duration: Theme.rise / 3 }
-                NumberAnimation { target: root; property: "extended"; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+                NumberAnimation { target: root; property: "extended"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
             }
             SequentialAnimation {
                 PauseAnimation { duration: Theme.rise * 0.8 }

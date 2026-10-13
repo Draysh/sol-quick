@@ -63,7 +63,7 @@ Item {
     Connections { target: Sol; function onKeptChanged() { if (root.shown && !root.sample) root.load() } }
 
     Item { anchors.fill: parent; opacity: root.shown ? 1 : 0; Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Glass { anchors.fill: parent; blur: 0.5; tint: Theme.tint(Theme.veil, 0.55) }
+        Glass { anchors.fill: parent; blur: 0.5; tint: Theme.tint(Theme.frost, Theme.light ? 0.86 : 0.55) }
         MouseArea { anchors.fill: parent; enabled: root.shown; onClicked: root.close() } }
 
     Item {
@@ -74,7 +74,7 @@ Item {
         opacity: root.shown ? 1 : 0
         scale: root.shown ? 1 : 0.97
         Behavior on opacity { NumberAnimation { duration: Theme.settle } }
-        Behavior on scale { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on scale { NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
         Keys.onEscapePressed: root.close()
         MouseArea { anchors.fill: parent }
         Card {

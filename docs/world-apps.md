@@ -75,16 +75,28 @@ update.pub        the key release files are signed with
   State the screens share lives in the singleton `qml/<World>.qml`
   (`pragma Singleton`, `import Sol.Design`); every file that uses it
   imports `Sol.<World>`. The first page starts with a `Sheet` in its
-  `header`, other pages with a `PageHead` (its `tabs` for views of one
-  page, each in the page's path: `/schedule?tab=calendar`); everything
-  else is `Card`s in a `Grid` (`masonry: true` where their heights differ
-  a lot; `span: 2` or `"row"` for a feature card). One `primary` button per screen. The Settings page has
-  `SolCard`, `DeviceCard`, `SettingsCard`, `ExportCard` and `AppUpdates`
-  on a masonry `Grid`, then `MoonSettings` (each carried moon's part
-  under its name; see "Moons"). For the Yozora look, a look being tried
-  (`SOL_LOOK=yozora`, `../../docs/yozora.md`), a world adds only words: a
+  `header` (its title card, and two or three `figures` with their
+  Japanese: the numbers that matter most, never a row of facts), other
+  pages with a `PageHead` (its `tabs` for views of one page, each in the
+  page's path: `/schedule?tab=calendar`; its `feature` for the page's one
+  lead object); everything else is `Card`s in a `Grid` (`masonry: true`
+  where their heights differ a lot; `span: 2` or `"row"` for a feature
+  card). A page with little on it says `sparse` (composed to the still on
+  a wide window: its big title and its column one group low on the left), a page with a cover or art beside its content puts it
+  in `side`. One `primary` button per screen, and `danger` for what can't
+  be taken back. The Settings page is a `SettingsScreen`: the kit brings
+  Sol, Export, This device, Updates and each carried moon's part, and the
+  world adds its own `SettingsPart`s (see "Moons"). A picture that can't
+  be had is the kit's card (give a `Picture` its `name`, or a `seed` when
+  the name shows beside it). The look is Yozora
+  (`../../docs/yozora.md`), and a world adds only words: a
   section's `jp` (its name in Japanese), a PageHead's, Card's or Sheet's
-  `jp`, and a page's `say` (what its navigator says there).
+  `jp`, and a page's `sayJp` and `say` (what its navigator says there:
+  the Japanese first, then the English, about 60 characters at most, in
+  the character's own voice, never the page's title or its empty state
+  again; "" keeps it quiet). A page whose line follows its state keeps
+  both in one list, `readonly property var talk: cond ? ["…", "…"] : …`
+  with `say: talk[1]; sayJp: talk[0]`.
 
 ## Data goes through the Link
 
@@ -246,7 +258,12 @@ engine keeps the link), and one with state beside the link takes both
   || "timeline"`), and the old paths stay as `aliases` (Saturn's
   Discover, Schedule and Activity).
 - `Strip` for anything that scrolls sideways; `Settle` for anything that
-  arrives in a list; `LongGrid` / `LongList` with a `Sift` for a list that
+  arrives in a list (`pop: true` for a tile in a grid, `pushed:
+  mouse.pressed` for a row that plays or opens); `Lean` in a tile that is
+  clicked (it leans to the pointer and gives under a press); for a world's
+  main act, the kit's small moments: `Check { sparks: true }`,
+  `Card.lockOn()` (something gone live), `Button.pulse()` (a press from a
+  key), `Spark`, and `Sol.cheer()` with `Sounds.voice()`; `LongGrid` / `LongList` with a `Sift` for a list that
   grows with the library (only what is in sight is made; a Repeater makes
   everything, so keep it for short lists); `Skeleton` for a page's shape while it loads;
   `Chart`, `DataRows`, `Display` for figures.
@@ -450,8 +467,8 @@ worlds' questions reach it as before.
 - **One Sky and one Settings per app**: the moon has no Sky or Settings
   row of its own. Its `Moon { settings: Component { <Moon>Settings { } }
   }` (a `Grid { masonry: true }` of its cards, Titan's `TitanSettings`)
-  is shown under the moon's name and role by the planet's `MoonSettings`,
-  below the planet's cards; without a `/sky` page its sky is a tab of the
+  is a part of the planet's `SettingsScreen`, under the moon's name;
+  without a `/sky` page its sky is a tab of the
   planet's `SkyPage`. `/<moon>/settings` and `/<moon>/sky` still open
   them there (`/settings?part=<moon>`, `/sky?tab=<moon>`), and the moon's
   own paths that moved are its `aliases` (relative to the moon: Titan's
@@ -503,9 +520,10 @@ function of an argument giving one or a promise of one), and
 `_moment=<name>` (or `<name>:<arg>`) in a shot path plays it, without its
 occasion: Terra's `sunrise`, Saturn's `finished:<key>`, Mercury's
 `perfect` and `milestone`, the template's `first`. The template's
-`FirstLine.qml` is the smallest example. In the Yozora look a moment is a
+`FirstLine.qml` is the smallest example. A moment is a
 film's scene over the page's still: give its MomentCaption `jp` (the title
-in Japanese), `subtitleJp` and `subtitle` (a line said at the foot), and
+in Japanese), `subtitleJp` and `subtitle` (a line said at the foot, by
+the world's navigator, who stands large beside it), and
 the spec a `hud` ("Review · 復習"); Mercury's `PerfectScene` does.
 
 ## The Sky
@@ -628,10 +646,16 @@ still finds the one inside.
   window is in front (`sol.<world>` `toured`; never in a preview, a
   picture or a drive), skippable, and puts it behind `?` and the palette
   ("Take the tour"); `_tour=N` stages card N for a picture.
-- **Empty pages**: `Empty { icon; line; hint; action }` wherever a page or
+- **Empty pages**: `Empty { icon; jp; line; hint; action }` wherever a page or
   card has nothing yet: the line in the world's own voice ("Nothing in
-  orbit yet.", "Only static, so far."), the hint saying what fills it, at
-  most one action. Inside a card, or for a search with no hits, `compact`.
+  orbit yet.", "Only static, so far."), said by the navigator beside it
+  with its Japanese (`jp`) first, the hint saying what fills it, at
+  most one action. Inside a card, or for a search with no hits, `compact`
+  (the glyph in a diamond, no navigator).
+- **Its navigator's cheer**: `Sol.cheer()` beside that same good moment
+  (an episode watched, a habit ticked, a card remembered, a song starred,
+  a bedtime logged, a station on air): the portrait glows warm and sparks
+  once. Never for every click.
 - **Its voice**: `Sounds.voice()` for the world's main good moment only (an
   episode watched, a habit done, a right answer, a station on air), never
   for every click; the kit's `tick` stays for the rest. A new world adds

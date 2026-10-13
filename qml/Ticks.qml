@@ -47,7 +47,7 @@ Item {
         // Only the corner of the outline below shows.
         clip: round > 0
         Behavior on opacity { NumberAnimation { duration: Theme.lock } }
-        Behavior on gap { NumberAnimation { duration: Theme.lock; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on gap { NumberAnimation { duration: Theme.lock; easing: Theme.easeOut } }
         Rectangle { visible: tick.round <= 0; width: tick.width; height: 1; y: tick.tl ? 0 : tick.height - 1; color: ticks.color }
         Rectangle { visible: tick.round <= 0; width: 1; height: tick.height; x: tick.tl ? 0 : tick.width - 1; color: ticks.color }
         Rectangle {

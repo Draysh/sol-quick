@@ -1,10 +1,9 @@
 import QtQuick
 
 /*
-    A group: a panel raised off the night, its title in the world's light
-    over a hairline, and two corner ticks that lock on to it under the
-    pointer (in the Yozora look: glass with a corner cut, its title a HUD
-    label with its `jp`, brackets under the pointer). Give it a width; it
+    A group: a panel of glass over the still with its top-right corner
+    cut, its title a HUD label (with its `jp`) over a hairline, and
+    brackets in the world's light under the pointer. Give it a width; it
     is as tall as what it holds. A card that
     is a thing (a title, a deck, a station) has a `menu`: right-click it,
     or the ⋯ in its head.
@@ -16,9 +15,9 @@ Item {
     id: root
 
     property string title: ""
-    /** Its title in Japanese, after the English in the Yozora look: "続きから". */
+    /** Its title in Japanese, after the English: "続きから". */
     property string jp: ""
-    /** Shows the world's glyph next to the title. */
+    /** The world it is about (a moon's card in its planet's settings). */
     property string world: ""
     /** Shows an "Open" link in the header. */
     property bool openable: false
@@ -37,6 +36,8 @@ Item {
     property real radius: Theme.radius
 
     implicitHeight: body.y + body.implicitHeight + 20
+    /** The room its Grid gives it past its own height, to end level with the card beside it (set by the Grid). */
+    property real spare: 0
 
     MouseArea {
         anchors.fill: parent
@@ -50,93 +51,68 @@ Item {
     }
     implicitWidth: 300
 
-    // The card settles into place when it comes into view, then its ticks lock on.
+    /** It does something when clicked (an Open link makes it so too): it gives under a press. */
+    property bool pressable: false
+
+    // The card settles into place when it comes into view, a little past it and back (the spring),
+    // and leans towards the pointer.
     opacity: 0
-    transform: [Translate { id: shift; y: 6 }, Translate { id: moved }]
+    property Translate shift: Translate { y: Theme.calm ? 0 : 12 }
+    // Grows from its top a little as it settles; a tall one hardly at all, so its top stays where it is.
+    property Scale pop: Scale { origin.x: root.width / 2; origin.y: 0; xScale: Theme.calm ? 1 : 0.97; yScale: 1 - (1 - xScale) * Math.min(1, 400 / Math.max(1, root.height)) }
+    property Translate moved: Translate { }
+    transform: [shift, pop, moved, lean.shift, lean.push]
 
     /** Placed somewhere else by its Grid: it glides there from `dx`, `dy` away (not with less motion, nor before it has arrived). */
     function glide(dx, dy) {
         if (Theme.calm || Theme.settle === 0 || (opacity === 0 && !arrive.running)) return
         gliding.stop()
-        moved.x += dx
-        moved.y += dy
+        root.moved.x += dx
+        root.moved.y += dy
         gliding.start()
     }
     Settling { when: gliding.running }
     ParallelAnimation {
         id: gliding
-        NumberAnimation { target: moved; property: "x"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-        NumberAnimation { target: moved; property: "y"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+        NumberAnimation { target: root.moved; property: "x"; to: 0; duration: Theme.settle; easing: Theme.easeOut }
+        NumberAnimation { target: root.moved; property: "y"; to: 0; duration: Theme.settle; easing: Theme.easeOut }
     }
 
     /** Arrived late (scrolled to): it comes at once, no stagger. */
     property bool late: false
     property var forget: null
-    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; arrive.start() })
+    /** It has come into view: its glass is made then, not before (a card far down a page costs nothing until it is scrolled to). */
+    property bool seen: false
+    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; arrive.start() })
     Component.onDestruction: if (forget) forget()
     Settling { when: arrive.running }
     SequentialAnimation {
         id: arrive
         PauseAnimation { duration: root.late ? 0 : Theme.delay(root.index) }
         ParallelAnimation {
-            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-            SequentialAnimation {
-                PauseAnimation { duration: Theme.settle / 2 }
-                ParallelAnimation {
-                    NumberAnimation { target: ticks; property: "opacity"; from: 0; to: 1; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-                    NumberAnimation { target: ticks; property: "lock"; from: 18; to: 0; duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
-                }
-            }
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
+            NumberAnimation { target: root.shift; property: "y"; to: 0; duration: Theme.settle; easing: Theme.spring }
+            NumberAnimation { target: root.pop; property: "xScale"; to: 1; duration: Theme.settle; easing: Theme.spring }
         }
     }
 
-    // The panel: a step lighter than the pane, lit a little from above; in the Yozora look,
-    // glass over the still with its top-right corner cut, and brackets in the light under the pointer.
-    HudGlass { visible: Theme.yozora; anchors.fill: parent; cuts: [0, Theme.hudCut, 0, 0]; glow: over.hovered ? 1 : 0 }
+    // The panel: glass over the still with its top-right corner cut, and brackets in the light under the pointer.
+    Loader {
+        anchors.fill: parent
+        active: root.seen
+        sourceComponent: HudGlass { cuts: [0, Theme.hudCut, 0, 0] }
+        onLoaded: { const g = item as HudGlass; if (g) g.glow = Qt.binding(() => root.pointed ? 1 : 0) }
+    }
     HudBrackets {
-        visible: Theme.yozora
         anchors.fill: parent
         cuts: [0, Theme.hudCut, 0, 0]
-        color: Theme.tint(Theme.hudAccent, over.hovered ? 0.9 : 0)
+        color: Theme.tint(Theme.hudAccent, lean.hovered ? 0.9 : 0)
         Behavior on color { ColorAnimation { duration: Theme.fade } }
     }
-    Rectangle {
-        visible: !Theme.yozora
-        anchors.fill: parent
-        radius: root.radius
-        gradient: Gradient {
-            GradientStop { position: 0; color: Theme.raisedTop }
-            GradientStop { position: 1; color: Theme.raised }
-        }
-        border.width: 1
-        border.color: over.hovered ? Theme.lineMid : Theme.line
-        Behavior on border.color { ColorAnimation { duration: Theme.fade } }
-    }
     // Under the title, a hairline from edge to edge: the head, then the body.
-    Rectangle { visible: head.visible; x: Theme.yozora ? 20 : 1; y: head.y + head.height + 13; width: parent.width - (Theme.yozora ? 40 : 2); height: 1; color: Theme.line }
-    HoverHandler { id: over }
-
-    Item {
-        id: ticks
-        visible: !Theme.yozora
-        anchors.fill: parent
-        opacity: 0
-        /** How far past the corners they sit: a few pixels under the pointer, the same on any card. */
-        property real out: over.hovered ? 5 : 0
-        /** Extra distance while the card arrives, so they lock on as it settles. */
-        property real lock: 0
-        readonly property real off: out + lock
-        Behavior on out { NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
-        // Under the pointer only: the panel holds the group; the ticks lock on to it.
-        Item {
-            anchors.fill: parent
-            opacity: over.hovered ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Theme.fade } }
-            // Rounded with the panel, where they rest under the pointer.
-            Ticks { on: true; out: 1 + ticks.off; round: root.radius + 6; arm: 14; color: Theme.textWorld }
-        }
-    }
+    Rectangle { visible: head.visible; x: 20; y: head.y + head.height + 13; width: parent.width - 40; height: 1; color: Theme.line }
+    /** The pointer is on it: its glass's edge and brackets light. */
+    readonly property bool pointed: lean.hovered
 
     Item {
         id: head
@@ -148,15 +124,9 @@ Item {
         Row {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
-            WorldGlyph { id: glyph; visible: root.world !== "" && !Theme.yozora; world: root.world; size: 10; anchors.verticalCenter: parent.verticalCenter }
             // A long title elides before the Open link.
-            readonly property real room: head.width - (glyph.visible ? glyph.width + 10 : 0) - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0) - (more.visible ? more.width - 8 + Theme.s3 : 0)
-            Label {
-                visible: !Theme.yozora
-                text: root.title; color: Theme.textWorld; anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, Math.min(implicitWidth, parent.room))
-            }
-            HudLabel { visible: Theme.yozora && root.title !== ""; anchors.verticalCenter: parent.verticalCenter; text: root.title; jp: root.jp; room: parent.room }
+            readonly property real room: head.width - (openLink.visible ? openLink.width - 8 + Theme.s3 : 0) - (more.visible ? more.width - 8 + Theme.s3 : 0)
+            HudLabel { visible: root.title !== ""; anchors.verticalCenter: parent.verticalCenter; text: root.title; jp: root.jp; room: parent.room }
         }
 
         Item {
@@ -201,9 +171,58 @@ Item {
 
     Column {
         id: body
+        // Drawn taller to end level with its pair (Grid), what it holds sits in the middle.
+        transform: Translate { y: root.spare / 2 }
         x: 20
         y: head.visible ? head.y + head.height + 14 + Math.max(root.gap, Theme.s3) : 20
         width: parent.width - 40
         spacing: root.gap
     }
+
+    Lean { id: lean; anchors.fill: parent; presses: root.pressable || root.openable }
+
+    /** Its brackets lock onto it from a little way out, as a reticle finding its target, and a few
+        sparks fly: for a thing that has just gone live (a station on air). Nothing with less motion. */
+    function lockOn() {
+        if (Theme.calm || Theme.settle === 0) return
+        lock.active = true
+        if (lock.item) (lock.item as CardLock).play()
+        if (lockSpark.item) (lockSpark.item as Spark).burst(); else lockSpark.active = true
+        sparked.restart()
+    }
+    // Made the first time it locks on, so a card that never does costs nothing for it.
+    component CardLock: HudBrackets {
+        id: marks
+        property real glow: 0
+        function play() { locking.restart() }
+        visible: glow > 0
+        cuts: [0, Theme.hudCut, 0, 0]
+        weight: 2
+        color: Theme.tint(Theme.hudAccent, glow)
+        transform: Scale { id: lockScale; origin.x: marks.width / 2; origin.y: marks.height / 2 }
+        Settling { when: locking.running }
+        SequentialAnimation {
+            id: locking
+            PropertyAction { target: marks; property: "glow"; value: 1 }
+            PropertyAction { target: lockScale; properties: "xScale,yScale"; value: 1.08 }
+            NumberAnimation { target: lockScale; properties: "xScale,yScale"; to: 1; duration: Theme.lock * 2; easing: Theme.spring }
+            PauseAnimation { duration: Theme.settle }
+            NumberAnimation { target: marks; property: "glow"; to: 0; duration: Theme.rise; easing: Theme.easeOut }
+        }
+    }
+    Loader {
+        id: lock
+        anchors.fill: parent
+        active: false
+        sourceComponent: CardLock { }
+        onLoaded: (item as CardLock).play()
+    }
+    Loader {
+        id: lockSpark
+        active: false
+        x: Theme.hudBracket; y: Theme.hudBracket
+        sourceComponent: Spark { count: 28 }
+        onLoaded: (item as Spark).burst()
+    }
+    Timer { id: sparked; interval: Theme.rise * 2; onTriggered: lockSpark.active = false }
 }

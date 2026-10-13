@@ -18,6 +18,19 @@ QtObject {
     // ---- Counts -----------------------------------------------------------------
     /** `1 card`, `3 cards`; `many` for a plural that isn't `one` + s (`1 entry`, `2 entries`). */
     function plural(n, one, many) { return n + " " + (n === 1 ? one : (many || one + "s")) }
+    /** A whole number in kanji, as a title card writes it: 7 `七`, 17 `十七`, 120 `百二十`, 0 `零`. */
+    function kanji(n) {
+        n = Math.max(0, Math.floor(n))
+        if (n === 0) return "零"
+        const digits = "〇一二三四五六七八九"
+        let out = ""
+        for (const [size, name] of [[10000, "万"], [1000, "千"], [100, "百"], [10, "十"]]) {
+            const k = Math.floor(n / size)
+            if (k) out += (k > 1 || size === 10000 ? (k >= 10 ? kanji(k) : digits[k]) : "") + name
+            n %= size
+        }
+        return out + (n ? digits[n] : "")
+    }
 
     // ---- Days ---------------------------------------------------------------------
     /** A date as the day it falls on here, `2026-10-09`; today when not given. */

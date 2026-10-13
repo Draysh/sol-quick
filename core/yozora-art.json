@@ -1,0 +1,35 @@
+{
+  "about": "Where the Yozora look's pictures come from: each world's grounds (stills from a Makoto Shinkai film on TMDB's image CDN, by their file there) and its navigator (a character's portrait on AniList's CDN). Every Sol app fetches what is missing into ~/.local/share/sol-yozora/ when it starts (sol_quick::look_art), and scripts/yozora-art.sh reads the same list. The pictures belong to their makers and are never copied into a repository; this list holds only where they are.",
+  "grounds": {
+    "saturn": [
+      { "film": 916224, "path": "/4AqzAaqztV2rEOJswoV12G7I4jF.jpg", "what": "Suzume: the door at dusk" },
+      { "film": 916224, "path": "/sx0CyonBRpLjas1g1qyxRao7rMf.jpg", "what": "Suzume: the night sky" },
+      { "film": 916224, "path": "/fLvSBInChNHZbwVkix1p8cri7B1.jpg", "what": "Suzume: the field at sunset" }
+    ],
+    "mercury": [
+      { "film": 372058, "path": "/9l7yHJVCuqgZn5IvnsRl5XDvOpy.jpg", "what": "Your Name: the comet over the clouds" },
+      { "film": 372058, "path": "/u4DNyWCQ6VTjJY4GisbeAXSJz9a.jpg", "what": "Your Name: the torii in the forest" },
+      { "film": 372058, "path": "/rjs5IfIv6Psl2YCSHKcluhTQGjJ.jpg", "what": "Your Name: Mitsuha under the comet" }
+    ],
+    "neptune": [
+      { "film": 568160, "path": "/rf4KVKAjV8z6JtSiwaadvpBzS6H.jpg", "what": "Weathering With You: the bridge at dusk" },
+      { "film": 568160, "path": "/mBl7B4r5k0PFTBPd0uTacm2ml4O.jpg", "what": "Weathering With You: the station in the rain" },
+      { "film": 568160, "path": "/kXoFwmhLuWs2tY720IsuTBSolKX.jpg", "what": "Weathering With You: Hodaka in the downpour" }
+    ],
+    "terra": [
+      { "film": 568160, "path": "/uoWyHkGQindLosblL7fAnkVaZlj.jpg", "what": "Weathering With You: contrails over the grass" },
+      { "film": 38142, "path": "/10oKmdkzxChD6m2DsPZhWkFxVIY.jpg", "what": "5 Centimeters per Second: clouds over the green bank" },
+      { "film": 568160, "path": "/hcnPXKjHeJtLpYjjVwUAX9MsFcJ.jpg", "what": "Weathering With You: the sea of clouds from above" }
+    ],
+    "luna": [
+      { "film": 38142, "path": "/n7dz2NHNuEvoreUM4qXFR0Yh0pw.jpg", "what": "5 Centimeters per Second: the sky after sunset" },
+      { "film": 38142, "path": "/8kH9XcdkQbh2kSx4mdPu3vSrSbh.jpg", "what": "5 Centimeters per Second: the moon over the wires" }
+    ]
+  },
+  "mascots": {
+    "saturn": { "media": 142770, "name": "Suzume Iwato", "url": "https://s4.anilist.co/file/anilistcdn/character/large/b259510-59wuAsKvY2wW.png" },
+    "mercury": { "media": 21519, "name": "Mitsuha Miyamizu", "url": "https://s4.anilist.co/file/anilistcdn/character/large/b121514-MGI7JRluscpz.png" },
+    "neptune": { "media": 120377, "name": "Lucy", "url": "https://s4.anilist.co/file/anilistcdn/character/large/b284157-cqYawN7XCNJx.jpg" },
+    "terra": { "media": 106286, "name": "Hina Amano", "url": "https://s4.anilist.co/file/anilistcdn/character/large/b139710-EnN2wXd5YeDb.png" }
+  }
+}

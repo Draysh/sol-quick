@@ -29,21 +29,46 @@ StarField {
     readonly property color dim: "#5d6577"
     readonly property color words: "#d4d8e0"
 
-    // The constellations' names, over each, brighter when any of it is lit.
+    // The constellations' names, over each, brighter when any of it is lit. A name that would
+    // run into one placed before it moves above it, or under its own stars, so none overlap.
+    FontMetrics { id: labelMetrics; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold }
+    /** Each name's place, `{ x, y }`, in the constellations' order. */
+    readonly property var labelPlaces: {
+        const placed = [], out = []
+        const h = labelMetrics.height, gap = 6
+        const meets = r => placed.some(o => r.x < o.x + o.w + gap && o.x < r.x + r.w + gap && r.y < o.y + o.h && o.y < r.y + r.h)
+        for (const c of constellations) {
+            const caps = Theme.capsFor(c.title)
+            const w = labelMetrics.advanceWidth(caps ? c.title.toUpperCase() : c.title) + (caps ? c.title.length * Theme.track(Theme.trackCaps, Theme.textXs) : 0)
+            // On the plane that pans (its middle is the sky's), so a name may sit either side of 0.
+            const cx = sx(c.x) - w / 2, top = sy(c.y) - h
+            let r = { x: cx, y: top, w: w, h: h }
+            for (const dy of [-(h + 2), h + 18, -(h + 2) * 2, (h + 2) * 2 + 18]) {
+                if (!meets(r)) break
+                r = { x: cx, y: top + dy, w: w, h: h }
+            }
+            placed.push(r)
+            out.push({ x: r.x, y: r.y })
+        }
+        return out
+    }
     Repeater {
         model: map.constellations
         delegate: Text {
             required property var modelData
-            x: map.sx(modelData.x) - width / 2
-            y: map.sy(modelData.y) - height
+            required property int index
+            readonly property var place: map.labelPlaces[index] || ({ x: 0, y: 0 })
+            readonly property bool caps: Theme.capsFor(modelData.title)
+            x: place.x
+            y: place.y
             text: modelData.title
-            font.family: Theme.font
+            font.family: caps ? Theme.fontCaps : Theme.font
             font.pixelSize: Theme.textXs
-            font.weight: Theme.weightName
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 1.6
+            font.weight: caps ? Font.DemiBold : Theme.weightName
+            font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
+            font.letterSpacing: caps ? Theme.track(Theme.trackCaps, Theme.textXs) : 0
             color: map.words
-            opacity: modelData.lit > 0 ? 0.62 : 0.3
+            opacity: Theme.light ? (modelData.lit > 0 ? 0.94 : 0.8) : modelData.lit > 0 ? 0.7 : 0.36
         }
     }
 

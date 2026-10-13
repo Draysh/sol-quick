@@ -2652,6 +2652,7 @@ dependencies = [
  "notify-rust",
  "open",
  "orbit",
+ "reqwest",
  "serde",
  "serde_json",
  "tempfile",

@@ -2,14 +2,19 @@ import QtQuick
 import QtQuick.Effects
 
 /*
-    The Yozora look's glass (`Theme.look`): the window's ground (the still
-    behind the pages, `Shell.ground`) blurred under a panel, tinted in the
-    world's dark, a hairline just inside its edge, and corners cut away at
-    45° instead of rounded. The blur is the Shell's one (`groundBlur`, made
+    Glass: the window's ground (the still behind the pages, `Shell.ground`)
+    blurred under a panel, tinted in the world's dark (thinner at the top,
+    so the art shows through), a sheen and a 1 px highlight along its top
+    edge, a hairline just inside its edge, and corners cut away at 45°
+    instead of rounded. The blur is the Shell's one (`groundBlur`, made
     once for the whole window), so a page may hold many panels for the cost
-    of one: each only reads the part under it. The world's motif rides on
-    it (`Theme.flavour`: Mercury's waves in the corners, Neptune's neon
-    edge and scanlines, Terra's daylight), drawn by the same shader.
+    of one: each only reads the part under it, found by its shader from
+    where the panel is drawn on the window (`hud.vert`), so a page of
+    panels scrolls, slides and settles without a line of script per panel
+    or per frame. (It must be drawn straight into the window, not inside a
+    `layer`.) The world's motif rides on it
+    (`Theme.flavour`: Mercury's waves in the corners, Neptune's neon edge
+    and scanlines, Terra's daylight), drawn by the same shader.
 
     Put it first, under the content, filling the panel; HudPanel, Card and
     the sidebar's rail stand on it. Without a ground (the art not here
@@ -42,19 +47,19 @@ Item {
     readonly property Item behind: live ? from : shell ? shell.ground : null
     readonly property Item blurred: live ? liveBlur : shell ? shell.groundBlur : null
 
-    /** The part of what is behind it right under the glass, however it got there. */
+    /** Live only: the part of what it blurs right under the glass, however it got there. */
     function place() {
         const b = behind
-        if (!b || b.width <= 0 || b.height <= 0) return
+        if (!live || !b || b.width <= 0 || b.height <= 0) return
         const p = glass.mapToItem(b, 0, 0), q = glass.mapToItem(b, glass.width, glass.height)
-        const x = Math.min(p.x, q.x), y = Math.min(p.y, q.y), w = Math.abs(q.x - p.x), h = Math.abs(q.y - p.y)
-        if (live) picture.sourceRect = Qt.rect(x, y, w, h)
-        else effect.rect = Qt.vector4d(x / b.width, y / b.height, w / b.width, h / b.height)
+        picture.sourceRect = Qt.rect(Math.min(p.x, q.x), Math.min(p.y, q.y), Math.abs(q.x - p.x), Math.abs(q.y - p.y))
     }
-    // Anything above it moving (the page scrolling, a card settling in) moves what it shows, as Glass does.
+    // Live, anything above it moving (the menu it sits on sliding in) moves what it shows, as
+    // Glass does. On the ground the shader finds its place itself: nothing to watch.
     property var watched: []
     function watch() {
         forget()
+        if (!live) return
         const changes = []
         for (let it = glass; it; it = it.parent) {
             changes.push(it.xChanged, it.yChanged, it.scaleChanged)
@@ -70,11 +75,11 @@ Item {
     function forget() { for (const s of watched) s.disconnect(place); watched = [] }
     Component.onCompleted: watch()
     Component.onDestruction: forget()
-    onBehindChanged: watch()
+    onLiveChanged: watch()
     onParentChanged: watch()
     onWidthChanged: place()
     onHeightChanged: place()
-    Connections { target: glass.behind; function onWidthChanged() { glass.place() } function onHeightChanged() { glass.place() } }
+    Connections { target: glass.live ? glass.behind : null; function onWidthChanged() { glass.place() } function onHeightChanged() { glass.place() } }
 
     // A live blur of its own, only for an overlay over something that moves (`from`).
     ShaderEffectSource {
@@ -107,11 +112,16 @@ Item {
         property color line: Qt.rgba(glass.line.r, glass.line.g, glass.line.b, 1)
         property real lineAlpha: glass.line.a
         property real glassy: glass.blurred ? 1 : 0
-        // Live, the picture is the part under it already; shared, the part of the whole ground (set by place()).
+        // Live, the picture is the part under it already, all of it; on the ground, the shader finds
+        // its part from where it is drawn on the window (the Shell's ground fills the window).
         property vector4d rect: Qt.vector4d(0, 0, 1, 1)
+        property real screen: glass.live ? 0 : 1
+        property real yUp: GraphicsInfo.api === GraphicsInfo.OpenGL ? 1 : 0
+        property vector4d ground: Qt.vector4d(0, 0, 1, 1)
         property color accent: glass.accent
         property real motif: ({ shrine: 1, neon: 2, summer: 3, washi: 4 })[glass.motif] || 0
         property real glow: glass.glow
+        vertexShader: "../shaders/hud.vert.qsb"
         fragmentShader: "../shaders/hud.frag.qsb"
     }
 }

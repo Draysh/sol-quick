@@ -3,32 +3,19 @@ import QtQuick
 import Sol.Design
 
 /*
-    What is this device's alone: night or day (for every Sol app here),
-    the world's accent (its own colour, or one from its photograph), less
-    motion (every Sol app here too), and whether the small sounds play. Every other setting lives in Sol.
+    What is this device's alone: the desktop widget, starting with the
+    computer, less motion (every Sol app here too), and whether the small
+    sounds play. Every other setting lives in Sol. The world's light is its
+    flavour's own, matched to its stills, so there is no accent to choose.
 */
 Card {
     id: root
 
     title: "On this device"
+    jp: "端末"
 
     readonly property var w: Worlds.get(Sol.world)
-    /** The world's own colour, then what its photograph offers. */
-    readonly property var choices: [w.color].concat(Theme.picks)
 
-    Select {
-        width: parent.width
-        label: "Light"
-        value: Theme.mode
-        options: [
-            { value: "system", label: "As the desktop is" },
-            { value: "sun", label: "With the sun: day from 7 to 19" },
-            { value: "night", label: "Always night" },
-            { value: "day", label: "Always day" }
-        ]
-        hint: "For every Sol app on this computer."
-        onChosen: v => Theme.setMode(v)
-    }
     // The app's widget on the desktop, when it has one.
     readonly property AppWindow app: root.Window.window as AppWindow
     readonly property bool hasWidget: !!app && !!app.widget && app.widgetsHere
@@ -66,34 +53,6 @@ Card {
     property var starts: null
     Component.onCompleted: Sol.call("autostart").then(v => root.starts = v).catch(() => root.starts = null)
 
-    Label { text: "Accent" }
-    Row {
-        spacing: Theme.s2
-        Repeater {
-            model: root.choices
-            delegate: Item {
-                id: swatch
-                required property var modelData
-                required property int index
-                readonly property bool on: Qt.colorEqual(Theme.world, modelData)
-                function choose() { Theme.chosenAccent = swatch.index === 0 ? "" : String(swatch.modelData); Theme.world = swatch.modelData; Sounds.tick() }
-                width: 28; height: 28
-                activeFocusOnTab: true
-                Accessible.role: Accessible.RadioButton
-                Accessible.name: swatch.index === 0 ? root.w.name + "’s own colour" : "A colour from the photograph"
-                Accessible.checked: swatch.on
-                Accessible.onPressAction: swatch.choose()
-                Keys.onPressed: event => { if (event.key === Qt.Key_Space || event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { event.accepted = true; swatch.choose() } }
-                // A hairline round it, so a pale colour still shows on a pale card.
-                Rectangle { anchors.centerIn: parent; width: swatch.on ? 18 : 14; height: width; radius: width / 2; color: swatch.modelData; border.width: 1; border.color: Theme.line; Behavior on width { SpringAnimation { spring: 4; damping: 0.3 } } }
-                Rectangle { anchors.centerIn: parent; width: 26; height: 26; radius: 13; color: "transparent"; border.width: 1; border.color: swatch.on ? Theme.textBright : swatchMouse.containsMouse || swatch.activeFocus ? Theme.lineStrong : "transparent"; Behavior on border.color { ColorAnimation { duration: Theme.fade } } }
-                Ticks { on: swatch.activeFocus; out: 3; radius: width / 2 }
-                MouseArea { id: swatchMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: swatch.choose() }
-                Hint { text: swatch.index === 0 ? root.w.name + "’s own" : "From the photograph"; when: swatchMouse.containsMouse }
-            }
-        }
-    }
-    Words { width: parent.width; small: true; quiet: true; text: "The glow on buttons, the light in the sidebar, the limb of the world." }
     Toggle { label: "Less motion"; checked: Theme.calm; hint: "Moments are short and still. For every Sol app on this computer."; onToggled: c => Theme.setCalm(c) }
-    Toggle { label: "Sounds"; checked: Sounds.on; hint: "A tick, a thing done, a thing taken back: a few milliseconds each" + (Sounds.voiceName ? "; and " + Sounds.voiceName + " when something goes well." : "."); onToggled: c => Sounds.setOn(c) }
+    Toggle { label: "Sounds"; checked: Sounds.on; hint: "Quiet: a tick for a press, a soft note when something is done or taken back, a chime for a moment" + (Sounds.voiceName ? ", and " + Sounds.voiceName + " when something goes well." : "."); onToggled: c => Sounds.setOn(c) }
 }

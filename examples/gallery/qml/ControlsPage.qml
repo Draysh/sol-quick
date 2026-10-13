@@ -54,7 +54,8 @@ Screen {
                 model: [
                     { variant: "primary", text: "Log it" },
                     { variant: "ghost", text: "Export" },
-                    { variant: "quiet", text: "Remove" }
+                    { variant: "quiet", text: "Later" },
+                    { variant: "danger", text: "Delete playlist" }
                 ]
                 delegate: Flow {
                     id: buttons
@@ -69,6 +70,7 @@ Screen {
             Flow {
                 width: parent.width
                 spacing: Theme.s2
+                Button { text: "An answer picked wrong"; tone: Theme.danger; hint: "A ghost marked in a colour (tone)" }
                 Button { variant: "round"; icon: "plus"; hint: "Round, an icon alone" }
                 Button { variant: "round"; icon: "play"; busy: true }
                 Button { variant: "round"; icon: "close"; enabled: false }
@@ -117,7 +119,7 @@ Screen {
                 width: parent.width
                 Check { width: parent.width; label: "Walk"; meta: "12 d"; checked: true; weight: weightOf(12); onToggled: c => checked = c }
                 Check { width: parent.width; label: "Stretch"; meta: "41 d"; checked: true; weight: weightOf(41); onToggled: c => checked = c }
-                Check { width: parent.width; label: "Japanese"; meta: "104 d"; weight: weightOf(104); onToggled: c => checked = c }
+                Check { width: parent.width; label: "Japanese"; meta: "104 d"; weight: weightOf(104); sparks: true; onToggled: c => checked = c }
                 Check { width: parent.width; label: "Read"; meta: "due 21:30"; onToggled: c => checked = c }
                 Check { width: parent.width; label: "Saving"; meta: "busy"; busy: true }
                 Check {

@@ -3,14 +3,14 @@ import QtQuick
 import QtQuick.Shapes
 
 /*
-    The window's ground in the Yozora look (`Theme.look`): a still from the
+    The window's ground: a still from the
     world's film (or a page's own key art, `Screen.ground`) full-bleed
     under the world's grade (`Theme.hud`: Saturn's dusk, Mercury's ink and
-    vermilion, Neptune's neon night, Terra's bright sky with a deep-blue
-    foot), a soft vignette, and a shade down the left where the page's
-    title stands, so white words on it keep 4.5:1. A new still fades in
-    over the one before. Without one it is the world's drawn sky (stars at
-    night, a sun by day). Neptune's has rain over it and a neon glow. The Shell draws it under the sidebar and the
+    vermilion, Neptune's neon night, Terra's noon sky lifted with a summer
+    haze, Luna's indigo), a soft vignette, and a shade down the left where
+    the page's title stands, so white words on it keep 4.5:1. A new still fades in
+    over the one before. Without one it is the world's drawn sky (stars, or
+    Terra's summer sun). Neptune's has rain over it and a neon glow. The Shell draws it under the sidebar and the
     pages; HudGlass reads it, blurred once (`Shell.groundBlur`).
 
         DuskGround { anchors.fill: parent; source: shell.groundSource }
@@ -24,6 +24,8 @@ Item {
     property Image current: null
     readonly property bool lit: current !== null
     readonly property var look: Theme.hud
+    /** What the shade, the pool and the vignette are laid in: the ground, or a day flavour's deep of the sky (`dim`). */
+    readonly property color dim: look.dim || look.ground
 
     clip: true
 
@@ -95,19 +97,26 @@ Item {
     }
 
     // The stills, over the sky: the one on show on top, the one before fading out under it.
+    // The flavour's framing (`frame`: a little closer, and how far across), so its stills' subject
+    // stands clear of the title on the left; the whole picture, centred, without one.
+    readonly property real zoom: root.look.frame ? root.look.frame[0] : 1
+    readonly property real across: root.look.frame ? root.look.frame[1] : 0.5
     component Still: Image {
         id: still
-        anchors.fill: parent
+        width: root.width * root.zoom
+        height: root.height * root.zoom
+        x: -(width - root.width) * root.across
         fillMode: Image.PreserveAspectCrop
         // Its upper middle: faces sit there more often than at the foot.
         verticalAlignment: Image.AlignTop
+        horizontalAlignment: root.across < 0.5 ? Image.AlignLeft : root.across > 0.5 ? Image.AlignRight : Image.AlignHCenter
         asynchronous: true
         cache: true
         smooth: true
-        sourceSize.width: Math.min(2560, Math.max(1280, root.width))
+        sourceSize.width: Math.min(2560, Math.max(1280, width))
         z: root.current === still ? 1 : 0
         opacity: root.current === still ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+        Behavior on opacity { NumberAnimation { duration: Theme.rise; easing: Theme.easeOut } }
         onStatusChanged: if (status === Image.Ready) root.pick()
     }
     Item {
@@ -139,10 +148,10 @@ Item {
             anchors.fill: parent
             gradient: Gradient {
                 orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: Theme.tint(root.look.ground, root.look.shade) }
-                GradientStop { position: 0.4; color: Theme.tint(root.look.ground, root.look.shade * 0.64) }
-                GradientStop { position: 0.6; color: Theme.tint(root.look.ground, root.look.shade * 0.2) }
-                GradientStop { position: 0.8; color: Theme.tint(root.look.ground, 0) }
+                GradientStop { position: 0.0; color: Theme.tint(root.dim, root.look.shade) }
+                GradientStop { position: 0.4; color: Theme.tint(root.dim, root.look.shade * 0.64) }
+                GradientStop { position: 0.6; color: Theme.tint(root.dim, root.look.shade * 0.2) }
+                GradientStop { position: 0.8; color: Theme.tint(root.dim, 0) }
             }
         }
         // A bright still's shade deepens round the title itself, top left (Terra's noon clouds), so
@@ -158,9 +167,9 @@ Item {
                     centerX: root.width * 0.26; centerY: root.height * 0.17
                     centerRadius: Math.max(root.width * 0.34, root.height * 0.36)
                     focalX: centerX; focalY: centerY
-                    GradientStop { position: 0.0; color: Theme.tint(root.look.ground, root.look.pool || 0) }
-                    GradientStop { position: 0.55; color: Theme.tint(root.look.ground, (root.look.pool || 0) * 0.6) }
-                    GradientStop { position: 1.0; color: Theme.tint(root.look.ground, 0) }
+                    GradientStop { position: 0.0; color: Theme.tint(root.dim, root.look.pool || 0) }
+                    GradientStop { position: 0.55; color: Theme.tint(root.dim, (root.look.pool || 0) * 0.6) }
+                    GradientStop { position: 1.0; color: Theme.tint(root.dim, 0) }
                 }
                 startX: 0; startY: 0
                 PathLine { x: root.width; y: 0 }
@@ -170,8 +179,12 @@ Item {
             }
         }
     }
-    // Neptune's rain: fine streaks slanting across the night, drawn once for the window's size
-    // (it never falls, so nothing moves while the page rests).
+    // Neptune's rain, drawn once for the window's size (it never falls, so nothing moves while the
+    // page rests), in three depths: a fine far mist of short faint strokes everywhere, fewer
+    // longer ones nearer, and a few long soft streaks right in front at the window's edges. The
+    // nearer ones keep clear of the title's corner, top left, where words stand on the still;
+    // the panels blur what falls behind them. Low in the window, out-of-focus city lights in
+    // the wet (the flavour's red, cyan and white) and their smears on the street.
     Canvas {
         id: rain
         anchors.fill: parent
@@ -184,19 +197,85 @@ Item {
         onPaint: {
             const ctx = getContext("2d")
             ctx.reset()
-            if (!visible) return
-            ctx.lineWidth = 1.1
-            const n = Math.round(width * height / 4200)
-            for (let i = 0; i < n; i++) {
-                const x = root.noise(i * 5 + 11) * (width + 60) - 30
-                const y = root.noise(i * 5 + 12) * height
-                const l = 14 + root.noise(i * 5 + 13) * 34
-                const a = 0.08 + root.noise(i * 5 + 14) * 0.26
-                ctx.strokeStyle = Qt.rgba(0.66, 0.78, 0.93, a)
+            if (!visible || width < 1 || height < 1) return
+            const w = width, h = height, n = root.noise
+            // How much of the nearer rain a place takes: little round the title, top left.
+            const open = (x, y) => Math.min(1, Math.hypot((x / w - 0.3) / 0.36, (y / h - 0.14) / 0.24))
+            // One streak, its head and tail fading so it reads as a drop moving, not a stroke.
+            const streak = (x, y, l, slant, a, lw) => {
+                const g = ctx.createLinearGradient(x, y, x - l * slant, y + l)
+                g.addColorStop(0, Theme.tint(root.look.quiet, 0))
+                g.addColorStop(0.55, Theme.tint(root.look.quiet, a))
+                g.addColorStop(1, Theme.tint(root.look.quiet, a * 0.2))
+                ctx.strokeStyle = g
+                ctx.lineWidth = lw
                 ctx.beginPath()
                 ctx.moveTo(x, y)
-                ctx.lineTo(x - l * 0.22, y + l)
+                ctx.lineTo(x - l * slant, y + l)
                 ctx.stroke()
+            }
+            // Far: a mist of short faint strokes.
+            ctx.lineWidth = 0.8
+            const far = Math.round(w * h / 3000)
+            for (let i = 0; i < far; i++) {
+                const x = n(i * 7 + 11) * (w + 40) - 20, y = n(i * 7 + 12) * h
+                const l = 5 + n(i * 7 + 13) * 10
+                ctx.strokeStyle = Theme.tint(root.look.quiet, 0.03 + n(i * 7 + 14) * 0.07)
+                ctx.beginPath()
+                ctx.moveTo(x, y)
+                ctx.lineTo(x - l * 0.16, y + l)
+                ctx.stroke()
+            }
+            // Nearer: fewer, longer, brighter.
+            const mid = Math.round(w * h / 16000)
+            for (let i = 0; i < mid; i++) {
+                const x = n(i * 7 + 501) * (w + 60) - 30, y = n(i * 7 + 502) * h
+                const keep = open(x, y)
+                if (n(i * 7 + 505) > keep) continue
+                streak(x, y, 18 + n(i * 7 + 503) * 30, 0.2, 0.08 + n(i * 7 + 504) * 0.14, 1)
+            }
+            // In front: a few long soft streaks, at the window's two edges.
+            const near = Math.round(w * h / 110000)
+            for (let i = 0; i < near; i++) {
+                const side = n(i * 7 + 901) < 0.35 ? n(i * 7 + 902) * 0.1 : 0.72 + n(i * 7 + 902) * 0.3
+                const x = side * w, y = n(i * 7 + 903) * h * 0.9
+                streak(x, y, 80 + n(i * 7 + 904) * 90, 0.24, 0.1 + n(i * 7 + 905) * 0.1, 1.6 + n(i * 7 + 906))
+            }
+            // City lights out of focus, low in the window and mostly towards the neon on the right,
+            // larger and fainter nearer the foot, in the flavour's two lights.
+            const tones = [root.look.accent, root.look.second, root.look.accent, root.look.second]
+            const lights = Math.round(w / 140)
+            for (let i = 0; i < lights; i++) {
+                const k = n(i * 7 + 1301)
+                const x = w * (0.32 + 0.7 * Math.sqrt(n(i * 7 + 1302))), y = h * (0.74 + k * 0.24)
+                const r = 5 + k * 12 + n(i * 7 + 1303) * 10
+                const t = tones[Math.floor(n(i * 7 + 1304) * tones.length)]
+                const a = (0.1 + n(i * 7 + 1305) * 0.14) * (1 - r / 45)
+                const g = ctx.createRadialGradient(x, y, 0, x, y, r)
+                g.addColorStop(0, Theme.tint(t, a))
+                g.addColorStop(0.55, Theme.tint(t, a * 0.8))
+                g.addColorStop(1, Theme.tint(t, 0))
+                ctx.fillStyle = g
+                ctx.beginPath()
+                ctx.arc(x, y, r, 0, Math.PI * 2)
+                ctx.fill()
+            }
+            // Their smears on the wet street: long and low, a little under each of a few.
+            for (let i = 0; i < Math.round(lights / 3); i++) {
+                const x = w * (0.3 + 0.7 * n(i * 7 + 1701)), y = h * (0.86 + n(i * 7 + 1702) * 0.1)
+                const t = tones[i % 2]
+                const rx = 30 + n(i * 7 + 1703) * 60
+                ctx.save()
+                ctx.translate(x, y)
+                ctx.scale(1, 0.12)
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx)
+                g.addColorStop(0, Theme.tint(t, 0.12))
+                g.addColorStop(1, Theme.tint(t, 0))
+                ctx.fillStyle = g
+                ctx.beginPath()
+                ctx.arc(0, 0, rx, 0, Math.PI * 2)
+                ctx.fill()
+                ctx.restore()
             }
         }
     }
@@ -234,8 +313,8 @@ Item {
                 centerX: root.width / 2; centerY: root.height * 0.45
                 centerRadius: Math.max(root.width, root.height) * 0.78
                 focalX: centerX; focalY: centerY
-                GradientStop { position: 0.45; color: Theme.tint(root.look.ground, 0) }
-                GradientStop { position: 1.0; color: Theme.tint(root.look.ground, root.look.motif === "summer" ? 0.45 : 0.62) }
+                GradientStop { position: 0.45; color: Theme.tint(root.dim, 0) }
+                GradientStop { position: 1.0; color: Theme.tint(root.dim, root.look.light ? 0.2 : root.look.motif === "summer" ? 0.45 : 0.62) }
             }
             startX: 0; startY: 0
             PathLine { x: root.width; y: 0 }

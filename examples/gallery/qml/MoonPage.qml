@@ -19,7 +19,7 @@ Screen {
         world: "luna"
         name: "Moon"
         callout: ["Carried = in the gallery", "Its link = its own"]
-        rows: [[{ label: "Page's world", value: page.world }], [{ label: "Moon", value: page.sol.paired ? "paired" : "a preview" }]]
+        figures: [{ value: page.sol.paired ? "On" : "—", label: "Paired", jp: "接続" }]
     }
 
     Column {

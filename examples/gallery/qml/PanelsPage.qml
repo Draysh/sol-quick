@@ -10,9 +10,8 @@ import Sol.Design
     missing, dimmed and lifted, a long grid and list sifted by a field, and
     a masonry grid of uneven cards with a feature card across two columns
     (Again grows one, and the cards under it glide to their new places).
-    In the Yozora look a card more shows its own pieces (HudLabel,
-    HudSeal square and round, AngledButton, SlantTicks, HudPanel, a ruled
-    TextArea in ink). The pictures are the
+    A card more shows the look's own pieces (HudLabel, HudSeal square and
+    round, AngledButton, SlantTicks, ChromaText beside a NeonSign, HudPanel, a ruled TextArea in ink). The pictures are the
     kit's own photographs.
 */
 Screen {
@@ -57,9 +56,18 @@ Screen {
         }
 
         Card {
+            id: liveCard
+            title: "Goes live"
+            pressable: true
+            Words { width: parent.width; quiet: true; text: "Leans to the pointer and gives under a press; when it goes live, its brackets lock on with a few sparks." }
+            Button { text: "Lock on"; onClicked: liveCard.lockOn() }
+        }
+
+        Card {
             title: "DataRows"
             DataRows { width: parent.width; rows: [{ label: "Streak", value: "12 days" }, { label: "Slept", value: "7.5 h" }, { label: "Path", value: "~/Music/Library", keepCase: true }] }
             DataRows { width: parent.width; align: Text.AlignRight; rows: [{ label: "Right", value: "aligned" }] }
+            DataRows { width: parent.width; ledger: true; rows: [{ label: "Status", value: "offline" }, { label: "Waiting to send", value: "12" }] }
         }
         Card {
             title: "Display and Progress"
@@ -74,8 +82,24 @@ Screen {
         ExportCard { }
         Card {
             title: "Empty"
-            Empty { width: parent.width; world: "luna"; icon: "bed"; line: "A quiet sky so far."; hint: "Nights appear here as you log bedtimes and mornings."; action: "Log tonight" }
+            Empty { width: parent.width; world: "luna"; icon: "bed"; jp: "まだ、静かな空。"; line: "A quiet sky so far."; hint: "Nights appear here as you log bedtimes and mornings."; action: "Log tonight" }
             Empty { width: parent.width; compact: true; world: "saturn"; icon: "star"; line: "Nothing in orbit yet."; hint: "Rate a title and it starts to circle here." }
+        }
+        Card {
+            title: "Navigator"
+            // The window's navigator: its portrait (a picture on this computer, when it is there),
+            // the head chip, and its speech with the tail each way.
+            Row {
+                spacing: Theme.s4
+                NavigatorFace { width: 96; height: 126 }
+                NavigatorFace { width: 50; height: 50; diamond: true; anchors.verticalCenter: parent.verticalCenter }
+                Column {
+                    spacing: Theme.s3
+                    Speech { width: 220; jp: "おかえり。続き、見よっか。"; line: "Welcome back. Shall we carry on?"; tail: "left"; tailAt: Theme.s3 }
+                    Button { text: "Cheer"; onClicked: Sol.cheer() }
+                }
+            }
+            Speech { width: 260; jp: "まだ起きてるの？"; line: "Still up? Welcome back."; tail: "down"; tailAt: 40 }
         }
         Card {
             title: "Callout"
@@ -101,9 +125,8 @@ Screen {
                 }
             }
         }
-        // The Yozora look's own pieces (SOL_LOOK=yozora): only while it is on.
+        // The look's own pieces.
         Card {
-            visible: Theme.yozora
             title: "Yozora"
             jp: "夜空"
             HudLabel { text: "A HUD label"; jp: "見出し" }
@@ -116,6 +139,12 @@ Screen {
                 AngledButton { text: "Details"; outline: true; light: Theme.hudSecond }
             }
             SlantTicks { width: parent.width; value: page.round % 2 ? 0.3 : 0.7 }
+            // A lit sign beside a title that splits its colours (both the neon flavour's).
+            Row {
+                spacing: Theme.s4
+                ChromaText { anchors.verticalCenter: parent.verticalCenter; text: "Neon Rain"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 48; color: Theme.textBright }
+                NeonSign { text: "レコード"; size: 20 }
+            }
             HudPanel { width: parent.width; title: "A HudPanel"; jp: "硝子"; aside: "03"; brackets: Theme.hudSecond
                 Words { width: parent.width; quiet: true; text: "Glass over the still, its corner cut, brackets in the second light." } }
             // Writing in ink on a ruled page (Terra's notebook).

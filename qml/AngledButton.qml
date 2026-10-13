@@ -2,10 +2,10 @@ import QtQuick
 import QtQuick.Shapes
 
 /*
-    A button cut as a parallelogram (its sides at the Yozora look's lean),
+    A button cut as a parallelogram (its sides at the primary Button's lean),
     for the one thing a card is for: "Play". Filled in a light with dark
     words, or, `outline`, a hairline in the light with the words in it.
-    Words in the mono face, upper case.
+    Words in HUD capitals.
 
         AngledButton { text: "Play"; icon: "play"; onClicked: … }
 */
@@ -15,16 +15,17 @@ Item {
     property string text: ""
     /** An `Icon` name before the words, or "" for none. */
     property string icon: ""
-    property color light: Theme.hudAccent
+    property color light: Theme.hudPrimary
     /** Only its outline in the light, for a second choice beside the first. */
     property bool outline: false
     /** What the pointer's hint says. */
     property string hint: ""
     signal clicked()
+    onClicked: Sounds.tick()
 
     /** How far the top leans past the bottom. */
     readonly property real lean: height * 0.36
-    readonly property color ink: outline ? (mouse.containsMouse ? Theme.dusk : light) : Theme.dusk
+    readonly property color ink: outline ? (mouse.containsMouse ? Theme.dusk : Theme.light ? Theme.text : light) : Theme.dusk
 
     implicitHeight: Theme.control
     implicitWidth: words.implicitWidth + lean + Theme.s4 * 2
@@ -43,7 +44,7 @@ Item {
         ShapePath {
             strokeWidth: root.outline || root.activeFocus ? 1 : 0
             strokeColor: root.outline ? root.light : root.activeFocus ? Theme.hudText : "transparent"
-            fillColor: root.outline ? (mouse.containsMouse ? root.light : Qt.rgba(0, 0, 0, 0.35)) : mouse.containsMouse ? Qt.lighter(root.light, 1.08) : root.light
+            fillColor: root.outline ? (mouse.containsMouse ? root.light : Theme.light ? Theme.tint(Theme.ink, 0.05) : Qt.rgba(0, 0, 0, 0.35)) : mouse.containsMouse ? Qt.lighter(root.light, 1.08) : root.light
             startX: root.lean; startY: 0.5
             PathLine { x: root.width - 0.5; y: 0.5 }
             PathLine { x: root.width - root.lean; y: root.height - 0.5 }
@@ -60,8 +61,8 @@ Item {
             visible: root.text !== ""
             anchors.verticalCenter: parent.verticalCenter
             text: root.text
-            font.family: Theme.fontMono; font.pixelSize: Theme.textXs; font.weight: Font.Bold
-            font.letterSpacing: Theme.track(0.16, Theme.textXs); font.capitalization: Font.AllUppercase
+            font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.Bold
+            font.letterSpacing: Theme.track(Theme.trackLabel, Theme.textXs); font.capitalization: Font.AllUppercase
             color: root.ink
         }
     }

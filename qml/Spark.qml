@@ -18,7 +18,8 @@ Item {
 
     width: 1; height: 1
 
-    function burst() { system.running = true; emitter.burst(count) }
+    // Nothing with less motion.
+    function burst() { if (Theme.calm || Theme.settle === 0) return; system.running = true; emitter.burst(count) }
 
     ParticleSystem {
         id: system

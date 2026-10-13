@@ -48,15 +48,28 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   command in `README.md` (they are committed; the build only packs them).
   Uniform names must match the properties of `Body.qml` / `Glass.qml` /
   `Rounded.qml` / `StarLight.qml` / `StarArc.qml` / `HudGlass.qml` (and
-  `Navigator.qml`, whose portrait frame is drawn by `hud.frag` too).
-- Corners: `Theme.radiusS` / `radiusM` / `radius` / `radiusL` (4, 6, 10,
-  14; README has where each goes), never a literal. Something drawn over
-  a rounded thing (a hover fill, a hairline frame, a badge in its corner,
-  a busy sweep, a progress line along its foot) takes the same radius or
-  stays clear of the corners; `Ticks` take the control's `radius`. A
-  picture rounds through `Picture.radius` (Rounded, a shader: no layer,
-  no MultiEffect mask); `clip` is square, so a rounded box that clips
-  must keep its children off the corners.
+  `NavigatorFace.qml`, whose portrait frame is drawn by `hud.frag` too).
+- Corners: `Theme.radiusS` / `radiusM` / `radius` / `radiusL` (all 0:
+  the corners are square, and the names stay so a thing still says which
+  corner it follows; README has where each goes), never a literal.
+  Something drawn over a corner (a hover fill, a hairline frame, a badge,
+  a busy sweep, a progress line along its foot) takes the same radius;
+  `Ticks` take the control's `radius`. Panels cut one corner at 45°
+  (`Theme.hudCut`). `clip` is square.
+- Motion: every animation's length and curve is a `Theme` token
+  (`snap`, `flicker`, `lock`, `fade`, `settle`, `turn`, `count`, `rise`,
+  `wash`, `stagger`, `speak`, which are 0 for `SOL_SHOT_CALM`; `sweep`, `drift`,
+  `crossing`, `scene`, `notchGlide`, `touchGlide`, which never are, since
+  something loops or waits on them; the curves `ease`, `easeOut`, `spring`,
+  `easeInOut`, assigned whole: `easing: Theme.spring`), never a number of
+  milliseconds, an `Easing.` or a SpringAnimation of its own; colours come
+  from `Theme` (a world's own from its singleton). The QML lint
+  (`deploy/claude/hooks/qml-lint.py`) warns of a new one; a deliberate one
+  carries `// not a token: <why>` on its line or the line above. A
+  component still decides what less motion (`Theme.calm`) does to it.
+- Fonts: `assets/fonts/` holds the faces and their licences (`OFL-*.txt`);
+  `src/fonts.rs` and `cpp/fonts.h` register every `.ttf` there at
+  start-up; `scripts/fonts.py assets/fonts` makes them.
 - Assets in `assets/` are packed into the module (not `.txt`/`.md`); QML
   reaches them as `../assets/…` from `qml/`.
 - Every file starts with a `/* … */` block saying what it is, with a usage
@@ -71,8 +84,13 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 
 - **Screen's header slot** sets `width` on each header child, `screen`
   when the child has one, and pins a child that has `collapse` and
-  `fullHeight` (a Sheet keeps `collapse`, `fullHeight`, `compact`; a
-  PageHead keeps `screen` and `reveal(dir)`). Pages must not declare their
+  `fullHeight` unless its `pins` is false (a Sheet keeps `collapse`,
+  `fullHeight`, `compact`; a PageHead keeps `screen`, `reveal(dir)` and
+  those three, pinning itself through `screen.pin` once it has a
+  `feature`). A PageHead reads the Screen's `padded`, `composed`,
+  `contentX` and `contentWidth` to line its words up with the content;
+  the Screen's big title on a `sparse` page reads its header's `jpTitle`
+  and `title`. Pages must not declare their
   own `reveal`: the Shell calls it.
 - **The Shell makes pages** with `params`, `shell`, `visible`, `width`,
   `height`, then sets `back`, `x`, `opacity` (and `params` again for a
@@ -86,15 +104,22 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   page is keyed `path?tab=<id>` in `pages` and `sectionPages`, and
   `retab` swaps it into the step (a page no section keeps is destroyed
   once it has left: `dropping`). SkyPage reads the Shell's `moons` and
-  `pages` for its tabs; MoonSettings reads `Window.window.moonSettings`
-  and its Screen's `params.part`. A PageHead with `tabs` calls
+  `pages` for its tabs; SettingsScreen and MoonSettings read
+  `Window.window.moonSettings` and the Screen's `params.part` (a
+  SettingsPart's `key`; SettingsScreen finds its parts by their `key` and
+  `order` among its stack's children). A PageHead with `tabs` calls
   `screen.shell.retab(params)`; AppWindow finds it among the page's
   `header` (`tabs`, `current`, `choose`) for the palette's tab rows.
-- **The hero flight** reads `rounded` and `radius` from the item it
-  flies from and the page's `hero` (a Picture has both), and turns the
-  one corner into the other on the way.
+- **The page turn**: `Shell.show` plays its `PageTurn` (over the pane, above the
+  pages) with `in`, `up` or `back` as it calls the page's `reveal(dir)`; the
+  Screen's and the PageHead's own arrival match each flavour's turn by
+  `Theme.hud.motif` (`dusk`, `shrine`, `neon`, `summer`).
+- **The hero flight** morphs by scale: the flyer takes the landing's size
+  and is scaled from where it left (Pictures are square, so it reads no
+  `rounded` or `radius`).
 - **Containers that place children**: Grid writes `card.index`, reads
-  `card.span` and calls `card.glide(dx, dy)` when it has one, and skips
+  `card.span`, calls `card.glide(dx, dy)` when it has one, sets a pair's
+  `height` (and `spare`, when the card has it) so the pair ends level, and skips
   Repeaters (`Theme.isRepeater`); PageHead reads `Button.natural`;
   `Button.room` walks up to a parent with `childRoom` (Sheet sets it);
   Grid lets go of its cards' signals on destruction (a grid made by a
@@ -102,7 +127,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `Theme.whenSeen` finds the nearest Flickable (`contentY`,
   `contentHeight`, `contentItem`); `Theme.screenOf` the nearest Screen.
 - **`Window.window as AppWindow`**: Glass reads `backdrop`; HudGlass `shell.ground` and
-  `shell.groundBlur` (a page's glass in the Yozora look reads the one blurred ground, not the
+  `shell.groundBlur` (a page's glass reads the one blurred ground, not the
   frame it sits in; GlassPanel's, over the pages, blurs `backdrop` live); Card,
   MenuArea and MoreButton `menu.openAt`; Key `ask.current`, `commandPalette.open`, `menu.open`;
   DeviceCard `widget`, `widgetsHere`, `widgetPrefs.*`, `widgetName`;
@@ -147,25 +172,43 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `Moon.module` for live QML. A problem `"elsewhere"` (its own app still
   holds its copy) shows on its pages. The moon's crate's `qml` is a link
   to the repository's `qml/`, so the module's files keep `qml/<File>.qml`.
-- **The Yozora look** (`../../docs/yozora.md`): every token that changes with it is
-  `yozora ? … : <as before>`, so with the look off nothing moves by a pixel (check the
-  gallery night and day against a "before"). The Shell picks the ground (`groundSource`:
+- **The Yozora look** (`../../docs/yozora.md`) is the only look: the tokens in `Theme`
+  are its own, and a component takes its colours, corners and type from them. A
+  light flavour (`Theme.light`, Terra's noon) makes the words on glass dark: whatever
+  stands on the still itself rather than on glass (the Sheet's title card, `HeroFigure`,
+  the Screen's big title, `MoonLink`, `Comet`, `Moment`, `MomentCaption`, `Picture`'s
+  missing-art card) takes the `art…` tokens, which over a dark flavour equal the glass's,
+  so nothing changes there. The Shell sets `Theme.worldId` to the page's moon while one
+  with a flavour of its own (`Theme.yozoraLooks.luna`) is open, else to the window's
+  world; stills and the navigator still follow the planet (`Theme.planetOf`). The Shell picks the ground (`groundSource`:
   the page's `Screen.ground`, else `Theme.groundsOf(world)` by the section's `top`, or a
   moon's own stills, `Theme.ownGroundsOf(moon)`, counted from its first section) and
-  the navigator's line (`navigatorLine`: `Screen.say`, `Screen.emptySay` (written by a
-  showing `Empty`), a greeting, the row's `hint`); PageHead reads the Shell's `history`
+  the navigator's line (`navigatorLine` and `navigatorJp`: `Screen.say` and `sayJp`, a
+  greeting on the first page, else nothing; `navigatorAway` while a page's `Empty`
+  speaks beside its own portrait, which it says through `Screen.emptySay`); the
+  Sidebar's `navigatorReach` (how far the frame breaks into the pane) is read
+  through the Shell by a `sparse` page's big title; `Sol.cheer()` reaches every
+  `NavigatorFace` through `Sol.reacted`, and AppWindow's `stagedHour` (`_hour`) is
+  the hour it keeps for a picture; the Sidebar's status slot has a `room` (short of
+  the navigator's head chip, `Navigator.chipEdge` at the words' height), which AppWindow's LinkStatus
+  takes as its own `room`; PageHead reads the Shell's `history`
   and `rows` for its number and a section's `jp`; SidebarRow takes `jp` and `moon`. The
-  bridge's `lookArt` lists `~/.local/share/sol-yozora/` once at start, only with
-  `SOL_LOOK` set; nothing in the kit or a world may ship those pictures.
-- **Singletons written from outside**: `Theme.world` and `Theme.worldId` (Shell; `world`
-  also DeviceCard),
-  `Theme.picks` (Shell's Tone), `Theme.alive` (AppWindow), `Worlds.surfaces`
+  bridge's `lookArt` lists `~/.local/share/sol-yozora/` at start and again
+  once `look_art::fetch_missing` (spawned at start unless `SOL_SHOT`/`SOL_SHOTS`
+  is set) has brought any; the names it writes (`<world>-ground-<n>.jpg`,
+  `<world>-mascot.<jpg|png>`) are what `Theme.groundsOf`, `ownGroundsOf` and
+  `mascotOf` read; where they come from is `core/yozora-art.json`, which
+  `scripts/yozora-art.sh` reads too. Nothing in the kit or a world
+  may ship those pictures.
+- **Singletons written from outside**: `Theme.world` and `Theme.worldId` (Shell),
+  `Theme.alive` (AppWindow), `Worlds.surfaces`
   (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
   body shader's last two uniforms).
-- **Settings files**: `~/.config/sol/device.conf` `[appearance] mode` and
-  `motion` (`full` / `less`: `Theme.calm`) (every Sol app); the app's own
+- **Settings files**: `~/.config/sol/device.conf` `[appearance] motion`
+  (`full` / `less`: `Theme.calm`) (every Sol app; no app of this kit reads `mode`); the app's own
   file (name from `set_application_name` and `set_organization_domain("sachi.digital")` in `run`) with categories
-  `sol.device` (sounds) and `sol.<world>` (`accent`, `widget`, `corner`,
+  `sol.device` (`sounds`: on unless written false) and `sol.<world>` (`accent`, no longer read: the flavour's light
+  is the accent; `widget`, `corner`,
   `toured` (the first-run tour seen); Luna's `nightSounds`, `nightVolume`;
   Neptune's `notToday`; Triton's `dj`). A preview shares the installed app's
   file: the tour writes `toured` only outside a preview.
@@ -223,8 +266,8 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   SIGTERM/SIGINT quit like the tray's Quit.
 - **Environment**: `SOL_PREVIEW`, `SOL_SHOT`, `SOL_SHOT_AFTER`,
   `SOL_SHOT_PATH` (and its `_` keys), `SOL_SHOTS`, `SOL_SHOT_READY`,
-  `SOL_SHOT_CALM`, `SOL_FPS`, `SOL_DRIVE`, `SOL_LIGHT`,
-  `SOL_CALM`, `SOL_LOOK`, `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
+  `SOL_SHOT_CALM`, `SOL_FPS`, `SOL_DRIVE`,
+  `SOL_CALM`, `SOL_FLAVOUR` (`<world>`: wear that world's flavour for the run), `SOL_FAKE_NAVIDROME`, `SOL_QML_LIVE`.
 - **Live QML** (`src/live.rs`, `cpp/live.h`; what it is for:
   `docs/world-apps.md`, "Live QML"): with `SOL_QML_LIVE=1` a preview maps
   `qrc:/qt/qml/Sol/Design/qml/<File>.qml` to this checkout's `qml/` and
@@ -240,7 +283,9 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   either crate):
   Neptune's and Triton's previews and tests name its ids (`al-1`, `ar-2`,
   `pl-1`, `tr-1-1`) and counts (9 artists, 24 albums, 168 tracks); change
-  the library and their tests change with it. It answers only what those
+  the library and their tests change with it. Its JSON names no cover, so
+  the previews show the missing-art card (Neptune's test checks that); a
+  cover asked for by id is still a drawn PNG. It answers only what those
   two worlds' clients ask, in Navidrome's JSON shapes.
 
 ## Pitfalls
@@ -255,8 +300,26 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   A property named `palette` clashes with Qt's (hence `commandPalette`).
 - Glass reads the window's `backdrop`, so it must sit outside it: popups
   (menus, lists, hints) reparent to `Window.window.contentItem`. Glass
-  re-places itself when any ancestor moves; keep that watch.
+  re-places itself when any ancestor moves; keep that watch. HudGlass on
+  the ground needs none: its vertex shader (`hud.vert`) finds where it is
+  drawn on the window from the item's matrix, so it must never sit inside
+  a `layer` (it would read the layer's place, not the window's); the
+  uniform block of `hud.vert` and `hud.frag` must stay the same.
 - Never reparent an item out of a Flickable's column (it stops rendering).
+- A scale on something that may be very tall (a Card holding a long list)
+  moves its far edge by a share of its height: a Card 30 000 px tall,
+  scaled 3 % about its foot as it arrived, sat 900 px lower than its place,
+  so `whenSeen` never found it on screen. Card, HudPanel and Lean scale a
+  tall thing's height by a few pixels, not a share, about its top.
+- `Lean` sees the pointer only above what it leans: it goes last inside its
+  thing (its `z` is high; its handlers are passive, so the thing's own
+  MouseArea still gets the click).
+- A component that declares a new `default property` over its base's
+  (SettingsScreen over Screen) gets its users' children there, but the
+  children written in its own file still go to the base's default: put
+  those inside the target item by hand. Inside an inline `Component`, a
+  property of the made object hides an id of the same name outside it
+  (a PageHead's `screen`): set such properties from the Loader's `onLoaded`.
 - No conditional anchors (`anchors.horizontalCenter: rail ? parent.horizontalCenter
   : undefined`): a released anchor leaves the item where the anchor put it,
   so a sidebar that starts as a rail for a moment kept its rows 5–19 px off.
@@ -314,8 +377,9 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   binding on them follows each picture; something read once at start sees
   only the first.
 - After any change here, the gallery: `scripts/gallery-shots.sh <folder>`
-  (`examples/gallery`, every component on four pages, night and day, two
-  narrow, and the focus, menu, palette, dialog and notice states, then
+  (`examples/gallery`, every component on four pages, once for each of the
+  four flavours (`SOL_FLAVOUR`), less motion and narrow, and the focus,
+  menu, palette, dialog and notice states (in Saturn's run), then
   what the journal said about the QML). It builds only when more than
   `.qml` files changed (`--build` builds anyway). Read the pictures,
   before and after (a control's focus shows only while the window stays

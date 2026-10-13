@@ -87,7 +87,7 @@ Item {
     Component.onCompleted: forget = Theme.whenSeen(root, () => arrive.start())
     Component.onDestruction: if (forget) forget()
     Settling { when: arrive.running }
-    NumberAnimation { id: arrive; target: root; property: "grow"; from: 0; to: 1; duration: Theme.rise; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut }
+    NumberAnimation { id: arrive; target: root; property: "grow"; from: 0; to: 1; duration: Theme.rise; easing: Theme.easeOut }
 
     /** The column under the pointer, or -1. */
     property int at: -1
@@ -176,7 +176,7 @@ Item {
                         radius: Math.min(Theme.radiusS, width / 2)
                         color: root.colorOf(bar.index)
                         opacity: root.at < 0 || bar.on ? 0.92 : 0.45
-                        Behavior on height { enabled: root.grow === 1; NumberAnimation { duration: Theme.settle; easing.type: Easing.BezierSpline; easing.bezierCurve: Theme.easeOut } }
+                        Behavior on height { enabled: root.grow === 1; NumberAnimation { duration: Theme.settle; easing: Theme.easeOut } }
                         Behavior on opacity { NumberAnimation { duration: Theme.lock } }
                     }
                 }

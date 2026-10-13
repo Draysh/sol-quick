@@ -5,8 +5,18 @@
 // how much each corner loses (top-left, top-right, bottom-right,
 // bottom-left), in pixels; the edge is smoothed over a pixel. `rect` is
 // the part of `source` under the panel (x, y, width, height, as fractions):
-// the Shell's one blurred ground, shared by every panel. Without `glassy`
-// (nothing to blur yet) it is the tint alone.
+// the Shell's one blurred ground, shared by every panel. With `screen`, the
+// part is found from where the panel is drawn on the window (`hud.vert`
+// passes each corner's place on it, `ground` is where the ground lies on
+// the window, as fractions), so a panel that scrolls or slides needs
+// nothing set from outside. Without `glassy` (nothing to blur yet) it is
+// the tint alone.
+//
+// It reads as glass: the tint lies a little thinner at the top than at the
+// foot (not on Terra's bright sky), so the art shows through most where
+// the panel catches the light;
+// a faint sheen falls from the top edge; and the top edge (and the cut
+// corner's diagonal) has a 1 px highlight, brightest in the middle.
 //
 // `motif` is the world's flavour on its panels, drawn here so it costs
 // nothing more: 1, a faint seigaiha (overlapping waves) in the lower
@@ -17,6 +27,7 @@
 // `accent` is its light, `glow` how lit the edge is (a hover).
 
 layout(location = 0) in vec2 qt_TexCoord0;
+layout(location = 1) in vec2 onWindow;
 layout(location = 0) out vec4 fragColor;
 
 layout(std140, binding = 0) uniform buf {
@@ -33,6 +44,9 @@ layout(std140, binding = 0) uniform buf {
     vec4 accent;
     float motif;
     float glow;
+    float screen;
+    float yUp;
+    vec4 ground;
 };
 layout(binding = 1) uniform sampler2D source;
 
@@ -105,9 +119,15 @@ void main() {
     float cover = clamp(d + 0.5, 0.0, 1.0);
     // The art (premultiplied, opaque) under the tint.
     float baseA = glassy > 0.5 ? 1.0 : 0.0;
-    vec3 base = glassy > 0.5 ? texture(source, rect.xy + qt_TexCoord0 * rect.zw).rgb : vec3(0.0);
-    vec3 c = base * (1.0 - tintAlpha) + tint.rgb * tintAlpha;
-    float a = baseA * (1.0 - tintAlpha) + tintAlpha;
+    vec2 at = screen > 0.5 ? (onWindow - ground.xy) / ground.zw : rect.xy + qt_TexCoord0 * rect.zw;
+    vec3 base = glassy > 0.5 ? texture(source, at).rgb : vec3(0.0);
+    // Thinner at the top, fuller at the foot (glass over art only: paper, the tint alone and Terra's
+    // bright summer sky, where quiet words need all of the tint, stay even).
+    float ta = glassy > 0.5 && motif < 2.5 ? clamp(tintAlpha + mix(-0.06, 0.04, qt_TexCoord0.y), 0.0, 1.0) : tintAlpha;
+    vec3 c = base * (1.0 - ta) + tint.rgb * ta;
+    float a = baseA * (1.0 - ta) + ta;
+    // The sheen: a little light from the top edge, gone a third of the way down.
+    c = mix(c, vec3(1.0), 0.045 * pow(clamp(1.0 - px.y / max(1.0, min(size.y, 160.0)), 0.0, 1.0), 2.0));
 
     vec3 hair = line.rgb;
     float hairA = lineAlpha;
@@ -138,5 +158,11 @@ void main() {
     float la = hairA * clamp(1.5 - d, 0.0, 1.0);
     c = c * (1.0 - la) + hair * la;
     a = a * (1.0 - la) + la;
+    // The highlight: the top edge and the top-right cut catch the light, brightest mid-way along.
+    float top = min(px.y, (far.x + px.y - cuts.y) * k);
+    float along = sin(3.14159265 * clamp(qt_TexCoord0.x, 0.0, 1.0));
+    float ha = (0.18 + 0.32 * along) * clamp(1.5 - top, 0.0, 1.0) * step(0.5, min(size.x, size.y));
+    c = c * (1.0 - ha) + vec3(1.0) * ha;
+    a = a * (1.0 - ha) + ha;
     fragColor = vec4(c, a) * (qt_Opacity * cover);
 }
