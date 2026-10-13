@@ -215,7 +215,12 @@ engine keeps the link), and one with state beside the link takes both
 
 **QML** (`Sol`, `Format`, `Theme`, components):
 
-- `Sol.fail(title, why)`: a failure as a notice from this world.
+- `Sol.fail(title, why)`: a failure as a notice from this world. A known
+  failure is said as a person would, Japanese then English, with the raw
+  words under "Details" (`Notices.lineFor`, the kit's lines for sound, the
+  network, keys, the server and the disk); a world gives its own, in its
+  navigator's voice, first: `Notices.speak([{ pattern: /navidrome.*401/i,
+  jp: "…", line: "…" }])` once at start.
 - `Sol.fileUrl(path)`: a file on disk as an address for an Image or a
   sound, its name encoded (a `#` or `%` in it still reaches the file).
 - `Sol.same(a, b)`, `Sol.update(item, "name", value)` (assigns only when

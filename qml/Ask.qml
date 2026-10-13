@@ -36,7 +36,7 @@ Item {
     // A new question while one is open answers the open one with "no".
     function begin(question) {
         const open = current
-        if (!open) before = Window.window ? Window.window.activeFocusItem : null
+        if (!open) { before = Window.window ? Window.window.activeFocusItem : null; Sounds.open() }
         current = question
         shown = question
         field.text = question.kind === "name" ? question.value : ""
@@ -47,6 +47,7 @@ Item {
         const d = current
         if (!d) return
         current = null
+        Sounds.close()
         const name = field.text.trim()
         field.input.focus = false
         box.focus = false

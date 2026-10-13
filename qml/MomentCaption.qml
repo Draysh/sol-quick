@@ -3,18 +3,20 @@ import QtQuick
 
 /*
     The words of a moment's scene: a small line over a big name, a line
-    under it, and a row of figures; it rises into place as the moment
-    starts (still, with less motion). Put it where the scene has room.
+    under it, and a row of figures. Put it where the scene has room.
 
         MomentCaption { moment: scene.moment; lead: "Finished"; title: "Frieren"; line: "Started in March"; facts: [{ label: "Episodes", value: "28" }] }
 
-    It is a film's title card: the lead in HUD capitals and the world's
-    light, the Japanese (`jp`) huge in the title serif with the English
-    title under it, the figures in the HUD face, and the subtitle
-    (`subtitleJp` over `subtitle`) centred at the foot of the moment, as a
-    film's subtitles are. The world's navigator says the subtitle: it
-    stands large, low on the right, on the bottom bar, and cheers as the
-    line comes.
+    It is a film's title card, in kinetic type, on the moment's clock: the
+    lead in HUD capitals and the world's light comes a beat early, then the
+    Japanese (`jp`, or the title when there is none) slams in huge in the
+    title face as the moment's sting plays (SlamText, at `moment.slamAt`),
+    the English title lands under it, the figures count up in the display
+    face, a hold, and on the beat the subtitle (`subtitleJp` over
+    `subtitle`) is said, centred at the foot of the moment as a film's
+    subtitles are. The world's navigator says it: it stands large, low on
+    the right, on the bottom bar, and cheers as the line comes. With less
+    motion everything is in its place at once.
 */
 Column {
     id: root
@@ -24,7 +26,7 @@ Column {
     property string lead: ""
     property string title: ""
     property string line: ""
-    /** `{ label, value }`, in a row. */
+    /** `{ label, value }`, in a row; a value that starts with a number counts up to it. */
     property var facts: []
     /** The title in Japanese: "百夜". */
     property string jp: ""
@@ -34,15 +36,27 @@ Column {
     property bool centred: true
     /** Over a picture's dark scrim: light words in either light. */
     property bool onPhoto: false
+    /** The English title's size under a Japanese one. */
+    property int titleSize: Theme.textLede
     readonly property color bright: onPhoto ? "#ffffff" : Theme.artBright
     readonly property color value: onPhoto ? Qt.rgba(1, 1, 1, 0.82) : Theme.light ? Theme.artQuiet : Theme.textValue
     readonly property color quiet: onPhoto ? Qt.rgba(1, 1, 1, 0.62) : Theme.artQuiet
     readonly property real p: moment ? moment.progress : 1
-    readonly property real arrive: moment && moment.calm ? 1 : Math.min(1, p * 5)
+
+    // ---- The beats, in ms on the moment's clock ----------------------------------
+    readonly property bool still: !moment || moment.calm
+    readonly property real t: still ? 1e9 : moment.elapsed || 0
+    readonly property real slamAt: moment && moment.slamAt !== undefined ? moment.slamAt : 0
+    /** The English title and the line land after the hit and its hold. */
+    readonly property real landAt: slamAt + Theme.hit + Theme.hold
+    /** The figures count up from then. */
+    readonly property real countAt: landAt + Theme.hit
+    /** The subtitle is said once they have counted, and a hold. */
+    readonly property real sayAt: countAt + Theme.count + Theme.hold
+    function ramp(from, over) { return Math.max(0, Math.min(1, (t - from) / Math.max(1, over))) }
+    function soft(x) { return 1 - Math.pow(1 - x, 3) }
 
     spacing: Theme.s2
-    opacity: arrive
-    transform: Translate { y: (1 - root.arrive) * 18 }
 
     readonly property bool titled: jp !== ""
     Text {
@@ -53,20 +67,26 @@ Column {
         font.family: caps ? Theme.fontCaps : Theme.font; font.pixelSize: Theme.textS; font.weight: Font.DemiBold
         font.letterSpacing: caps ? Theme.track(Theme.trackHud, Theme.textS) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
         color: Theme.artAccent
+        // A beat before the slam: the anticipation.
+        opacity: root.soft(root.ramp(root.slamAt - Theme.hit * 2, Theme.hit * 2))
     }
-    // The look's Japanese title, huge, glowing faintly in the world's light.
-    Text {
-        visible: root.titled
+    // The hero: the Japanese, huge, or the title itself when there is none.
+    SlamText {
+        id: hero
         x: root.centred ? (root.width - width) / 2 : 0
         width: Math.min(implicitWidth, root.width)
-        text: root.jp
-        elide: Text.ElideRight
-        readonly property real size: Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95))
-        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: size; font.weight: Theme.weightTitle
-        color: Theme.artBright
-        style: Text.Raised; styleColor: Theme.tint(Theme.artSecond, 0.35)
+        text: root.titled ? root.jp : root.title
+        size: root.titled ? Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95)) : Theme.text2xl * 1.25
+        wrap: !root.titled
+        maximumLineCount: 2
+        horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
+        color: root.titled ? Theme.artBright : root.bright
+        glint: Theme.artAccent
+        at: root.t - root.slamAt
     }
+    // Under a Japanese title, the English, in the display face, landing after the hold.
     Text {
+        visible: root.titled && root.title !== ""
         x: root.centred ? (root.width - width) / 2 : 0
         width: Math.min(implicitWidth, root.width)
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
@@ -74,12 +94,10 @@ Column {
         wrapMode: Text.Wrap
         maximumLineCount: 2
         elide: Text.ElideRight
-        // Under a Japanese title it is the English subtitle, in the display face; alone, the title itself.
-        font.family: root.titled ? Theme.fontDisplay : Theme.fontTitle
-        font.features: Theme.titleFeatures
-        font.pixelSize: root.titled ? Theme.textLede : Theme.text2xl * 1.25
-        font.weight: root.titled ? Font.Bold : Theme.weightTitle
+        font.family: Theme.fontDisplay; font.pixelSize: root.titleSize; font.weight: Font.Bold
         color: root.bright
+        opacity: root.ramp(root.landAt, Theme.hit)
+        transform: Translate { y: (1 - root.soft(root.ramp(root.landAt, Theme.land))) * Theme.s3 }
     }
     Text {
         visible: root.line !== ""
@@ -88,13 +106,17 @@ Column {
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
         wrapMode: Text.Wrap
         text: root.line
-        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textL; font.weight: Theme.weightTitle
+        // English in the display face, as every subtitle is; Japanese in the title face where it reads.
+        readonly property bool jp: Theme.hasJp(root.line)
+        font.family: jp ? Theme.titleFace(Theme.textL) : Theme.fontDisplay; font.features: Theme.titleFeatures; font.pixelSize: Theme.textL
+        font.weight: jp ? Theme.titleWeight(Theme.textL) : Font.Bold
         color: root.value
+        opacity: root.ramp(root.landAt + Theme.hit, Theme.land)
     }
     // The world's navigator says the subtitle: large, low on the right, standing on the bottom bar,
     // pleased as the line comes (in a moment only, and with the portrait here).
     readonly property bool inMoment: !!root.moment && root.moment.hasOwnProperty("bars")
-    readonly property bool spoken: root.p >= 0.36
+    readonly property bool spoken: root.t >= root.sayAt
     onSpokenChanged: if (spoken) momentFace.cheer()
     NavigatorFace {
         id: momentFace
@@ -107,10 +129,11 @@ Column {
         x: parent ? parent.width - width - Theme.s5 : 0
         y: root.inMoment && parent ? parent.height - root.moment.barHeight * root.moment.bars - height : 0
         motifs: true
-        opacity: root.moment && root.moment.calm ? 1 : Math.max(0, Math.min(1, (root.p - 0.3) * 6))
+        // A beat before the line, as someone about to speak.
+        opacity: root.soft(root.ramp(root.sayAt - Theme.hold, Theme.hold))
         transform: Translate { y: (1 - momentFace.opacity) * Theme.s3 }
     }
-    // The subtitle, at the foot of the moment (or of the caption's own parent, outside one).
+    // The subtitle, at the foot of the moment (or of the caption's own parent, outside one), said on the beat.
     Column {
         parent: root.inMoment ? root.moment : root.parent
         visible: root.subtitleJp !== "" || root.subtitle !== ""
@@ -121,15 +144,14 @@ Column {
         x: inset
         y: parent ? parent.height - height - (root.moment && root.moment.barHeight ? root.moment.barHeight + Theme.s3 : Theme.s5) : 0
         spacing: Theme.s1
-        // Later than the title, as a line is said after the scene opens.
-        opacity: root.moment && root.moment.calm ? 1 : Math.max(0, Math.min(1, (root.p - 0.3) * 6))
+        opacity: root.ramp(root.sayAt, Theme.hit)
         Text {
             visible: root.subtitleJp !== ""
             width: parent.width
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.Wrap
             text: root.subtitleJp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textXl); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Theme.titleWeight(Theme.textXl)
             color: "#ffffff"
             style: Text.Outline; styleColor: Theme.tint("#000000", 0.6)
         }
@@ -142,6 +164,7 @@ Column {
             font.family: Theme.font; font.pixelSize: Theme.textM
             color: Qt.rgba(1, 1, 1, 0.86)
             style: Text.Outline; styleColor: Theme.tint("#000000", 0.5)
+            opacity: root.ramp(root.sayAt + Theme.hit, Theme.hit)
         }
     }
     Item { width: 1; height: Theme.s3; visible: root.facts.length > 0 }
@@ -155,10 +178,17 @@ Column {
                 required property var modelData
                 required property int index
                 spacing: 2
-                // One after another, as the moment goes on.
-                opacity: root.moment && root.moment.calm ? 1 : Math.max(0, Math.min(1, (root.p - 0.12 - fact.index * 0.06) * 8))
+                // One after another, a beat apart, each counting up to its value.
+                readonly property real from: root.countAt + fact.index * Theme.beat.stagger * 2
+                readonly property var parts: /^(\D*?)(\d[\d,]*(?:\.\d+)?)(.*)$/.exec(String(fact.modelData.value))
+                readonly property real target: parts ? Number(parts[2].replace(/,/g, "")) : 0
+                readonly property int decimals: parts && parts[2].indexOf(".") >= 0 ? parts[2].split(".")[1].length : 0
+                readonly property real counted: root.soft(root.ramp(fact.from, Theme.count))
+                opacity: root.ramp(fact.from, Theme.hit)
                 Text {
-                    text: fact.modelData.value
+                    text: !fact.parts ? String(fact.modelData.value)
+                        : fact.parts[1] + (fact.parts[2].indexOf(",") >= 0 ? Math.round(fact.target * fact.counted).toLocaleString(Qt.locale("en_GB"), "f", 0)
+                            : (fact.target * fact.counted).toFixed(fact.decimals)) + fact.parts[3]
                     font.family: Theme.fontDisplay; font.pixelSize: Theme.textFigure; font.weight: Font.Bold
                     color: root.bright
                 }

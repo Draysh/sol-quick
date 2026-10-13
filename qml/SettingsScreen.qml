@@ -115,7 +115,7 @@ Design.Screen {
                                 visible: text !== ""
                                 anchors.verticalCenter: rowName.verticalCenter
                                 text: row.modelData.jp
-                                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
+                                font.family: Theme.titleFace(Theme.textS); font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.titleWeight(Theme.textS)
                                 color: row.on || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
                             }
                             Text {

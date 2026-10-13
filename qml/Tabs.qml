@@ -54,7 +54,7 @@ Item {
                     id: row
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
-                    Text { visible: !!tab.modelData.jp; y: (row.height - height) / 2; rightPadding: 2; text: tab.modelData.jp || ""; font.family: Theme.fontTitle; font.weight: Theme.weightTitle; font.pixelSize: Theme.textXs + 2; font.features: Theme.titleFeatures; color: tab.on ? Theme.hudAccent : Theme.textQuiet }
+                    Text { visible: !!tab.modelData.jp; y: (row.height - height) / 2; rightPadding: 2; text: tab.modelData.jp || ""; font.family: Theme.titleFace(Theme.textXs + 2); font.weight: Theme.titleWeight(Theme.textXs + 2); font.pixelSize: Theme.textXs + 2; font.features: Theme.titleFeatures; color: tab.on ? Theme.hudAccent : Theme.textQuiet }
                     Text { y: (row.height - height) / 2; text: tab.modelData.label; readonly property bool caps: Theme.capsFor(text); font.family: caps ? Theme.fontCaps : Theme.font; font.weight: tab.on ? Font.Bold : Font.Normal; font.pixelSize: caps ? Theme.textXs : Theme.textS; font.letterSpacing: caps ? Theme.track(Theme.trackCaps, Theme.textXs) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase; color: tab.on ? Theme.textBright : mouse.containsMouse ? Theme.textValue : Theme.textQuiet; Behavior on color { ColorAnimation { duration: Theme.fade } } }
                     Text { visible: tab.modelData.count !== undefined; text: tab.modelData.count === undefined ? "" : String(tab.modelData.count); font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Theme.weightValue; color: Theme.textQuiet }
                 }

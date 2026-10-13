@@ -5,7 +5,8 @@ import Sol.Design
     A picture (a poster, a cover, a backdrop, a logo), `ratio` wide over
     high, from an address (`url`) or fetched once to disk through a world's
     PictureStore (`key` in `store`). A quiet panel and the name sit in its
-    place while it comes or when there is none. One already on disk shows
+    place while it comes; when there is none, a poster of its own, laid
+    out by the name. One already on disk shows
     at once, quickly; one that has to be fetched fades in slowly. A file
     known from an earlier run that has gone since is fetched again, once.
     Its corners are `Theme.radiusM`, cut in a shader (Rounded), so a wall
@@ -123,28 +124,82 @@ Item {
         border.color: root.hovered ? Theme.lineStrong : Theme.line
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }
     }
-    // No picture: a card in the world's colours, one character large on it, the name at its foot.
+    // No picture: a poster of its own in the world's colours, laid out by the name (`seed`), so a
+    // wall of them reads as designed rather than broken: its character set one of four ways (large
+    // and cropped off an edge, standing in the middle, huge and faint behind, or high in a corner),
+    // now and then a second one, the name's initials in the title face, a tone of its own within the
+    // flavour's two lights, and the name at its foot.
     Item {
+        id: poster
         anchors.fill: parent
         // Not for a logo (one shown whole): its page says the name instead.
         visible: root.absent && root.crop
         clip: true
+        readonly property int h: root.nameHash
+        readonly property int layout: h % 4
+        readonly property real side: Math.min(root.width, root.height)
+        /** How far between the two lights its tone is, and how strong. */
+        readonly property real mix: (h % 7) / 6
+        readonly property color light: Qt.tint(Theme.artAccent, Theme.tint(Theme.artSecond, poster.mix))
+        readonly property bool big: root.width >= 80
+        /** The name's initials (Latin), two at most: "Signal Fires" → "SF". */
+        readonly property string initials: {
+            const name = root.name !== "" ? root.name : root.seed
+            if (Theme.hasJp(name)) return ""
+            return name.split(/[\s\-:·]+/).filter(w => /^[A-Za-z0-9]/.test(w)).slice(0, 2).map(w => w.charAt(0).toUpperCase()).join("")
+        }
         Rectangle {
             anchors.fill: parent
             gradient: Gradient {
-                GradientStop { position: 0; color: Theme.tint(Theme.artAccent, 0.16) }
+                orientation: poster.h % 3 === 0 ? Gradient.Horizontal : Gradient.Vertical
+                GradientStop { position: 0; color: Theme.tint(poster.light, 0.1 + 0.12 * ((poster.h >> 3) % 3) / 2) }
                 GradientStop { position: 1; color: Theme.tint(Theme.hud.dim || Theme.hud.ground, 0.9) }
             }
             border.width: 1
             border.color: root.hovered ? Theme.lineStrong : Theme.line
         }
+        // The character: its size, place and strength by the layout.
         Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: (parent.height - height) / 2 - (cardName.visible ? cardName.height / 2 : 0)
+            id: glyphText
             text: root.cardGlyph
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle
-            font.pixelSize: Math.max(12, Math.min(root.width, root.height) * 0.46)
-            color: root.nameHash % 3 === 0 ? Theme.tint(Theme.artSecond, 0.85) : Theme.tint(Theme.artAccent, 0.85)
+            readonly property real size: Math.max(12, poster.side * [1.05, 0.5, 1.5, 0.42][poster.layout])
+            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
+            font.pixelSize: size
+            color: Theme.tint(poster.layout === 2 ? Theme.artBright : poster.light, [0.5, 0.85, 0.16, 0.9][poster.layout])
+            x: [root.width - width * 0.78, (root.width - width) / 2, -width * 0.18, root.width - width - Theme.s2][poster.layout]
+            y: [root.height - height * 0.86, (root.height - height) / 2 - (cardName.visible ? cardName.height / 2 : 0), -height * 0.12, Theme.s2][poster.layout]
+        }
+        // Now and then a second, small and solid, where the first leaves room.
+        Text {
+            visible: poster.big && poster.h % 5 === 0 && poster.layout !== 1
+            readonly property string set: root.glyphs[Theme.hud.motif] || root.glyphs.dusk
+            text: set.charAt((poster.h >> 2) % set.length) === root.cardGlyph ? set.charAt(((poster.h >> 2) + 1) % set.length) : set.charAt((poster.h >> 2) % set.length)
+            readonly property real size: Math.max(12, poster.side * 0.22)
+            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
+            font.pixelSize: size
+            color: Theme.tint(Theme.artSecond, 0.75)
+            x: poster.layout === 3 ? Theme.s2 : root.width - width - Theme.s2
+            y: poster.layout === 3 ? root.height * 0.42 : Theme.s2
+        }
+        // The initials, in the title face where they are large enough for it.
+        Text {
+            visible: poster.big && poster.initials !== "" && poster.layout !== 1
+            text: poster.initials
+            // Never small: two letters in a corner read as a mark only from about 24 px.
+            readonly property real size: Math.max(24, Math.round(poster.side * 0.2))
+            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
+            font.pixelSize: size
+            color: Theme.tint(Theme.artBright, 0.9)
+            x: Theme.s2
+            y: poster.layout === 3 ? root.height - height - (cardName.visible ? cardName.height + Theme.s2 : Theme.s2) : Theme.s2
+        }
+        // A thin rule in the light under the middle character (the plain layout's own mark).
+        Rectangle {
+            visible: poster.layout === 1 && poster.big
+            width: poster.side * 0.18; height: 2
+            x: (root.width - width) / 2
+            y: glyphText.y + glyphText.height + Theme.s1
+            color: Theme.tint(poster.light, 0.8)
         }
         Text {
             id: cardName
@@ -156,9 +211,10 @@ Item {
             wrapMode: Text.Wrap
             elide: Text.ElideRight
             maximumLineCount: Math.min(2, root.nameLines)
-            horizontalAlignment: Text.AlignHCenter
+            horizontalAlignment: poster.layout === 1 ? Text.AlignHCenter : Text.AlignLeft
             font.family: Theme.font; font.pixelSize: Theme.textXs; font.weight: Theme.weightName
-            color: Theme.tint(Theme.artBright, 0.72)
+            color: Theme.tint(Theme.artBright, 0.78)
+            style: Text.Raised; styleColor: Theme.tint(Theme.hud.dim || Theme.hud.ground, 0.6)
         }
     }
     Text {

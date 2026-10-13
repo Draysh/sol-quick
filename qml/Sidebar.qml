@@ -25,6 +25,18 @@ Item {
     /** The field, for the Shell's keys and its pages' filters. */
     readonly property alias finder: finder
 
+    /** Its rows (sections, a moon's, the doors) draw in again one by one, in the world's beat: the opening's. */
+    function drawIn() { rowsIn(side, r => r.again()) }
+    /** Every row drawn in at once (the opening skipped). */
+    function drawnIn() { rowsIn(side, r => r.finish()) }
+    function rowsIn(item, does) {
+        for (const c of item.children) {
+            const r = c as Design.SidebarRow
+            if (r) does(r)
+            else rowsIn(c, does)
+        }
+    }
+
     // Over the pane: the field floats out over it on the rail.
     z: 2
     width: side.frame.rail ? Theme.rail : Theme.sidebar
@@ -91,7 +103,7 @@ Item {
                 // The world's name in Japanese over the name.
                 Text {
                     text: Theme.jpOf(side.frame.world)
-                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: Theme.textM + 2
+                    font.family: Theme.titleFace(Theme.textM + 2); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(Theme.textM + 2); font.pixelSize: Theme.textM + 2
                     color: Theme.hudText
                 }
                 Text {
@@ -268,7 +280,7 @@ Item {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "衛星"
-                            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
+                            font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2)
                             color: Theme.textQuiet
                         }
                         Text {
@@ -350,8 +362,10 @@ Item {
         width: parent.width - x * 2
         edge: x
         height: implicitHeight
-        // The chip's middle on the status line, or the whole of it over the status.
-        y: holds ? statusSlot.y - Theme.s3 - height : statusSlot.y + 1 + statusSlot.spacing + (statusSlot.height - 1 - statusSlot.spacing - height) / 2
+        // The chip's middle on the status line, or the whole of it over the status, a little
+        // under the middle of the room the rows leave (a tall window's rail is not a gap with
+        // the portrait dropped at its foot).
+        y: holds ? statusSlot.y - Theme.s3 - height - Math.max(0, room - height) * 0.4 : statusSlot.y + 1 + statusSlot.spacing + (statusSlot.height - 1 - statusSlot.spacing - height) / 2
         z: 3
         world: side.frame.world
         jp: side.frame.navigatorJp

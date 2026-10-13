@@ -48,11 +48,13 @@ FocusScope {
         at = 0
         before = root.Window.activeFocusItem
         open = true
+        Sounds.open()
         root.forceActiveFocus()
     }
     function close() {
         if (!open) return
         open = false
+        Sounds.close()
         if (before) before.forceActiveFocus()
         before = null
         closed()

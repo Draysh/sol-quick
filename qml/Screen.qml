@@ -34,6 +34,8 @@ Item {
     /** The world the page belongs to: set by the Shell (a moon's pages carry the moon's id); "" is the app's own. */
     property string world: ""
     property string title: ""
+    /** On a page opened from another with no head of its own, the kit's PageHead sets the title in the title face, large (`PageHead.named`): a detail page's name. */
+    property bool named: false
     /** What it was opened with (`Shell.go(path, params)`). */
     property var params: ({})
     /** The Shell it lives in; set by the Shell. */
@@ -67,10 +69,16 @@ Item {
     function pin(item) {
         if (pinned === item) return
         pinned = item
-        // The page starts under it, a gap below its line.
-        screen.topPad = Qt.binding(() => item.fullHeight + Theme.s4)
-        item.collapse = Qt.binding(() => Math.max(0, Math.min(1, flick.contentY / Math.max(1, item.fullHeight - item.compact))))
+        // The page starts under it, a gap below its line; beside it (a Sheet's `aside`), at the top.
+        screen.topPad = Qt.binding(() => item.beside ? Theme.s4 : item.fullHeight + Theme.s4)
+        item.collapse = Qt.binding(() => item.beside ? 0 : Math.max(0, Math.min(1, flick.contentY / Math.max(1, item.fullHeight - item.compact))))
     }
+    /** The Sheet standing beside the page rather than over it (its `aside`, in a window under 1300 px), or null. */
+    readonly property Item besideHead: pinned && pinned.beside ? pinned : null
+    /** Where a first page's own column starts across the pane (it isn't `padded`): the margin, or past a Sheet beside it. */
+    readonly property real startX: besideHead ? besideHead.besideWidth + Theme.s3 : margin
+    /** How wide that column is, from `startX` to the margin, never wider than `maxWidth`. */
+    readonly property real startWidth: Math.max(0, Math.min(maxWidth, width - startX - margin))
     /** Pad the sides by the pane's margin; off for a page that starts with a Sheet. */
     property bool padded: true
     /** Space above the content (and, on a page with no header, room for the way back floating over it). */
@@ -110,11 +118,30 @@ Item {
     /** Something pinned along the bottom of this page (rarely). */
     property alias footer: footSlot.data
     readonly property real margin: Theme.margin(width)
-    /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left.
-        The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
-    function reveal(dir) { flick.reveal(dir); revealHead(dir); if (dir === "tab") glitch.stop(); else glitch.play() }
-    /** The header's words settle in with the page, when it can (a PageHead). */
+    /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left,
+        `up` (a section) in place, each after its turn's hold; `open` lands at once (the opening's last beat),
+        `tab` only fades. The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
+    function reveal(dir) {
+        landsAt = Date.now() + landWait(dir)
+        flick.reveal(dir)
+        revealHead(dir)
+        // Its band stays out of sight until the turn has covered the page before it.
+        headIn.stop()
+        headCover.duration = landWait(dir) > 0 ? Theme.turnCover : 0
+        headIn.start()
+    }
+    SequentialAnimation {
+        id: headIn
+        PropertyAction { targets: [headSlot, autoHead]; property: "opacity"; value: 0 }
+        PauseAnimation { id: headCover; duration: 0 }
+        PropertyAction { targets: [headSlot, autoHead]; property: "opacity"; value: 1 }
+    }
+    /** The header's words settle in with the page, when it can (a PageHead, a Sheet). */
     function revealHead(dir) { for (const h of headSlot.children) if (typeof h.reveal === "function") h.reveal(dir) }
+    /** How long a page arriving `dir` waits under its turn before it lands: until the turn's hold is over. */
+    function landWait(dir) { return (dir === "in" || dir === "up" || dir === "back") && !Theme.calm ? Theme.turnReveal : 0 }
+    /** When the page lands (`Date.now()` time): its cards and tiles start arriving then, not under the turn. */
+    property double landsAt: 0
     /** Scrolls the page by `dy` pixels (the keys' arrows and pages), eased like a wheel notch. */
     function scrollBy(dy) {
         const max = Math.max(0, flick.contentHeight - flick.height)
@@ -149,7 +176,7 @@ Item {
         glide.start()
     }
     /** How far a page key scrolls: the visible height, less a line to keep your place. */
-    readonly property real pageStep: Math.max(48, flick.height - (pinned ? pinned.compact : 0) - 48)
+    readonly property real pageStep: Math.max(48, flick.height - (pinned && !besideHead ? pinned.compact : 0) - 48)
     /** Where `item` will rest in `into`'s coordinates, once the page's arrival is over (the hero lands there). */
     function restingPoint(item, into) {
         const p = item.mapToItem(flick, 0, 0)
@@ -172,7 +199,7 @@ Item {
         active: !!screen.back && headSlot.children.length === 0
         // (Its own `screen` would hide the page's id inside it: both are set from here.)
         sourceComponent: PageHead { }
-        onLoaded: { const h = item as PageHead; if (!h) return; h.screen = screen; h.title = Qt.binding(() => screen.title) }
+        onLoaded: { const h = item as PageHead; if (!h) return; h.screen = screen; h.title = Qt.binding(() => screen.title); h.named = Qt.binding(() => screen.named) }
     }
 
     Flickable {
@@ -265,41 +292,44 @@ Item {
         // The screen settles into the pane as it opens, and again when the Shell comes back to it.
         opacity: 0
         transform: Translate { id: shift; y: Theme.calm ? 0 : 6; x: 0 }
-        Component.onCompleted: { arrive.start(); screen.revealHead("up"); glitch.play() }
-        // Each flavour arrives its own way, under the Shell's PageTurn: Saturn cuts in (at once, a
-        // film gate's small settle), Mercury's ink shows it through slowly without moving it,
-        // Terra's rises softly into the light, Neptune's slides in under its glitch. With less
-        // motion, a fade only.
-        readonly property string motif: Theme.hud.motif
+        Component.onCompleted: { arrive.start(); screen.revealHead("open") }
+        // Under the Shell's PageTurn, in the world's beat: hidden while the turn covers the pane,
+        // then a hard reveal (a `hit` to show) and a landing over what is left of the turn:
+        // Neptune's slides in from the way it turns, Terra's comes up into the light with a soft
+        // bounce, Saturn's cuts in nearly still, Mercury's shows through without moving. With less
+        // motion, or as a tab, a fade only.
         /** Arriving as a tab does: a plain fade, in place. */
         property bool plain: false
+        property real wait: 0
         function reveal(dir) {
             arrive.stop(); flick.opacity = 0
             plain = dir === "tab"
-            const still = Theme.calm || motif === "shrine" || plain
-            shift.y = still ? 0 : motif === "dusk" ? 4 : motif === "summer" ? 10 : dir === "in" || dir === "back" ? 0 : 6
-            shift.x = still || motif === "dusk" ? 0 : dir === "in" ? 28 : dir === "back" ? -16 : 0
+            wait = screen.landWait(dir)
+            const still = Theme.calm || plain
+            const way = dir === "back" ? -1 : 1
+            shift.y = still ? 0 : Theme.beat.rise
+            shift.x = still || dir === "up" ? 0 : Theme.beat.slide * 2 * way
             arrive.start()
         }
-        ParallelAnimation {
+        SequentialAnimation {
             id: arrive
-            NumberAnimation { target: flick; property: "opacity"; to: 1; duration: flick.plain ? Theme.fade : flick.motif === "dusk" && !Theme.calm ? Theme.lock : Theme.turn; easing: Theme.easeOut }
-            NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.turn; easing: flick.motif === "dusk" ? Theme.spring : Theme.easeOut }
-            NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
+            PauseAnimation { duration: flick.wait }
+            ParallelAnimation {
+                NumberAnimation { target: flick; property: "opacity"; to: 1; duration: flick.plain || Theme.calm ? Theme.fade : Theme.hit; easing: Theme.easeOut }
+                NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.land; easing: Theme.beat.curve }
+                NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
+            }
         }
     }
 
     Settling { when: arrive.running }
-
-    // Neptune's glitch, as the page arrives; nothing in another flavour.
-    HudGlitch { id: glitch; anchors.fill: parent; z: 15 }
 
     // A thin scrollbar, only while the pane moves.
     Rectangle {
         anchors.right: parent.right
         anchors.rightMargin: 2
         // Its track starts under a pinned Sheet, not behind it.
-        readonly property real trackTop: screen.pinned ? screen.pinned.height : flick.y
+        readonly property real trackTop: screen.pinned && !screen.besideHead ? screen.pinned.height : flick.y
         readonly property real track: flick.y + flick.height - trackTop
         y: trackTop + (track - height) * (flick.contentHeight > flick.height ? Math.max(0, Math.min(1, flick.contentY / (flick.contentHeight - flick.height))) : 0)
         width: 3

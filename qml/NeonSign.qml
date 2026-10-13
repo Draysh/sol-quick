@@ -9,8 +9,12 @@ import QtQuick.Effects
     and never moves. The neon flavour's (`Theme.hud.signs`): the first
     page's line down the right, and one beside a page's lead (Neptune's
     Album and Queue, Triton's On air); a few, never on every card.
+    `catchLight()` switches it on as a tube catches: dark, two stutters
+    of light, then on and held, with the flavour's sting (the opening's
+    last beat, on the first page).
 
         NeonSign { text: "レコード"; height: 220 }
+        NeonSign { id: sign; text: "ミュージック" }   …   sign.catchLight()
 */
 Item {
     id: root
@@ -41,9 +45,36 @@ Item {
     Rectangle { anchors.fill: parent; color: Theme.tint(Theme.hud.ground, 0.7) }
     Rectangle { anchors.fill: parent; anchors.margins: 3; color: Theme.tint(root.light, 0.07) }
 
+    /** How lit the tube is, 0 to 1: lit, unless it is catching. */
+    property real power: 1
+    /** Switches it on as a neon tube catches (a stutter, then held), with its sting, after `wait` ms in the dark; at once with less motion. */
+    function catchLight(wait) {
+        if (Theme.calm || Theme.flicker === 0) { power = 1; return }
+        catching.stop()
+        dark.duration = wait || 0
+        power = 0
+        catching.start()
+    }
+    Settling { when: catching.running }
+    SequentialAnimation {
+        id: catching
+        PauseAnimation { id: dark; duration: 0 }
+        ScriptAction { script: Sounds.lit() }
+        PropertyAction { target: root; property: "power"; value: 0.75 }
+        PauseAnimation { duration: Theme.flicker }
+        PropertyAction { target: root; property: "power"; value: 0.08 }
+        PauseAnimation { duration: Theme.flicker * 2 }
+        PropertyAction { target: root; property: "power"; value: 1 }
+        PauseAnimation { duration: Theme.flicker }
+        PropertyAction { target: root; property: "power"; value: 0.3 }
+        PauseAnimation { duration: Theme.flicker }
+        NumberAnimation { target: root; property: "power"; to: 1; duration: Theme.hit; easing: Theme.easeOut }
+    }
+
     // The tube: its frame and the word, glowing in its own light.
     Item {
         anchors.fill: parent
+        opacity: root.power
         layer.enabled: root.visible && root.text !== ""
         layer.effect: MultiEffect { shadowEnabled: true; shadowColor: root.light; shadowBlur: 1; shadowOpacity: 1; shadowScale: 1.04; shadowHorizontalOffset: 0; shadowVerticalOffset: 0; blurMax: 24; autoPaddingEnabled: true }
         Rectangle {

@@ -27,6 +27,8 @@ Item {
     anchors.fill: parent
     // Never in the way of the pointer.
     enabled: false
+    // The keys arriving here: the softest click (not when a click brought them).
+    onOnChanged: if (on) Sounds.focus()
 
     Tick { at: "tl" }
     Tick { at: "br" }

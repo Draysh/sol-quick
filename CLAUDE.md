@@ -57,16 +57,25 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `Ticks` take the control's `radius`. Panels cut one corner at 45°
   (`Theme.hudCut`). `clip` is square.
 - Motion: every animation's length and curve is a `Theme` token
-  (`snap`, `flicker`, `lock`, `fade`, `settle`, `turn`, `count`, `rise`,
-  `wash`, `stagger`, `speak`, which are 0 for `SOL_SHOT_CALM`; `sweep`, `drift`,
+  (`snap`, `flicker`, `hit`, `hold`, `lock`, `fade`, `settle`, `turn` and
+  its `turnCover`, `turnReveal`, `land`, `count`, `rise`, `wash`, `stagger`,
+  `speak`, and the lengths in the flavour's `beat`, which are 0 for `SOL_SHOT_CALM`; `sweep`, `drift`,
   `crossing`, `scene`, `notchGlide`, `touchGlide`, which never are, since
   something loops or waits on them; the curves `ease`, `easeOut`, `spring`,
-  `easeInOut`, assigned whole: `easing: Theme.spring`), never a number of
+  `easeInOut`, `easeIn`, assigned whole: `easing: Theme.spring`), never a number of
   milliseconds, an `Easing.` or a SpringAnimation of its own; colours come
   from `Theme` (a world's own from its singleton). The QML lint
   (`deploy/claude/hooks/qml-lint.py`) warns of a new one; a deliberate one
   carries `// not a token: <why>` on its line or the line above. A
   component still decides what less motion (`Theme.calm`) does to it.
+  Arrivals follow the flavour's `Theme.beat`; big acts (the opening, a
+  turn, a moment) go anticipation, `hit`, `hold`, release; never hold input
+  back for one.
+- Title type: the flavour's face only from its floor up (`Theme.titleFloor`,
+  per face in `titleFloors`: Makinas 18, Yuji Syuku 20, none for Corporate
+  Logo and Keifont); words in it go through `Theme.titleFace(size)` /
+  `titleWeight(size)` (the display face under the floor). Marks (a seal,
+  the rail's diamond, Mercury's kanji numbers) may keep `fontTitle`.
 - Fonts: `assets/fonts/` holds the faces and their licences (`OFL-*.txt`);
   `src/fonts.rs` and `cpp/fonts.h` register every `.ttf` and `.otf` there
   at start-up; `scripts/fonts.py` makes them. Only openly licensed faces go
@@ -118,14 +127,30 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `screen.shell.retab(params)`; AppWindow finds it among the page's
   `header` (`tabs`, `current`, `choose`) for the palette's tab rows.
 - **The page turn**: `Shell.show` plays its `PageTurn` (over the pane, above the
-  pages) with `in`, `up` or `back` as it calls the page's `reveal(dir)`; a
-  tab's own page (`retab`) is `tab`: no turn, the two pages only fade; the
-  Screen's and the PageHead's own arrival match each flavour's turn by
-  `Theme.hud.motif` (`dusk`, `shrine`, `neon`, `summer`).
+  pages, its way `Theme.beat.turn`: `slice`, `cut`, `ink`, `sweep`) and
+  `Sounds.turn()` with `in`, `up` or `back` as it calls the page's
+  `reveal(dir)`; the old page nudges for a `hit` and is hidden at
+  `Theme.turnCover`; the Screen keeps its content and its band out of sight
+  until then (`landWait(dir)`, `turnReveal`), sets `landsAt`, which Card and
+  Settle read (through `Theme.screenOf`) to start arriving as it lands, and
+  calls `reveal` on its header children (PageHead, Sheet: they land after
+  the same wait). A Sheet with `aside` in a window under 1300 px is
+  `beside` the page: `Screen.pin` gives it no collapse and the page no top
+  pad, and a first page puts its column at `Screen.startX`, `startWidth`
+  wide; the Sheet's `reveal("open")` has its NeonSign `catchLight()`. A tab's own page (`retab`) is `tab`: no turn, the two
+  pages only fade; `open` lands at once (the opening's last beat).
+- **The opening**: the Shell makes `Opening` (z 30) and plays it as it goes
+  home; it marks `AppWindow.opened` (once a run), asks the Sidebar to
+  `drawIn()` (each SidebarRow's Settle `again()`) and the page to
+  `reveal("open")`; the Shell's `Keys.onPressed` and the Opening's passive
+  PointHandler skip it (`drawnIn()`), the event going on. AppWindow's frame
+  skips its own fade-in while `Shell.opening` is true. It never plays with
+  `Theme.calm`, `Sol.background`, or in `SOL_SHOT`/`SOL_SHOTS` unless the
+  path has `_opening=1`.
 - **The hero flight** morphs by scale: the flyer takes the landing's size
   and is scaled from where it left (Pictures are square, so it reads no
   `rounded` or `radius`).
-- **Containers that place children**: Grid writes `card.index`, reads
+- **Containers that place children**: Grid writes `card.index` and `card.lead` (its first), reads
   `card.span`, calls `card.glide(dx, dy)` when it has one, sets the
   `height` of cards ending level (a pair, or feet within `level`) and a
   pair's `spare` (when the card has it), and skips
@@ -143,14 +168,18 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `assets/widget/DesktopWidget.qml` `host.widget`, `host.widgetPrefs.corner`;
   `assets/capture/Capture.qml` `host.capturing` (it sets it false to
   close) and `host.stagedCapture`; the Shell's `?` sheet `tour`,
-  `tourSheet.show()` and `allCommands` (the window's `commands` and the
-  page's `Screen.actions`, which the palette lists too); the notice stack
+  `tourSheet.show()` and `allCommands` (`windowCommands`, the window's
+  `commands`, its moons' and the tour, then `pageCommands`, the page's
+  `Screen.actions` and other tabs; the palette takes the two apart as
+  `commands` and `verbs`, with `pageName` over the verbs, and keeps what
+  was run lately in the app's `sol.<world>` `paletteRecent`, never in a
+  preview); the notice stack
   `shell.pageArea`; SolCard `keptAside.open`. Worlds read `menu`, `ask`,
   `keptAside`, `moment`, `shell`, `started` and set `commands`, `find`,
   `footer`, `busy`, `warn`, `tour`, `moments` (`_moment=<name>[:<arg>]`
   plays one; `stageMoment` reads the arg after the first `:`).
 - **Notice's required properties** match the roles of `Notices.list`
-  (`key`, `world`, `title`, `body`, `tone`, `action`); a delegate must not
+  (`key`, `world`, `title`, `body`, `tone`, `action`, `jp`, `detail`); a delegate must not
   redeclare `model`. A notice's `run` lives in `Notices.runs` by key, not
   in the model (a ListModel can't hold a function).
 - **Moments**: a world that plays one lists `moments` among its collections
@@ -210,7 +239,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `scripts/yozora-art.sh` reads too. Nothing in the kit or a world
   may ship those pictures.
 - **Singletons written from outside**: `Theme.world` and `Theme.worldId` (Shell),
-  `Theme.alive` (AppWindow), `Worlds.surfaces`
+  `Theme.alive` (AppWindow), `Sounds.world` (Shell) and `Sounds.pressedAt` (AppWindow), `Worlds.surfaces`
   (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
   body shader's last two uniforms).
 - **Settings files**: `~/.config/sol/device.conf` `[appearance] motion`
@@ -223,7 +252,17 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   file: the tour writes `toured` only outside a preview.
 - **The world's voice**: `Sounds.voice()` plays `assets/sounds/<Sol.world>.wav`
   for the worlds in `Sounds.voices`; a new world adds its line there and in
-  `scripts/world-sounds.py`.
+  `scripts/world-sounds.py`. The stings are per flavour,
+  `<Theme.flavour>-turn|opening|moment.wav` (saturn, mercury, neptune,
+  terra, luna): a new flavour adds its three there; `-lit.wav` (a light
+  coming on, `Sounds.lit()`) only for the flavours in `Sounds.lights`
+  (Neptune's), added last in `world-sounds.py` so the seeded noise of the
+  others stays; `open`, `close`,
+  `focus`, `error` are the kit's. AppWindow records presses in
+  `Sounds.pressedAt` so a click's focus makes no `focus()` sound.
+  `Sol.cheer()` sends `reacted("cheer")` (the big one: a jump and sparks) at
+  most once in `Sol.cheerRest`, and `reacted("happy")` (the warm light)
+  between.
 - **Rust ↔ QML**: every `SolBackend` property, method and signal name
   (`bridge.rs`); the commands the kit's QML calls (the shared ones in
   `README.md`: `moment` from Moment, `undoable` and `restore` from

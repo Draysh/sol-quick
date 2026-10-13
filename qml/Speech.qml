@@ -32,6 +32,10 @@ Item {
     property real tailAt: Theme.s4
     /** Larger words, for a bubble beside an empty page or in a moment. */
     property bool large: false
+    /** The Japanese in the world's own face where it reads at a line's size (below); off, in the display face, a little smaller. */
+    property bool voiced: true
+    /** Never typed in: a bubble measured unseen. */
+    property bool still: false
     // Glass in the window: it wears the look the window wears (Luna's indigo on her pages in Terra's).
     readonly property var flavour: Theme.hud
     readonly property bool says: jp !== "" || line !== ""
@@ -40,7 +44,8 @@ Item {
     readonly property real tailLength: large ? Theme.s3 : Theme.s2 + 2
     readonly property real tailWidth: large ? Theme.s4 : Theme.s3 + 2
     /** As wide as its longest line wants, unwrapped: a bubble for a short line can be narrower. */
-    readonly property real naturalWidth: Math.ceil(Math.max(jp === "" ? 0 : jpMetrics.advanceWidth(jp), lineText.implicitWidth)) + (pad + 2) * 2 + 1
+    // (Each measure reads the line's size, so it is taken again when the face or size changes.)
+    readonly property real naturalWidth: jpText.size > 0 ? Math.ceil(Math.max(jp === "" ? 0 : jpMetrics.advanceWidth(jp), lineText.implicitWidth)) + (pad + 2) * 2 + 1 : 0
     /** The bubble itself, without its tail. */
     readonly property real bodyHeight: words.implicitHeight + pad * 2
     implicitHeight: bodyHeight + (tail === "down" ? tailLength : 0)
@@ -53,7 +58,7 @@ Item {
     function say() {
         typing.stop()
         // A picture shows the words whole at once: the typing is the bubble's, not the page's arrival.
-        if (Theme.calm || Theme.speak === 0 || SolBackend.shot !== "") { typed = 1; return }
+        if (still || Theme.calm || Theme.speak === 0 || SolBackend.shot !== "") { typed = 1; return }
         typed = 0
         typing.start()
     }
@@ -75,7 +80,7 @@ Item {
     */
     readonly property int jpCut: {
         const room = words.width
-        if (room <= 0 || jp === "" || jpMetrics.advanceWidth(jp) <= room) return -1
+        if (room <= 0 || jp === "" || jpText.size <= 0 || jpMetrics.advanceWidth(jp) <= room) return -1
         let best = -1, shortest = Infinity
         for (let i = 1; i < jp.length - 1; i++) {
             if ("、。！？".indexOf(jp[i]) < 0) continue
@@ -146,14 +151,20 @@ Item {
         Text {
             id: jpText
             // Broken after a mark, or else between any two characters (a closing mark keeps to the one before it).
-            width: speech.jpCut > 0 ? parent.width : speech.balanced(jpMetrics.advanceWidth(speech.jp), parent.width, font.pixelSize * 2)
+            width: speech.jpCut > 0 ? parent.width : speech.balanced(size > 0 ? jpMetrics.advanceWidth(speech.jp) : 0, parent.width, font.pixelSize * 2)
             visible: speech.jp !== ""
             text: speech.shown(speech.jp, speech.jp.length * Math.min(1, speech.typed / Math.max(0.01, speech.jpPart)), speech.jpCut)
             textFormat: Text.StyledText
             wrapMode: Text.Wrap
             lineHeight: 1.1
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle
-            font.pixelSize: speech.large ? Theme.textL : Theme.textS + 1
+            // In the world's own face where it reads at a line's size: a face whose floor is only a
+            // little over it (Makinas, 18) sets the line at its floor, so it is said in that voice; a
+            // brush that needs more (Yuji Syuku), or a bubble without the room (`voiced` off), says it
+            // in the display face.
+            readonly property bool own: speech.voiced && Theme.titleFloor > 0 && Theme.titleFloor <= Theme.textL - 1
+            readonly property int size: speech.large ? Theme.textL : own ? Theme.titleFloor : Theme.textS + 1
+            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
+            font.pixelSize: size
             color: speech.flavour.bright || speech.flavour.text
         }
         Text {

@@ -29,12 +29,14 @@ Item {
 
     function open(rows) {
         before = Window.window ? Window.window.activeFocusItem : null
+        if (!shown) Sounds.open()
         shown = true
         sample = !!rows
         if (rows) writes = rows; else load()
         Qt.callLater(() => box.forceActiveFocus())
     }
     function close() {
+        if (shown) Sounds.close()
         shown = false
         if (before) before.forceActiveFocus()
         before = null

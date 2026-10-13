@@ -9,7 +9,7 @@ import QtQuick
     navigator keeps quiet (its page's `emptySay`): one bubble at a time.
     Without the portrait, and always inside a card (`compact`), it is the
     page's glyph in a diamond in the world's light beside or over the
-    words. Nothing moves but the line typing in as it shows.
+    words, the `jp` over the line as its title, in the title face. Nothing moves but the line typing in as it shows.
 
         Empty { width: parent.width; icon: "bed"; jp: "まだ、静かな空。"; line: "A quiet sky so far."; hint: "Nights appear here as you log them on Tonight." }
         Empty { compact: true; icon: "star"; line: "No stars yet."; action: "Rate something"; onActed: … }
@@ -120,6 +120,17 @@ Item {
         y: root.compact ? Math.max(0, (scene.height - implicitHeight) / 2) : scene.height + Theme.s3
         width: root.width - x
         spacing: Theme.s1
+        // Its Japanese, the empty state's title, in the title face (the display sans in a card, under the floor).
+        Text {
+            width: parent.width
+            visible: text !== ""
+            text: root.jp
+            readonly property int size: root.compact ? Theme.textL : Theme.textLede
+            horizontalAlignment: root.compact ? Text.AlignLeft : Text.AlignHCenter
+            wrapMode: Text.Wrap
+            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size); font.pixelSize: size
+            color: Theme.textBright
+        }
         Text {
             width: parent.width
             visible: text !== ""

@@ -78,13 +78,24 @@ Window {
     readonly property alias commandPalette: paletteBox
     /** What the palette offers to do: the window's `commands`, then the page's own (`Screen.actions`), then
         its other tabs (a PageHead's, when its section doesn't list them for the palette already). */
-    readonly property var allCommands: {
+    readonly property var allCommands: windowCommands.concat(pageCommands)
+    /** The window's own: its `commands`, its moons', the tour. */
+    readonly property var windowCommands: commands.concat(carried.commands,
+        tour.length ? [{ label: "Take the tour", icon: "info", hint: "What " + w.name + " does, its best key, where to start", run: () => tourBox.show() }] : [])
+    /** The page's own verbs, which the palette puts first: its `Screen.actions`, then its other tabs. */
+    readonly property var pageCommands: {
         const p = shell ? shell.page as Design.Screen : null
         const section = shell && p ? shell.sectionOf(shell.path) : null
         const head = p && !(section && section.tabs) ? Array.from(p.header || []).find(h => h && h.tabs && h.tabs.length && typeof h.choose === "function") : null
         const tabs = head ? head.tabs.filter(t => t.id !== head.current).map(t => ({ label: "Show " + t.label, hint: (head.title || p.title) + ", as a tab", icon: "", run: () => head.choose(t.id) })) : []
-        return commands.concat(carried.commands, p && p.actions ? p.actions : [], tabs,
-            tour.length ? [{ label: "Take the tour", icon: "info", hint: "What " + w.name + " does, its best key, where to start", run: () => tourBox.show() }] : [])
+        return (p && p.actions ? p.actions : []).concat(tabs)
+    }
+    /** What the page is called over its verbs in the palette: `{ label, jp }` (its title, and its head's Japanese). */
+    readonly property var pageName: {
+        const p = shell ? shell.page as Design.Screen : null
+        if (!p) return { label: "", jp: "" }
+        const head = Array.from(p.header || []).find(h => h && h.jpTitle !== undefined)
+        return { label: p.title || "", jp: head ? head.jpTitle : "" }
     }
     /**
         The world's first-run tour: three cards, `{ title, body, keys?, icon?, go?, start? }`
@@ -99,6 +110,8 @@ Window {
     readonly property bool tourDue: tour.length > 0 && !tourPrefs.toured && !Sol.preview && SolBackend.shot === "" && SolBackend.drive === "" && !!shell && Theme.alive
     onTourDueChanged: if (tourDue) tourLater.restart()
     Timer { id: tourLater; interval: 1400; onTriggered: if (win.tourDue && !momentBox.showing) tourBox.show() }
+    /** The world's opening has played (or been passed over) this run: it plays once a launch (Opening). */
+    property bool opened: false
     /** The window's moment, over everything: `moment.play({ occasion, scene, facts, chime })` (see Moment). */
     readonly property alias moment: momentBox
     /**
@@ -290,9 +303,12 @@ Window {
         // The Shell's keys work from the start, not only after the first click.
         focus: true
         sourceComponent: win.problem ? problemView : !Sol.status ? waiting : Sol.paired || Sol.preview ? shellView : connectView
-        // A new frame (the Shell after pairing) comes up out of the dark.
+        // A new frame (the Shell after pairing) comes up out of the dark; the world's opening,
+        // when it plays, is that instead.
         onLoaded: {
-            opacity = 0; frameIn.restart()
+            const s = item as Design.Shell
+            if (s && s.opening) opacity = 1
+            else { opacity = 0; frameIn.restart() }
             if (sourceComponent !== waiting) shots.begin()
         }
         Settling { when: frameIn.running }
@@ -348,10 +364,12 @@ Window {
             sourceComponent: modelData
         }
     }
+    // Where the pointer last pressed, anywhere (a passive look only): focus that a click moves makes no sound.
+    Item { anchors.fill: parent; z: 2000; PointHandler { acceptedButtons: Qt.AllButtons; onActiveChanged: if (active) Sounds.pressedAt = Date.now() } }
     ContextMenu { id: contextMenu }
     KeptAside { id: keptBox }
     Ask { id: askBox }
-    CommandPalette { id: paletteBox; sections: win.allSections; commands: win.allCommands; find: win.find; go: path => win.goTo(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
+    CommandPalette { id: paletteBox; world: win.world; sections: win.allSections; commands: win.windowCommands; verbs: win.pageCommands; verbsName: win.pageName; find: win.find; go: path => win.goTo(path); onClosed: if (win.shell) win.shell.forceActiveFocus() }
 
     Component {
         id: waiting

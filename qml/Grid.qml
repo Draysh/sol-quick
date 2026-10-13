@@ -17,7 +17,8 @@ import QtQuick
     room, else at its top). A card much shorter than its neighbour keeps
     its own height rather than a stretch of empty glass.
     When the grid places them again (a card grows, hides or shows), cards
-    glide to their new place.
+    glide to their new place. They arrive in the world's beat, a stagger
+    apart, and the first (the lead) lights its brackets as it lands.
 
         Grid { Card { title: "Log"; … } Card { title: "Sol"; … } }
         Grid { masonry: true; Card { title: "Today"; span: 2; … } Card { … } }
@@ -75,8 +76,11 @@ Item {
         }
         // Cards gone with a Repeater's reload are let go.
         watched = cards
-        // Its place among the cards, for the stagger.
-        cards.forEach((c, n) => { if (c.hasOwnProperty("index") && c.index !== n) c.index = n })
+        // Its place among the cards, for the stagger; the first is the lead, lit as it lands.
+        cards.forEach((c, n) => {
+            if (c.hasOwnProperty("index") && c.index !== n) c.index = n
+            if (c.hasOwnProperty("lead") && c.lead !== (n === 0)) c.lead = n === 0
+        })
         place()
     }
 

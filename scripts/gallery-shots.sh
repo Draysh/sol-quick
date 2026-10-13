@@ -136,6 +136,7 @@ for f in saturn mercury neptune terra luna; do
         shoot "saturn-overlays-ask" "/overlays?_ask=1"
         shoot "saturn-overlays-notice" "/overlays?_notice=1"
         shoot "saturn-overlays-notice-button" "/overlays?_notice=button"
+        shoot "saturn-overlays-notice-error" "/overlays?_notice=error"
         shoot "saturn-overlays-kept" "/overlays?_kept=1"
         # Quick capture: its own window's picture lands beside, as <name>-capture.png.
         shoot "saturn-overlays-capture" "/overlays?_capture=walk"

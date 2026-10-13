@@ -6,7 +6,8 @@ import Sol.Design
     The worlds: the window's world's Sheet across the top (pinned, as on
     a world's first screen, its figures beside the main action), chips to
     turn the window into each world in turn (← and → too), then the
-    pictures a world shows when its art is missing.
+    pictures a world shows when its art is missing. Neptune's and Triton's
+    band stands beside the page in a window under 1300 px (`Sheet.aside`).
 */
 Screen {
     id: page
@@ -42,6 +43,8 @@ Screen {
 
     header: Sheet {
         world: page.world
+        // Neptune's and Triton's stand beside the page in a window under 1300 px, as their first screens do.
+        aside: page.world === "neptune" || page.world === "triton"
         drift: page.contentY
         callout: page.sample.callout
         figures: page.sample.figures
@@ -50,8 +53,8 @@ Screen {
     }
 
     Column {
-        x: page.margin
-        width: parent.width - page.margin * 2
+        x: page.startX
+        width: page.startWidth
         spacing: Theme.s4
 
         Column {
@@ -73,7 +76,7 @@ Screen {
             }
         }
 
-        // What a world shows where a poster, a cover or a still can't be had: one character in its colours.
+        // What a world shows where a poster, a cover or a still can't be had: a poster of its own, laid out by the name.
         Card {
             width: parent.width
             title: "Missing art"
@@ -82,13 +85,13 @@ Screen {
                 width: parent.width
                 spacing: Theme.s3
                 Repeater {
-                    model: ["Severance", "Frieren", "Harbour Lights", "天気の子", "Quiet Static", "Blue in Green"]
+                    model: ["Severance", "Frieren", "Harbour Lights", "天気の子", "Quiet Static", "Blue in Green", "Signal Fires", "Northbound", "Warm Static", "Porch Songs", "Low Orbit", "Neon Rain"]
                     delegate: Picture { required property string modelData; width: 120; name: modelData }
                 }
                 Picture { width: 160; ratio: 1; name: "Late Tides" }
                 Picture { width: 48; name: "Small" }
             }
-            Words { width: parent.width; small: true; quiet: true; text: "The name's first Japanese character, else one of the flavour's own chosen by the name; the name at the foot once the card is wide enough." }
+            Words { width: parent.width; small: true; quiet: true; text: "The name's first Japanese character, else one of the flavour's own, set one of four ways by the name (large and cropped, in the middle, huge and faint, high in a corner), now and then a second one, the initials in the title face, a tone of its own; the name at the foot once the card is wide enough." }
         }
 
         // Every Icon by name: the chrome's own first, then Lucide's.

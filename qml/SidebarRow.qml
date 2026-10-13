@@ -77,6 +77,7 @@ Settle {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: row.number
+            // A kanji number is a mark (一, 二, 三: a few strokes), so it keeps the title face at any size.
             font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
             font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
             color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
@@ -85,7 +86,7 @@ Settle {
             visible: row.railJp !== ""
             anchors.horizontalCenter: parent.horizontalCenter
             text: row.railJp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textS); font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.titleWeight(Theme.textS)
             color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
         }
     }
@@ -104,6 +105,7 @@ Settle {
             // A kanji number takes the square two figures take, so the names still start in one column.
             width: row.kanjiNumber ? Math.max(implicitWidth, Math.ceil(Theme.textS * 1.2)) : implicitWidth
             horizontalAlignment: Text.AlignHCenter
+            // A kanji number is a mark (一, 二, 三: a few strokes), so it keeps the title face at any size.
             font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
             font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
             font.letterSpacing: row.kanjiNumber ? 0 : Theme.track(0.06, Theme.textXs)
@@ -145,7 +147,7 @@ Settle {
             visible: row.hud && row.jp !== "" && !row.rail
             anchors.verticalCenter: parent.verticalCenter
             text: row.jp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textS); font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.titleWeight(Theme.textS)
             color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }

@@ -25,6 +25,14 @@ Item {
     id: root
 
     property string title: ""
+    /**
+        The title itself in the title face, large, as written: a detail
+        page's name (a series, an album, an artist), so the page is carried
+        by its type. Off, the title is the HUD line's English subtitle.
+    */
+    property bool named: false
+    /** The size a `named` title is set at: over every title face's floor (`Theme.titleFloors`). */
+    readonly property int namedSize: 30
     /** The title in Japanese: "書庫". Its section's `jp` when not given. */
     property string jp: ""
     /** A quiet label before the title, e.g. the world it belongs to. */
@@ -116,12 +124,14 @@ Item {
         shows); the bar itself stays, so nothing flashes behind it. */
     function reveal(dir) {
         headIn.stop()
+        glitch.stop()
         textRow.opacity = 0
         actionRow.opacity = 0
         tabStrip.opacity = 0
-        // The words slide in behind the page's turn, the way it runs (back: from the other side);
-        // a tab's page only fades in, in place.
+        // The words land as the page's turn reveals it (its hold over), the way it runs (back:
+        // from the other side); the opening's land at once; a tab's page only fades in, in place.
         plain = dir === "tab"
+        wait = screen && typeof screen.landWait === "function" ? screen.landWait(dir) : 0
         const by = Theme.calm || plain ? 0 : Theme.hud.motif === "shrine" ? 12 : 36
         textShift.x = dir === "back" ? -by : by
         actionShift.x = dir === "back" ? -by / 2 : by / 2
@@ -129,6 +139,8 @@ Item {
         if (plain) still()
         else if (Theme.hud.motif === "neon" && !Theme.calm) glitch.restart()
     }
+    /** How long the words wait under the page's turn before they land. */
+    property real wait: 0
     /** Arriving as a tab does: a plain fade. */
     property bool plain: false
     // Neptune's flicker stopped where it was, the words back in place.
@@ -138,28 +150,28 @@ Item {
         ghostRed.x = 0; ghostCyan.x = 0; jpText.x = 0
     }
     Settling { when: headIn.running || glitch.running }
-    ParallelAnimation {
+    SequentialAnimation {
         id: headIn
-        NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: actionRow; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: textShift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: actionShift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
+        PauseAnimation { duration: root.wait }
+        ParallelAnimation {
+            NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: root.plain || Theme.calm ? Theme.fade : Theme.hit; easing: Theme.easeOut }
+            NumberAnimation { target: actionRow; property: "opacity"; to: 1; duration: root.plain || Theme.calm ? Theme.fade : Theme.land; easing: Theme.easeOut }
+            NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: root.plain || Theme.calm ? Theme.fade : Theme.land; easing: Theme.easeOut }
+            NumberAnimation { target: textShift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
+            NumberAnimation { target: actionShift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
+        }
     }
 
-    // Neptune's flicker as the page comes: a quarter of a second, then still.
+    // Neptune's flicker as the title lands: two flickers of a red and a cyan ghost, then still,
+    // inside the turn's landing.
     SequentialAnimation {
         id: glitch
+        PauseAnimation { duration: root.wait }
         ScriptAction { script: { ghostRed.opacity = 0.8; ghostCyan.opacity = 0.8; ghostRed.x = 4; ghostCyan.x = -4; jpText.x = -1 } }
         PauseAnimation { duration: Theme.flicker }
-        ScriptAction { script: { ghostRed.x = -3; ghostCyan.x = 3; jpText.x = 2 } }
+        ScriptAction { script: { ghostRed.x = -2; ghostCyan.x = 2; jpText.x = 1 } }
         PauseAnimation { duration: Theme.flicker }
-        ScriptAction { script: { ghostRed.x = 2; ghostCyan.x = -1; jpText.x = 0 } }
-        PauseAnimation { duration: Theme.flicker }
-        ParallelAnimation {
-            NumberAnimation { target: ghostRed; property: "opacity"; to: 0; duration: Theme.lock }
-            NumberAnimation { target: ghostCyan; property: "opacity"; to: 0; duration: Theme.lock }
-        }
+        ScriptAction { script: { ghostRed.opacity = 0; ghostCyan.opacity = 0; ghostRed.x = 0; ghostCyan.x = 0; jpText.x = 0 } }
     }
 
     // The feature, on the still under the band: it folds away under the band as the page scrolls.
@@ -277,16 +289,44 @@ Item {
                     font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
                     color: Theme.hudAccent
                 }
-                Text {
+                // The subtitle, in the display face: a few words in capitals; a longer title, or Japanese, as written.
+                // A `named` page's title is its name, in the title face, large; while a feature under the band
+                // carries the name large already, the band keeps the subtitle and the name takes its place as the
+                // feature folds away.
+                Item {
+                    id: titleBox
                     visible: !root.editable
-                    text: root.title
-                    width: Math.min(implicitWidth, textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0))
-                    elide: Text.ElideRight
-                    // The subtitle, in the display face: a few words in capitals; a longer title, or Japanese, as written.
-                    readonly property bool caps: Theme.capsFor(root.title)
-                    font.family: Theme.fontDisplay; font.pixelSize: caps ? Theme.textS : Theme.textM; font.weight: Font.Bold
-                    font.letterSpacing: caps ? Theme.track(Theme.trackHud, Theme.textS) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
-                    color: Theme.hudText
+                    readonly property real room: textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0)
+                    /** 1 where the name stands in the title face, 0 where the subtitle does. */
+                    readonly property real named: !root.named ? 0 : root.pins ? Math.max(0, Math.min(1, (root.collapse - 0.45) / 0.4)) : 1
+                    width: Math.min(Math.max(subtitle.visible ? subtitle.implicitWidth : 0, nameText.visible ? nameText.implicitWidth : 0), room)
+                    height: root.named ? nameText.implicitHeight : subtitle.implicitHeight
+                    Text {
+                        id: subtitle
+                        visible: titleBox.named < 1
+                        opacity: 1 - titleBox.named
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.title
+                        width: Math.min(implicitWidth, titleBox.room)
+                        elide: Text.ElideRight
+                        readonly property bool caps: Theme.capsFor(root.title)
+                        readonly property int size: caps ? Theme.textS : Theme.textM
+                        font.family: Theme.fontDisplay; font.pixelSize: size; font.weight: Font.Bold
+                        font.letterSpacing: caps ? Theme.track(Theme.trackHud, Theme.textS) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
+                        color: Theme.hudText
+                    }
+                    Text {
+                        id: nameText
+                        visible: root.named && titleBox.named > 0
+                        opacity: titleBox.named
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.title
+                        width: Math.min(implicitWidth, titleBox.room)
+                        elide: Text.ElideRight
+                        font.family: Theme.titleFace(root.namedSize); font.pixelSize: root.namedSize
+                        font.weight: Theme.titleWeight(root.namedSize); font.features: Theme.titleFeatures
+                        color: Theme.hudText
+                    }
                 }
             }
         }

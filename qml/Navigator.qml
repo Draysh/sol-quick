@@ -42,6 +42,12 @@ Item {
     readonly property bool says: line !== "" || jp !== ""
     /** The bubble's height over the portrait, with its gap. */
     readonly property real speechHeight: says ? speech.implicitHeight + Theme.s2 : 0
+    /** The line is said in the world's own face when the bubble that takes still leaves the portrait its room; else in the display face, smaller. */
+    readonly property bool voiced: narrow || space >= (says ? voicedProbe.implicitHeight + Theme.s2 : 0) + smallestFrame
+    // The bubble as it would be in the world's face, measured unseen.
+    Speech { id: voicedProbe; visible: false; still: true; width: Math.min(root.bubbleRoom, naturalWidth); jp: root.jp; line: root.line; tail: "down"; voiced: true }
+    /** How wide the bubble may be: from the rail's inner edge to the frame's outer one. */
+    readonly property real bubbleRoom: width + edge + Theme.s2 + 4
     /** How tall it is with its bubble over the portrait, at the smallest the portrait goes. */
     readonly property real fullHeight: speechHeight + smallestFrame
     /** The chip, when the bubble and the portrait don't fit. */
@@ -49,9 +55,11 @@ Item {
     /** How far it reaches past the rail's edge into the page. */
     readonly property real reach: !here ? 0 : chip ? (narrow ? 0 : chipBox.x + chipBox.width - width - edge) : frame.x + frame.width - width - edge
 
-    // The portrait grows into the room the rows leave, between these.
+    // The portrait grows into the room the rows leave, between these: at most as wide as leaves
+    // its name (案内役, the name, NAVIGATOR) a column beside it.
     readonly property real smallestFrame: 88
-    readonly property real frameHeight: Math.round(Math.max(smallestFrame, Math.min(150, space - speechHeight)))
+    readonly property real largestFrame: Math.round(Math.min(176, (width + edge + Theme.s2 + 4 - 84) / 0.76))
+    readonly property real frameHeight: Math.round(Math.max(smallestFrame, Math.min(largestFrame, space - speechHeight)))
     readonly property real frameWidth: Math.round(frameHeight * 0.76)
     readonly property real chipSize: 50
     /** Where the head chip starts across it (the diamond's left point), so the status beside it ends short of it. */
@@ -70,21 +78,34 @@ Item {
         face.bob(); chipFace.bob()
     }
 
-    // A line arriving makes it hop (not the first, as the window opens); a new page, lean.
+    // A line arriving makes it hop and its bubble slide in from the portrait's side (not the
+    // first, as the window opens); a new page, lean.
     property bool ready: false
     Component.onCompleted: Qt.callLater(() => root.ready = true)
     readonly property string said: jp + "\n" + line
-    onSaidChanged: if (ready && says) { face.bob(); chipFace.bob() }
+    onSaidChanged: if (ready && says) { face.bob(); chipFace.bob(); if (!Theme.calm && !chip) slideIn.restart() }
+    SequentialAnimation {
+        id: slideIn
+        PropertyAction { target: speechShift; property: "x"; value: Theme.s3 }
+        PropertyAction { target: speech; property: "opacity"; value: 0 }
+        ParallelAnimation {
+            NumberAnimation { target: speech; property: "opacity"; to: 1; duration: Theme.hit; easing: Theme.easeOut }
+            NumberAnimation { target: speechShift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
+        }
+    }
     onLookingChanged: if (ready) face.lean()
 
     // ---- With room: the bubble over the portrait, its name beside it --------------
     Speech {
         id: speech
         visible: !root.chip && root.says
-        x: root.width - width
-        width: Math.min(root.width, naturalWidth)
+        // Its right edge on the frame's, which breaks the rail's edge: as wide as the two reach.
+        x: frame.x + frame.width - width
+        width: Math.min(root.bubbleRoom, naturalWidth)
         jp: root.jp
         line: root.line
+        voiced: root.voiced
+        transform: Translate { id: speechShift }
         tail: "down"
         tailAt: Math.max(Theme.radiusSpeech + 2, Math.min(width - tailWidth - Theme.radiusSpeech, frame.x + frame.width * 0.42 - tailWidth / 2 - x))
     }
@@ -106,7 +127,7 @@ Item {
         spacing: 2
         Text {
             text: "案内役"
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 1; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textXs + 1); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 1; font.weight: Theme.titleWeight(Theme.textXs + 1)
             color: Theme.hudAccent
         }
         Text {

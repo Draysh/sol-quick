@@ -161,7 +161,10 @@ Item {
     function staging(stage) {
         let any = false
         const did = () => { any = true }
-        if (stage._notice === "button") { did(); Notices.show({ world: host.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } }) }
+        if (stage._notice === "error") { did(); Notices.failed(host.world, "Couldn’t play that", "ALSA function 'snd_pcm_open' failed with error 'ENOENT: No such file or directory'") }
+        // `_notice=error:<raw words>`: a failure with those words, as the world says it.
+        else if (String(stage._notice).startsWith("error:")) { did(); Notices.failed(host.world, "That didn’t work", String(stage._notice).slice(6)) }
+        else if (stage._notice === "button") { did(); Notices.show({ world: host.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => { } }) }
         else if (stage._notice) { did(); Notices.show({ world: host.world, title: "Saved", body: "A notice, on glass, over the page." }) }
         if (stage._ask) { did(); host.ask.confirm("Remove it?", "Its status, rating and notes go too. Everything else stays.", "Remove") }
         if (stage._notify) { did(); Sol.call("notify", { title: "A notification", body: "From " + host.w.name + ", on the desktop.", action: ["hello", "Say hello"] }).catch(why => console.warn("notify failed", why)) }

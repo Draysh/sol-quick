@@ -14,9 +14,15 @@ import QtQuick.Shapes
 
     It reacts, never on a loop, all of it on the motion tokens: `bob()`
     when a line arrives, `lean()` towards a page that has just opened,
-    `cheer()` (a warm light and a few sparks; `Sol.cheer()` calls it on
-    every navigator in the window); late at night (23:00 to 5:00) it is a
-    little dimmer, sleepy. With less motion only the warm light shows.
+    `cheer()` (a hop on the beat, a warm light and a burst of sparks from
+    its cut corner; `Sol.cheer()` calls it on every navigator in the
+    window now and then, and only `glow()`, the warm light, in between);
+    late at night (23:00 to 5:00) it is a little dimmer, sleepy. With less
+    motion only the warm light shows.
+
+    Its frame belongs to the rail: the outline and its second light run
+    along the top, the cut and the edge that breaks out into the page,
+    and fade down it, and the portrait's foot dissolves into the glass.
 
         NavigatorFace { width: 96; height: 124 }
         NavigatorFace { width: 40; height: 40; diamond: true }
@@ -45,13 +51,18 @@ Item {
     function bob() { if (Theme.calm || !here) return; hop.restart() }
     /** A lean towards the pane and back: a page has opened. */
     function lean() { if (Theme.calm || !here) return; tilt.restart() }
-    /** Pleased: a warm light over the portrait and a few sparks from its cut corner. */
+    /** Pleased: a warm light over the portrait. */
+    function glow() { if (here) glowing.restart() }
+    /** Delighted, the big one: it jumps on the beat (up on a hit, held, down with the spring), a warm light, and a burst of sparks from its cut corner. */
     function cheer() {
         if (!here) return
-        glow.restart()
-        if (!Theme.calm) sparks.burst()
+        glowing.restart()
+        if (Theme.calm) return
+        hop.stop()
+        jump.restart()
+        sparks.burst()
     }
-    Connections { target: Sol; function onReacted(kind) { if (kind === "happy") face.cheer() } }
+    Connections { target: Sol; function onReacted(kind) { if (kind === "cheer") face.cheer(); else if (kind === "happy") face.glow() } }
 
     visible: here
     readonly property real cut: diamond ? width / 2 : Math.min(Theme.hudCut, width * 0.2)
@@ -72,12 +83,18 @@ Item {
         NumberAnimation { target: face; property: "tiltAngle"; to: 0; duration: Theme.settle; easing: Theme.easeInOut }
     }
     SequentialAnimation {
-        id: glow
+        id: jump
+        NumberAnimation { target: face; property: "bobY"; to: -14; duration: Theme.hit; easing: Theme.easeOut }
+        PauseAnimation { duration: Theme.hold }
+        NumberAnimation { target: face; property: "bobY"; to: 0; duration: Theme.settle; easing: Theme.spring }
+    }
+    SequentialAnimation {
+        id: glowing
         NumberAnimation { target: face; property: "warm"; to: 1; duration: Theme.lock; easing: Theme.easeOut }
         PauseAnimation { duration: Theme.fade }
         NumberAnimation { target: face; property: "warm"; to: 0; duration: Theme.rise; easing: Theme.easeInOut }
     }
-    Settling { when: hop.running || tilt.running || glow.running || picture.status === Image.Loading }
+    Settling { when: hop.running || jump.running || tilt.running || glowing.running || picture.status === Image.Loading }
 
     // Everything that moves with it: the frame, its motif and its light.
     Item {
@@ -98,22 +115,36 @@ Item {
             line: Theme.tint(face.flavour.seal, 0.5)
             accent: face.flavour.seal
         }
-        // Neptune: a second edge in the ice cyan, offset, as neon doubles in the rain.
-        Shape {
+        // Neptune: a second edge in the ice cyan, offset, as neon doubles in the rain: along the
+        // top, the cut and down the outer edge, fading as it goes down into the rail.
+        Item {
             visible: face.motifs && face.flavour.motif === "neon"
             x: 3; y: 3
             width: parent.width; height: parent.height
-            preferredRendererType: Shape.CurveRenderer
-            ShapePath {
-                strokeWidth: 1
-                strokeColor: Theme.tint(face.flavour.second, 0.55)
-                fillColor: "transparent"
-                startX: 0; startY: 0
-                PathLine { x: face.width - face.cut; y: 0 }
-                PathLine { x: face.width; y: face.cut }
-                PathLine { x: face.width; y: face.height }
-                PathLine { x: 0; y: face.height }
-                PathLine { x: 0; y: 0 }
+            readonly property color tube: Theme.tint(face.flavour.second, 0.55)
+            Rectangle {
+                width: parent.width - face.cut; height: 1
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: "transparent" }
+                    GradientStop { position: 0.4; color: Theme.tint(face.flavour.second, 0.55) }
+                }
+            }
+            Rectangle {
+                x: parent.width - face.cut; y: 0
+                width: Math.SQRT2 * face.cut; height: 1
+                transformOrigin: Item.TopLeft
+                rotation: 45
+                antialiasing: true
+                color: Theme.tint(face.flavour.second, 0.55)
+            }
+            Rectangle {
+                x: parent.width - 1; y: face.cut
+                width: 1; height: parent.height - face.cut
+                gradient: Gradient {
+                    GradientStop { position: 0; color: Theme.tint(face.flavour.second, 0.55) }
+                    GradientStop { position: 0.7; color: "transparent" }
+                }
             }
         }
 
@@ -179,13 +210,15 @@ Item {
                 GradientStop { position: 1; color: "transparent" }
             }
         }
+        // The foot dissolves into the rail's glass, its outline with it.
         Rectangle {
             visible: !face.diamond && picture.status === Image.Ready
-            x: 1; y: parent.height * 0.62
-            width: parent.width - 2; height: parent.height * 0.38 - 1
+            x: -1; y: parent.height * 0.55
+            width: parent.width + 2; height: parent.height * 0.45 + 1
             gradient: Gradient {
                 GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: Theme.tint(face.flavour.ground, 0.62) }
+                GradientStop { position: 0.55; color: Theme.tint(face.flavour.ground, 0.55) }
+                GradientStop { position: 1; color: Theme.tint(face.flavour.ground, 0.96) }
             }
         }
         // Saturn: the panels' brackets on the frame's three uncut corners.
@@ -200,7 +233,7 @@ Item {
             id: sparks
             x: parent.width - face.cut / 2; y: face.cut / 2
             color: face.flavour.accent
-            count: 12
+            count: 28
         }
     }
 }

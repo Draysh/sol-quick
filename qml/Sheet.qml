@@ -19,7 +19,14 @@ import QtQuick.Effects
     `drift` is the pane's scroll: the title sinks a little slower than the
     band, so the sheet has depth.
 
+    With `aside`, in a window under 1300 px wide the title card stands
+    beside the page instead of over it: a column down the left of the pane,
+    on the still, the title at its top and what sits under it at its foot,
+    and the page's own content to its right from the first line (a page
+    places its column at the Screen's `startX`, `startWidth` wide).
+
         Sheet { world: "terra"; callout: ["Walk = done"]; figures: [{ value: "12", label: "Streak", jp: "連続" }, { value: "3/5", label: "Today", jp: "今日" }] }
+        Sheet { aside: true; … }   …   Column { x: page.startX; width: page.startWidth; … }
 */
 Item {
     id: root
@@ -46,6 +53,15 @@ Item {
     property real collapse: 0
     readonly property real compact: Theme.navHeight
 
+    /** Beside the page rather than over it in a window under 1300 px wide (see above). */
+    property bool aside: false
+    /** Standing beside the page now: `aside`, in such a window. */
+    readonly property bool beside: aside && tight
+    /** The column's width beside the page. */
+    readonly property real besideWidth: Math.round(Math.max(300, Math.min(380, width * 0.36)))
+    /** The page it heads, for its height beside it. */
+    readonly property Item hostScreen: Theme.screenOf(root)
+
     readonly property var w: Worlds.get(world)
     readonly property bool portrait: width < 700
     /** A window under 1300 px wide: the title card is compact, so the page's first card is in view. */
@@ -58,16 +74,35 @@ Item {
     readonly property real bandH: tight ? Math.max(200, contentH)
         : Math.max(portrait ? Math.max(240, Math.min(360, u * 340)) : Math.max(260, Math.min(400, u * 470)), contentH)
 
+    /** The title card lands (0 → 1) as its page arrives: after the page's turn, or at the opening's last beat. */
+    property real landed: 1
+    function reveal(dir) {
+        landing.stop()
+        // The window opening: once the title has landed, the flavour's sign catches its light.
+        if (dir === "open" && sign.visible) sign.catchLight(Theme.calm ? 0 : Theme.land + Theme.hit)
+        if (dir === "tab" || Theme.calm || Theme.land === 0) { landed = 1; return }
+        const page = Theme.screenOf(root)
+        landWait.duration = page && typeof page.landWait === "function" ? page.landWait(dir) : 0
+        landed = 0
+        landing.start()
+    }
+    SequentialAnimation {
+        id: landing
+        PauseAnimation { id: landWait; duration: 0 }
+        NumberAnimation { target: root; property: "landed"; to: 1; duration: Theme.land + Theme.hit; easing: Theme.beat.curve }
+    }
+    Settling { when: landing.running }
+
     width: parent ? parent.width : 1200
-    readonly property real fullHeight: bandH
+    readonly property real fullHeight: beside && hostScreen ? hostScreen.height : bandH
     implicitHeight: fullHeight
-    height: Math.round(fullHeight - (fullHeight - compact) * collapse)
+    height: beside ? fullHeight : Math.round(fullHeight - (fullHeight - compact) * collapse)
     // Shrinking, nothing of it draws past its edge over the page.
     clip: true
 
     Item {
         id: band
-        width: parent.width
+        width: root.beside ? root.besideWidth : parent.width
         height: Math.max(root.compact, root.height)
         clip: true
 
@@ -100,19 +135,24 @@ Item {
         Column {
             id: hero
             x: Theme.margin(root.width)
-            width: parent.width - x * 2 - (tategaki.visible ? tategaki.width + Theme.s4 : sign.visible ? sign.width + Theme.s5 : 0)
-            y: Math.max(Theme.s3, (band.height - height - (center.height > 0 ? center.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
-            opacity: Math.max(0, 1 - root.collapse * 1.6)
+            width: parent.width - x * (root.beside ? 1 : 2) - (tategaki.visible ? tategaki.width + Theme.s4 : sign.visible ? sign.width + (root.beside ? Theme.s3 * 2 : Theme.s5) : 0)
+            // Beside the page, at the column's top; over it, in the middle of the band, sinking as the page scrolls.
+            y: root.beside ? Theme.s4 : Math.max(Theme.s3, (band.height - height - (center.height > 0 ? center.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
+            opacity: Math.min(1, root.landed * 1.6) * Math.max(0, 1 - root.collapse * 1.6)
+            transform: Translate { x: (1 - root.landed) * 32 }
             spacing: Theme.s1
             // A soft dark glow behind the words, so they read on a bright still (Terra's noon).
             layer.enabled: true
             layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.hud.dim || Theme.hud.ground; shadowOpacity: 1; shadowBlur: 1; shadowScale: 1.02; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
             HudLabel {
+                id: hudLine
                 text: root.hud !== "" ? root.hud : [root.name !== "" ? root.name : root.w.name, Qt.formatDate(Worlds.now, "ddd d MMM"), Qt.formatTime(Worlds.now, "HH:mm")].join(" · ")
                 jp: root.hudJp
                 color: Theme.artAccent
                 light: Theme.artAccent
                 size: Theme.textS - 1
+                // Beside the page the line runs the column's width, over the sign hung under it.
+                room: root.beside ? band.width - hero.x - Theme.s3 - Theme.s5 : hero.width
             }
             // Neptune's splits its colours at the edges (the flavour's `chroma`).
             ChromaText {
@@ -120,10 +160,17 @@ Item {
                 width: parent.width
                 text: root.jp !== "" ? root.jp : Theme.jpOf(root.world)
                 elide: Text.ElideRight
-                readonly property real size: root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
-                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: size
+                // Beside the page a title takes up to three lines of the column, as a poster's does.
+                // (Beside, as large as its longest word allows on a line of the column.)
+                readonly property int longest: text.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 1)
+                readonly property real size: root.beside ? Math.round(Math.max(28, Math.min(text.length > 16 ? 44 : 60, width / (longest * 0.68)))) : root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
+                font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size); font.pixelSize: size
+                // Broken between words only: the size keeps the longest word on its line.
+                wrapMode: root.beside ? Text.WordWrap : Text.NoWrap
+                maximumLineCount: root.beside ? 3 : 1
+                lineHeight: root.beside ? 0.92 : 1
                 // A long title (a song's, a station's) shrinks to its line before it is cut short.
-                fontSizeMode: Text.HorizontalFit; minimumPixelSize: 40
+                fontSizeMode: root.beside ? Text.FixedSize : Text.HorizontalFit; minimumPixelSize: 40
                 color: Theme.artBright
             }
             Text {
@@ -143,7 +190,7 @@ Item {
         Text {
             id: tategaki
             visible: root.vertical !== "" && !root.portrait && !sign.wanted
-            x: band.width - Theme.margin(root.width) - width
+            x: band.width - (root.beside ? Theme.s3 : Theme.margin(root.width)) - width
             y: root.tight ? Theme.s3 : Theme.s4
             // Gone before the shrinking band reaches its foot, so it is never cut.
             opacity: Math.max(0, 1 - root.collapse * 3)
@@ -151,7 +198,7 @@ Item {
             text: root.vertical.split("").map(c => ({ "、": "\ufe11", "。": "\ufe12", "ー": "\ufe31" })[c] || c).join("\n")
             horizontalAlignment: Text.AlignHCenter
             lineHeight: 1.05
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.tight ? 17 : 22; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(root.tight ? 17 : 24); font.features: Theme.titleFeatures; font.pixelSize: root.tight ? 17 : 24; font.weight: Theme.titleWeight(root.tight ? 17 : 24)
             color: Theme.tint(Theme.hud.washi || Theme.artBright, 0.85)
         }
 
@@ -162,9 +209,9 @@ Item {
             visible: wanted && root.vertical !== "" && !root.portrait
             text: root.vertical
             size: root.tight ? 22 : 28
-            room: root.fullHeight - y - Theme.s3
-            x: band.width - Theme.margin(root.width) - width
-            y: root.tight ? Theme.s3 : Theme.s4
+            room: root.beside ? Math.max(120, center.y - y - Theme.s4) : root.fullHeight - y - Theme.s3
+            x: band.width - (root.beside ? Theme.s3 : Theme.margin(root.width)) - width
+            y: root.beside ? hero.y + hudLine.height + Theme.s2 : root.tight ? Theme.s3 : Theme.s4
             opacity: Math.max(0, 1 - root.collapse * 3)
         }
 
@@ -173,20 +220,22 @@ Item {
         Item {
             id: center
             x: hero.x
-            y: hero.y + hero.height + Theme.s3
-            opacity: Math.max(0, 1 - root.collapse * 1.6)
+            y: root.beside ? Math.max(hero.y + hero.height + Theme.s4, band.height - height - Theme.s4) : hero.y + hero.height + Theme.s3
+            opacity: root.landed * Math.max(0, 1 - root.collapse * 1.6)
             readonly property bool both: underBox.visible && figureRow.visible
-            readonly property bool beside: !both || underBox.width + Theme.s6 + figureRow.implicitWidth <= root.width - Theme.margin(root.width) * 2
+            readonly property bool beside: !both || !root.beside && underBox.width + Theme.s6 + figureRow.implicitWidth <= root.width - Theme.margin(root.width) * 2
             width: Math.max(underBox.visible ? underBox.width : 0, figureRow.visible ? figureRow.x + figureRow.implicitWidth : 0)
             height: Math.max(underBox.visible ? underBox.height : 0, figureRow.visible ? figureRow.y + figureRow.implicitHeight : 0)
 
-            Row {
+            Flow {
                 id: figureRow
                 visible: root.figures.length > 0
+                // Beside the page, the column's width: the figures go two to a line, or one.
+                width: root.beside ? band.width - hero.x - Theme.s3 : root.width
                 // Clear of the moon links and the action, and each figure clear of the one before.
                 x: center.both && center.beside ? underBox.width + Theme.s6 : 0
                 y: center.both && !center.beside ? underBox.height + Theme.s3 : center.both ? (underBox.height - implicitHeight) / 2 : 0
-                spacing: Theme.s5
+                spacing: root.beside ? Theme.s4 : Theme.s5
                 Repeater {
                     // Two on a narrow pane, where three would run off its edge. By count, so a figure
                     // that changes is the same one counting on, not a new one arriving.
@@ -215,7 +264,7 @@ Item {
                 Item {
                     id: underRow
                     readonly property real spacing: Theme.s4
-                    readonly property real room: Math.max(80, root.width - Theme.margin(root.width) * 2)
+                    readonly property real room: Math.max(80, root.beside ? band.width - hero.x - Theme.s3 : root.width - Theme.margin(root.width) * 2)
                     // For a Button among them: this row's own width follows theirs.
                     readonly property real childRoom: room
                     onRoomChanged: place()
@@ -274,9 +323,9 @@ Item {
             wait: Theme.rise / 2
             visible: tonight.events.length > 0 && root.collapse < 0.3
             readonly property real edge: Theme.margin(root.width)
-            x: band.width - width - edge
-            y: band.height - height - Theme.s3
-            width: root.portrait ? band.width - edge * 2 : 300
+            x: root.beside ? hero.x : band.width - width - edge
+            y: root.beside ? center.y - height - Theme.s3 : band.height - height - Theme.s3
+            width: root.portrait || root.beside ? band.width - edge * 2 : 300
             height: tonightColumn.implicitHeight
             property var asked: []
             readonly property AppWindow win: root.Window.window as AppWindow
@@ -320,6 +369,6 @@ Item {
             }
         }
 
-        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: root.collapse > 0.5 ? Theme.line : Theme.artLine }
+        Rectangle { visible: !root.beside; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: root.collapse > 0.5 ? Theme.line : Theme.artLine }
     }
 }

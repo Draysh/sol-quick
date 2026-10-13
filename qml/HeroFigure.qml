@@ -98,7 +98,7 @@ Item {
             Text {
                 visible: root.jp !== ""
                 text: root.jp
-                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
+                font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2)
                 color: Theme.artAccent
             }
         }

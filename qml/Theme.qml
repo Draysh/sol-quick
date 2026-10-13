@@ -119,6 +119,20 @@ QtObject {
     readonly property string fontTitle: Qt.fontFamilies().indexOf(hud.title) >= 0 ? hud.title : fontDisplay
     /** The weight a title face is drawn in: its one weight (Corporate Logo's is bold, the others' regular), so it is never thickened. */
     readonly property int weightTitle: fontTitle === fontDisplay ? Font.Bold : Font.Normal
+    /**
+        The smallest size each title face stays clean at, by family: under it
+        Yuji Syuku's brush clots (覚 at 18 px) and Makinas' hairlines run
+        together (聴 under 18 px), so a smaller title, tag or line takes
+        `fontDisplay` instead (`titleFace`). Corporate Logo and Keifont read
+        well small and have none.
+    */
+    readonly property var titleFloors: ({ "Makinas": 18, "Yuji Syuku": 20 })
+    /** The smallest size the flavour's title face is set at (0: any size). */
+    readonly property int titleFloor: titleFloors[fontTitle] || 0
+    /** The face for title words at `size` pixels: the flavour's title face from `titleFloor` up, else `fontDisplay`. */
+    function titleFace(size) { return size >= titleFloor ? fontTitle : fontDisplay }
+    /** The weight for `titleFace(size)`: that face's one weight. */
+    function titleWeight(size) { return titleFace(size) === fontDisplay ? Font.Bold : Font.Normal }
     /** Subtitles (the English line under a big title, a PageHead's English title) and big figures, in every app: Corporate Logo Bold. */
     readonly property string fontDisplay: "Corporate Logo ver3"
     /** HUD capitals and figures: a squared sans, cut like a game's menus. */
@@ -198,7 +212,8 @@ QtObject {
         page's big title written down, as a hanging scroll), `signs` (the
         first page's line down the right as a lit `NeonSign`) and `chroma`
         (big titles with a red and a cyan edge, `ChromaText`), `title` (its
-        title face, `fontTitle`) and `kanjiNumbers` (the sidebar's numbers
+        title face, `fontTitle`), `openingName` (the opening slams in the
+        world's whole name rather than its kanji) and `kanjiNumbers` (the sidebar's numbers
         in kanji in that face, 一, 二, 三, instead of 01, 02). A day
         flavour (Terra's noon) has `light` glass: frosted white, its words
         (`text`, `quiet`, `faint`, and `bright` the strongest) dark ink, its
@@ -235,7 +250,7 @@ QtObject {
             ground: "#0a1426", glass: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.68), edge: "#8fe7ff",
             accent: "#ff4a5a", second: "#8fe7ff", seal: "#ff4a5a", bubble: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.9), blush: "#ff8aa8", face: [0.55, 0.33, 1.7],
             text: "#eef6ff", quiet: "#b9cbe8", faint: "#7590b4",
-            sky: ["#040814", "#0a1730", "#14284f", "#3a1c46", "#a32a48"], stars: false, shade: 0.8, rain: 1, haze: "#ff4a5a", signs: true, chroma: true,
+            sky: ["#040814", "#0a1730", "#14284f", "#3a1c46", "#a32a48"], stars: false, shade: 0.8, rain: 1, haze: "#ff4a5a", signs: true, chroma: true, openingName: true,
             grade: [[0.56, 0.9, 1, 0.1], [0.04, 0.08, 0.15, 0.42], [0.04, 0.08, 0.15, 0.56], [0.039, 0.078, 0.149, 0.86], [0.039, 0.078, 0.149, 0.96]]
         },
         // Noon: frosted white glass with dark ink on it (ramune blue its light, sunflower its
@@ -373,7 +388,10 @@ QtObject {
     // a settle for something taking its place, a turn for a page arriving,
     // a count for a figure counting up, a rise for a body appearing and a
     // wash for a colour coming over the whole window. Things that arrive
-    // together arrive a stagger apart.
+    // together arrive a stagger apart, in the world's `beat`.
+    // Big acts (the opening, a page turn, a moment) go in rhythm rather
+    // than at one speed: anticipation, a `hit`, a `hold`, then the release
+    // (`easeIn` for what leaves). Everything else is quiet.
     // For pictures taken with SOL_SHOT_CALM, all of them nothing: everything is in its place at once.
     /** A press: a button or a row giving under the pointer, and a mark following something live (a level). */
     readonly property int snap: SolBackend.shotCalm ? 0 : 50
@@ -391,7 +409,41 @@ QtObject {
     readonly property int speak: SolBackend.shotCalm ? 0 : 900
     /** A colour coming over the whole window: the world's surface changing, Luna's veil deepening. */
     readonly property int wash: SolBackend.shotCalm ? 0 : 2400
-    readonly property int stagger: SolBackend.shotCalm ? 0 : 28
+    /** Things arriving together: the flavour's beat's stagger (`beat.stagger`). */
+    readonly property int stagger: beat.stagger
+    /** One hit: the instant something lands (a slam, a cut, a stamp) before it settles. */
+    readonly property int hit: SolBackend.shotCalm ? 0 : 80
+    /** A hold: the beat a hit is left to be seen before what follows it. */
+    readonly property int hold: SolBackend.shotCalm ? 0 : 160
+    /**
+        A page turn's own beats, inside `turn`: the old page is covered by
+        `turnCover` (after a `hit` of anticipation, the wipe), the solid
+        frame is held until `turnReveal`, and the new page and its words
+        `land` over what is left. Nothing of a turn runs past `turn`.
+    */
+    readonly property int turnCover: Math.round(turn * 0.43)
+    readonly property int turnReveal: Math.round(turn * 0.67)
+    readonly property int land: turn - turnReveal
+    /**
+        The world's beat: how things arrive on its pages, each flavour in its
+        own rhythm. `stagger` (ms between things arriving together), `arrive`
+        (ms one takes), `curve` (its easing), `rise` and `slide` (pixels it
+        comes up from, and in from the right), `grow` (the scale it grows
+        from), `flick` (it flickers once as it comes) and `turn` (the page
+        turn's way: "slice", "cut", "ink" or "sweep"). Neptune is staccato
+        and glitchy, Saturn a film's cut, Mercury slow ink, Terra a light
+        bounce. A page's first card (the lead) lights its brackets as it lands.
+        With SOL_SHOT_CALM every length is nothing.
+    */
+    readonly property var beat: {
+        const none = SolBackend.shotCalm
+        const ms = n => none ? 0 : n
+        const m = hud.motif
+        if (m === "neon") return { stagger: ms(40), arrive: ms(160), curve: easeOut, rise: 0, slide: 12, grow: 1, flick: true, turn: "slice" }
+        if (m === "shrine") return { stagger: ms(70), arrive: ms(360), curve: easeOut, rise: 0, slide: 0, grow: 1, flick: false, turn: "ink" }
+        if (m === "summer") return { stagger: ms(40), arrive: ms(300), curve: spring, rise: 14, slide: 0, grow: 0.97, flick: false, turn: "sweep" }
+        return { stagger: ms(30), arrive: ms(120), curve: easeOut, rise: 4, slide: 0, grow: 1, flick: false, turn: "cut" }
+    }
     // What plays for as long as something lasts, so never nothing: each runs
     // only while it is needed and `alive`. A sweep for one pass of a busy
     // mark (a line's sweep, a spinner's turn); a drift for what drifts
@@ -414,8 +466,10 @@ QtObject {
     readonly property easingCurve spring: ({ type: Easing.BezierSpline, bezierCurve: [0.34, 1.56, 0.64, 1, 1, 1] })
     /** Slow at both ends: there and back (a breath, a level's beat), a colour washing over, a sound fading. */
     readonly property easingCurve easeInOut: ({ type: Easing.InOutSine })
+    /** Slow to start, then gone: an exit, sharp. cubic-bezier(0.7, 0, 0.84, 0). */
+    readonly property easingCurve easeIn: ({ type: Easing.BezierSpline, bezierCurve: [0.7, 0, 0.84, 0, 1, 1] })
 
-    /** How late the `i`th of a list may arrive: a stagger each, never past 400 ms. */
+    /** How late the `i`th of a list may arrive: the beat's stagger each, never past 400 ms. */
     function delay(i) { return Math.min(i * stagger, 400) }
 
     /**

@@ -5,7 +5,8 @@ import QtQuick.Shapes
 /*
     The moment a star lights in a world's Sky: a point of light swells in
     the dark, throws its cross, and a faint line reaches back to the star
-    before it in its constellation; the milestone is named under it. The
+    before it in its constellation; the words stand low on the left: 「星が
+    灯った。」 ("a star lit") slams in over the milestone's name. The
     window plays it when the kit hears `sky.lit` (a world's milestone
     reached, or a comet caught), so a world writes nothing for it;
     `_moment=star` stages it.
@@ -23,8 +24,9 @@ Item {
     /** The line back to the star before, drawn after the light. */
     readonly property real reach: moment && moment.calm ? 1 : Math.max(0, Math.min(1, (p - 0.25) * 3))
     readonly property color warm: Qt.tint("#fff2df", Theme.tint(Theme.world, 0.45))
-    readonly property real cx: width / 2
-    readonly property real cy: height * 0.36
+    // The star stands up and to the right; its words on the left, as a film's title card.
+    readonly property real cx: width * 0.7
+    readonly property real cy: height * 0.32
 
     // The star before: already lit, quiet, up and to the left.
     readonly property real bx: cx - Math.min(220, width * 0.2)
@@ -92,11 +94,15 @@ Item {
 
     MomentCaption {
         moment: scene.moment
-        width: Math.min(scene.width - 64, 640)
-        x: (scene.width - width) / 2
-        y: scene.height * 0.5
+        centred: false
+        width: Math.min(scene.width - Theme.s6 * 2, 760)
+        x: Theme.s6
+        // Low on the left, over the bars, as the other moments' title cards stand.
+        y: scene.height - implicitHeight - (scene.moment ? scene.moment.barHeight : 0) - Theme.s6
         lead: scene.facts.constellation ? "A star in " + scene.facts.constellation : "A new star in your sky"
+        jp: "星が灯った。"
         title: scene.facts.title || ""
+        titleSize: Theme.textXl
         line: scene.facts.story || ""
     }
 }

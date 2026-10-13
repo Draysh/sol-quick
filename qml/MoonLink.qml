@@ -48,7 +48,7 @@ Item {
             visible: root.jp !== ""
             anchors.verticalCenter: parent.verticalCenter
             text: root.jp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS + 1; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textS + 1); font.features: Theme.titleFeatures; font.pixelSize: Theme.textS + 1; font.weight: Theme.titleWeight(Theme.textS + 1)
             color: Theme.artSecond
         }
         Text {

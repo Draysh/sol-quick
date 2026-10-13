@@ -29,7 +29,8 @@ import Sol.Design as Design
 
     The world's light marks the current section and glides to the next one
     when it changes; each screen settles into the pane as it opens, under
-    the world's own way of turning a page (`PageTurn`).
+    the world's own way of turning a page (`PageTurn`). Once a launch the
+    world's `Opening` plays over the first page as it goes home.
 
         Shell {
             world: "terra"
@@ -135,7 +136,8 @@ Item {
         // And in its own voice.
         Sounds.world = of
     }
-    Component.onCompleted: { accent(); go(home) }
+    // Home at once, under the opening (once a launch), so the page is ready when it goes.
+    Component.onCompleted: { accent(); go(home); openingItem.play() }
     onWorldChanged: accent()
 
     /** The section or the child of one at `path`, or null. */
@@ -353,19 +355,21 @@ Item {
         item.back = backFor(entry)
         accent()
         if (was && was !== item) {
-            // The page that was here leaves under the one arriving; one coming back settles in again.
-            // Saturn's cut: the page that was here is gone at once, as in a film; with less motion, a fade only.
-            // A tab only fades, the one under the other, whatever the flavour.
+            // The page that was here leaves under the one arriving. In a turn it gives a little
+            // against the way for one beat (the anticipation) and is gone once the wipe covers it
+            // (`Theme.turnCover`); the new page lands after the hold. A tab, and anything with
+            // less motion, only fades, the one under the other.
             const tab = dir === "tab"
-            const cut = Theme.hud.motif === "dusk" && !Theme.calm && !tab
+            const turning = !tab && !Theme.calm && Theme.turn > 0
             leaving.target = was
             slideOut.target = was
-            slideOut.to = dir === "out" && !Theme.calm && !cut ? 40 : 0
-            slideOut.duration = tab ? Theme.fade : cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
-            leaving.duration = tab ? Theme.fade : cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
+            slideOut.to = turning ? (dir === "out" ? 8 : -8) : 0
+            slideOut.duration = turning ? Theme.hit : 0
+            leaving.duration = turning ? 0 : tab ? Theme.fade : Theme.lock
+            coverWait.duration = turning ? Math.max(0, Theme.turnCover - Theme.hit) : 0
             leave.restart()
             if (item.hasOwnProperty("reveal")) item.reveal(dir === "out" ? "back" : dir)
-            if (!tab) turn.play(dir === "out" ? "back" : dir)
+            if (!tab) { turn.play(dir === "out" ? "back" : dir); if (turning) Sounds.turn() }
         }
         shell.forceActiveFocus()
         const screen = page as Design.Screen
@@ -381,10 +385,10 @@ Item {
     }
     SequentialAnimation {
         id: leave
-        ParallelAnimation {
-            NumberAnimation { id: leaving; property: "opacity"; to: 0; duration: Theme.lock }
-            NumberAnimation { id: slideOut; property: "x"; to: 0; duration: Theme.lock; easing: Theme.easeOut }
-        }
+        // In a turn: the nudge, a wait under the wipe, then gone at once; else a fade.
+        NumberAnimation { id: slideOut; property: "x"; to: 0; duration: Theme.lock; easing: Theme.easeOut }
+        PauseAnimation { id: coverWait; duration: 0 }
+        NumberAnimation { id: leaving; property: "opacity"; to: 0; duration: Theme.lock }
         ScriptAction { script: shell.settleLeaving() }
     }
 
@@ -428,6 +432,8 @@ Item {
     function typing() { return Theme.typing(Window.activeFocusItem) }
 
     Keys.onPressed: event => {
+        // Any key ends the opening and still does what it does.
+        openingItem.skip()
         if (event.modifiers === Qt.AltModifier && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
             if (typing()) return
             if (event.key === Qt.Key_Right) forward(); else if (!back()) return
@@ -569,6 +575,11 @@ Item {
             height: childrenRect.height
         }
     }
+
+    // The world's opening, over everything, once a launch.
+    Design.Opening { id: openingItem; anchors.fill: parent; z: 30; shell: shell; rail: side }
+    /** The world's opening is playing over the window (it ends at any key or click). */
+    readonly property bool opening: openingItem.playing
 
     Loader {
         anchors.fill: parent

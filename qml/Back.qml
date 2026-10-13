@@ -40,14 +40,14 @@ Item {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "「←"
-            font.family: Theme.fontTitle; font.pixelSize: Theme.textM; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textM); font.pixelSize: Theme.textM; font.weight: Theme.titleWeight(Theme.textM)
             color: root.lit ? Theme.hudAccent : Theme.hudQuiet
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "戻る」"
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textM; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textM); font.features: Theme.titleFeatures; font.pixelSize: Theme.textM; font.weight: Theme.titleWeight(Theme.textM)
             color: root.lit ? Theme.hudAccent : Theme.hudText
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }

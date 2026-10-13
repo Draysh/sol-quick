@@ -124,7 +124,7 @@ replaced: don't use them.
 | --- | --- |
 | `SOL_PREVIEW` | The Shell without pairing, on a throwaway copy (`/tmp/sol-preview-<world>`) filled with sample data the first time; its own socket, so it runs beside the installed app. On with any value, even `0` |
 | `SOL_SHOT=<png>` | A picture of the window once its page is ready (below), then the app quits; so a fresh preview copy, filled with its sample data first, shoots the same page. Beside `SOL_DRIVE` it doesn't quit (the drive ends the run; a drive that quits sooner leaves no picture) |
-| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through; `_moment=star`, the kit's own: a star lighting), `_comet=1` (a comet held mid-way across the Sheet), `_sky=full-moon\|perseids\|opposition` (that night of the real sky on the Sheet), `_hour=N` (the hour the navigator keeps: sleepy from 23 to 5), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
+| `SOL_SHOT_PATH=/page?key=v` | The page to open first, with its params; keys starting with `_` stage the picture: `_notice=1` (a notice), `_ask=1` (the dialog), `_notify=1` (a desktop notification), `_palette=1` (the command palette; `_palette=rate` with that typed), `_scroll=N` (the page scrolled to N, or `end`, once it has settled; held to the page's end), `_notice=button` (a notice with a button), `_notice=error` (a machine's failure, said as a person would; `_notice=error:<raw words>` with those words), `_opening=1` (the world's opening plays, as it never does in pictures otherwise; the picture waits until it is over), `_kept=1` (`KeptAside` with sample rows), `_capture=<line>` (quick capture open with the line typed; its own picture is saved beside as `<shot>-capture.png`), `_problem=newer\|damaged` (the window's "copy won't open" view instead of the Shell), `_tour=N` (the first-run tour open at card N), `_moment=<name>[:<arg>]` (one of the window's `moments`, played without its occasion, taken 60% through; `_moment=star`, the kit's own: a star lighting), `_comet=1` (a comet held mid-way across the Sheet), `_sky=full-moon\|perseids\|opposition` (that night of the real sky on the Sheet), `_hour=N` (the hour the navigator keeps: sleepy from 23 to 5), `_after=<ms>` (not sooner than that, for what the ready rule can't see) |
 | `SOL_SHOTS=<list>` | Many pictures in one run, one after another, then the app quits: `<png>=<path?keys>` each (as `SOL_SHOT` and `SOL_SHOT_PATH`), a line or `;` apart, or the name of a file holding them (`#` starts a comment). Each opens its page, scrolls, stages its keys, waits until ready and is taken; what the one before staged (dialogs, the palette, notices, a moment, quick capture) is put away first. `scripts/shots.sh` runs a world with a list on a hidden display. A `_problem` picture goes first (the Shell then loads for the rest); a world's own keys that it reads once at start (Neptune's `_vinyl`, Triton's `_dj`) work in the first picture only |
 | `SOL_SHOT_AFTER=<ms>` | The most a picture waits for its page to be ready: 8000 unless set; one that times out is taken anyway and says so in the journal (`SOL_SHOT: … wasn't ready`) |
 | `SOL_SHOT_READY=0` | The old way: each picture `SOL_SHOT_AFTER` ms in, ready or not |
@@ -175,8 +175,13 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Worlds`: every world's name, role, tagline, colour, tilt, photo, kin
   (moons and planets), and the real sky (`skyOf`, `moonAt`, `now`).
 - `Notices`: in-app notices (`show`, with an optional button: `action`
-  and `run`; `dismiss`, `act`, `failed`).
-- `Sounds`: `tick` (Button, Chip, Tabs, Select, Toggle and Check tick by themselves), `done` (`Sol.undoable` plays it when a write goes through), `off`, `chime` (a moment's, two soft seconds) and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which; it takes the place of a `done` just played). On by default and low (`level`, 0.5, under each sound's own share), one switch in `DeviceCard` for all; a device that has said keeps what it said.
+  and `run`, a `jp` line said first and a `detail` behind "Details";
+  `dismiss`, `act`, `failed`). `failed` says a known failure as a person
+  would, Japanese then English (`lineFor`: the kit's lines for sound, the
+  network, keys, the server and the disk, after a world's own added with
+  `speak([{ pattern, jp, line }])`), the raw words behind "Details"; a
+  short plain reason shows as it is.
+- `Sounds`: `tick` (Button, Chip, Tabs, Select, Toggle and Check tick by themselves), `done` (`Sol.undoable` plays it when a write goes through), `off`, `chime` (two soft seconds), the big acts' stings in the flavour's own sound (`turn`, the Shell's page turn; `opening`; `moment`, as a moment's title slams in, for a spec with `chime`; `lit`, a light coming on, for the flavours in `lights`: Neptune's neon catching, the opening's sign and Triton's ON AIR), `open` and `close` (the palette, the dialog, the tour, KeptAside), `focus` (the keys moving on, the softest click; never for focus a click moved), `error` (a failure's notice), and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which; it takes the place of a `done` just played). On by default and low (`level`, 0.5, under each sound's own share), one switch in `DeviceCard` for all; a device that has said keeps what it said. A burst limiter lets the first of sounds close together stand (a weightier one still plays) and no more than six a second. All made by `scripts/world-sounds.py`.
 - `SolBackend` (Rust, `bridge.rs`): what `Sol` and `AppWindow` are built on.
 
 **The frame**
@@ -228,9 +233,11 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   on the left that scrolls together, the still's figure keeping the rest; written down with the
   flavour's `tategaki` (Mercury's), the title stands beside the column instead); `contentX` and `contentWidth` say
   where the content is (a PageHead lines up with it). A page opened from
-  another without a header gets a PageHead with its title and the way back.
+  another without a header gets a PageHead with its title and the way back
+  (`named: true` sets that title in the title face, large).
 - `PageHead`: a working page's toolbar (title, a quiet line, actions, the
-  way back, `editable`, `tabs`). With `tabs: [{ id, label, count?, hint? }]`
+  way back, `editable`, `tabs`; `named: true` sets the title itself in the
+  title face, large, for a detail page's name: a series, an album). With `tabs: [{ id, label, count?, hint? }]`
   and `tab: page.params.tab || ""`, the tabs run along its foot, the one
   that is on drawn over its hairline; choosing one puts it in the page's
   path (`/schedule?tab=calendar`, through `Shell.retab`, no new step), so
@@ -255,7 +262,9 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Sheet`: the band across a world's first screen, pinned and shrinking:
   the title card, what sits under it (moon links, the main action) beside
   two or three `figures: [{ value, label, jp }]` (HeroFigures), a comet on
-  its days; compact (about 220 px) in a window under 1300 px wide.
+  its days; compact (about 220 px) in a window under 1300 px wide, or with
+  `aside` a column beside the page there (`beside`), the page's own column
+  starting at `Screen.startX`, `startWidth` wide.
   `HeroFigure`: one big figure, its label and its Japanese tag; the
   number counts up as it comes into view (on from the one before when it
   changes), in the room its value takes.
@@ -360,8 +369,14 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `MenuArea` (a thing's right-click, laid over its row) and `MoreButton`
   (the ⋯ that opens the same menu under itself): see Menus below.
 - `Moment` (one per window, `win.moment.play({ occasion, scene, facts,
-  chime, length, hud, ground })`) and `MomentCaption`, a scene's words
-  (`jp`, `subtitleJp` and `subtitle`); `Tour` (one per
+  chime, length, hud, ground })`; its clock `elapsed` and `slamAt`) and
+  `MomentCaption`, a scene's words in kinetic type (`jp`, or the title,
+  slams in with the sting, the figures count up, the subtitle comes on the
+  beat: `jp`, `subtitleJp`, `subtitle`, `titleSize`); `SlamText`, words
+  that slam in (cut in two, from 1.3 to a frame past their size, a glint
+  along the cut), driven by `at`; `Opening`, the world's opening, once a
+  launch, which the Shell plays (skipped by any key or click, which still
+  land; none with less motion or in pictures unless `_opening=1`); `Tour` (one per
   window, `win.tourSheet`, filled from `AppWindow.tour`): both in
   `docs/world-apps.md` ("Moments", "The first run").
 - `SkyPage` (a world's `/sky`: the map and a card per constellation, from
@@ -393,7 +408,15 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (`Theme.fontTitle`, drawn in `Theme.weightTitle`: Corporate Logo for
   Saturn, Yuji Syuku for Mercury, Makinas 4 for Neptune, Keifont for Terra
   and Luna), subtitles and big figures in Corporate Logo
-  (`Theme.fontDisplay`). The
+  (`Theme.fontDisplay`). The title face is set only from its floor up
+  (`Theme.titleFloor`, per face in `Theme.titleFloors`: Makinas 18, Yuji Syuku
+  20; Corporate Logo and Keifont none): `Theme.titleFace(size)` and
+  `titleWeight(size)` give the display face under it, where a brush or a
+  squared face turns fussy; marks (a seal, the rail's diamond, Mercury's rail
+  numbers) keep the title face. The navigator's Japanese line is said at the
+  face's floor where that is only a little over a line's size (Lucy's, in
+  Makinas at 18) when its bubble still leaves the portrait its room
+  (`Speech.voiced`), else in the display face. `Empty` sets its `jp` over its line in it. The
   Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
   one of the world's stills turned over by section, `Theme.groundsOf`, a
   moon's own when it has some, `Theme.ownGroundsOf`, graded, the shade
@@ -415,8 +438,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   English callout line under it, what sits under that, facts on glass, and
   `vertical` for a line written down the right. Neptune's flavour
   adds rain and a neon glow to the ground (the flavour's `rain` and
-  `haze`) and `HudGlitch`, which Screen plays as a page arrives: a scan
-  line and a few torn bands for a quarter of a second. The primary Button is a parallelogram
+  `haze`); its page turn slices the pane in glitches. The primary Button is a parallelogram
   (as `AngledButton`), a round one a diamond, Progress is `SlantTicks`,
   chips are pills, Display's figures are in the HUD face. `Card` is glass
   with brackets (its glass is made once the card has come into view),
@@ -455,7 +477,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   its 、 when that leaves two lines that fit, so nothing stands alone on
   the last line).
 - `NeonSign` (a word in katakana written down in a lit tube, glowing on a
-  dark board: `text`, `light`, `size`, `room`; drawn once, never moving),
+  dark board: `text`, `light`, `size`, `room`; drawn once, never moving;
+  `catchLight(wait)` switches it on as a tube catches, with `Sounds.lit()`),
   `ChromaText` (a Text whose big words split their colours at the edges,
   red one side and cyan the other, with the flavour's `chroma`; a plain
   Text otherwise). The neon flavour's `signs` makes a Sheet's `vertical` a
@@ -467,9 +490,12 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `Progress`, `Chart`, `Skeleton` (a page's shape before its data).
 - `Picture` (a picture from a `url`, or a `key` in a `PictureStore`:
   `ratio`, `crop`, `outline`, `lift`/`hovered`, `dim`, `animated`, a fade,
-  a retry when a file has gone, `radius`; without a picture, a card in the
-  world's colours with one kanji or katakana on it, `glyph`, else chosen by
-  `name` or `seed`), `PictureStore` (a
+  a retry when a file has gone, `radius`; without a picture, a poster of
+  its own in the world's colours laid out by `name` or `seed`: its kanji or
+  katakana (`glyph`, else chosen by the name) large and cropped, in the
+  middle, huge and faint or high in a corner, now and then a second one,
+  the name's initials in the title face, a tone between the flavour's two
+  lights, the name at its foot), `PictureStore` (a
   world's pictures fetched once to disk by one of its commands), `Poster`
   (a Picture for a network cover, 2:3, outlined).
 - `Strip`: a row that scrolls sideways (sideways wheel, swipe or Shift;
@@ -511,7 +537,8 @@ before its staging counts it with `Settling { when: anim.running }`.
 **Primitives**: `Ticks` (the focus mark, rounded with what it marks:
 `radius`), `Rounded` (an image's picture with rounded corners, cut in a
 shader: what Picture and the flying hero draw with), `Settle` (arrive when
-seen, a stagger apart; `pop` for a tile in a grid, `pushed` for a row
+seen, in the world's beat, a stagger apart, after its page's turn; `again()`
+and `finish()` for the opening's rail; `pop` for a tile in a grid, `pushed` for a row
 under a press), `Lean` (a thing leans to the pointer and, with `presses`,
 gives under a press: put it last inside the thing and list its
 `transforms` in the thing's `transform`), `PageTurn` (the world's way of
@@ -784,7 +811,14 @@ Ctrl+K opens the **command palette** (`CommandPalette`): the sections
 (with their children and tabs as you type), the window's `commands` and
 the page's `actions` (all of them when nothing is typed), and what its
 `find` turns up as you type (Saturn searches titles, Neptune the library,
-Mercury the dictionary). A row with `items` opens its own list (Enter or
+Mercury the dictionary). The page's `actions` are its verbs: they lead,
+under the page's title and its Japanese, and rank first as you type, so
+an album's "Play album" comes before the player's "Play"; what was run
+lately follows (最近 Recent, kept per app on this device, never from a
+preview), then the sections (each with its Ctrl+N) and the window's
+commands. A row's `keys` stand on the right as key caps. It opens with a
+slash of the world's light and the open sound; the keys tick as they
+move. A row with `items` opens its own list (Enter or
 Right; Left or Escape goes back out), and typing finds the entries inside
 it too ("rate 8").
 `Shell.go(path, params, { item, url })` flies a picture from where it was
@@ -800,11 +834,14 @@ corner and the name taking its place. Cards and `Settle`d rows arrive when
 they scroll into view, not before. Pages have real inertia: a drag past the
 end gives and springs back, the wheel bounces at the ends. A page opened
 from another slides in from the right and back out; a section settles.
-Each turn is the world's own (`PageTurn`): a slanted wipe in its light with
-the PageHead's words sliding in behind it, Saturn's a film's cut with black
-bars, Neptune's red with a cyan ghost under its glitch, Mercury's an ink
-wash clearing from the title, Terra's a soft sweep of sunlight; going back
-runs the other way, and less motion only fades. A tab (or a Settings
+Each turn is the world's own (`PageTurn`), in four beats inside `Theme.turn`:
+the old page darkens and gives a little (a `hit`), a wipe at full strength
+covers the pane (`turnCover`, when the old page goes), the frame is held,
+and the new page is revealed hard (`turnReveal`), its words and cards
+landing after. Neptune's slices the pane in glitches with a red and cyan
+edge, Saturn's is a film's black bars and a black hold, Mercury's ink
+blooms from the title, Terra's a sweep of sunlight; going back runs the
+other way, and less motion only fades. A tab (or a Settings
 part) is no new page: it changes with a plain fade, no turn.
 The sidebar's field filters the page in place when the page says
 `filters: true` (it reads `filter`), and searches the app otherwise; `/`
@@ -820,7 +857,10 @@ words into a field on click, or Enter (a `PageHead` with `editable: true`
 renames); `Check` shows the click at once and takes it back with a shake
 on `fail()`; a `Card` with a `menu` opens it on right-click and from its ⋯. `Skeleton`
 draws a page's shape while its data is on the way. `Sounds` (on and low
-unless turned off in `DeviceCard`) gives a tick, a done and an off. Fractional scaling works as
+unless turned off in `DeviceCard`) gives a tick, a done and an off, and
+the big acts their stings. Once a launch the world's `Opening` plays over
+the first page: its kanji slams in, a hold, the frame goes the world's way
+as the rail draws in, and the page's title lands, about a second in all. Fractional scaling works as
 Qt does it: `QT_SCALE_FACTOR=1.5` to check.
 
 ## Motion
@@ -839,15 +879,22 @@ light land with a spring. Every length and curve is `Theme`'s, and nothing
 else writes a number of milliseconds or an `Easing` (the QML lint warns of
 one; `// not a token: <why>` beside a deliberate one, like Luna's night
 sound fading over a minute): `snap` (a press), `flicker` (a glitch's or a
-shake's step), `lock`, `fade`, `settle`, `turn` (a page arriving), `count`
+shake's step), `hit` (the instant something lands), `hold` (the beat it is
+left to be seen), `lock`, `fade`, `settle`, `turn` (a page arriving, with
+its `turnCover`, `turnReveal` and `land`), `count`
 (a figure counting up), `rise`, `wash` (a colour over the whole window) and
-`stagger`, all nothing for `SOL_SHOT_CALM` pictures; `sweep` (a busy mark),
+`stagger` (the `beat`'s), all nothing for `SOL_SHOT_CALM` pictures; `sweep` (a busy mark),
 `drift`, `crossing` (the comet), `scene` (a moment), `notchGlide` and
 `touchGlide` (the page under a wheel or a touchpad), which never are; and
-the curves `ease`, `easeOut`, `spring` (a tenth past its place and back)
-and `easeInOut`, given whole: `easing: Theme.easeOut`. Timers that decide
+the curves `ease`, `easeOut`, `spring` (a tenth past its place and back),
+`easeInOut` and `easeIn` (an exit, sharp), given whole: `easing: Theme.easeOut`. Timers that decide
 something (a hint's wait, the caret's blink, a search's pause) keep their
-own. Nothing moves without saying what
+own. Each flavour has its `beat` (`Theme.beat`: `stagger`, `arrive`,
+`curve`, `rise`, `slide`, `grow`, `flick`, `turn`): Neptune staccato and
+glitchy (cards slide in and flicker once), Saturn a film's cut, Mercury slow
+ink, Terra a light bounce; Card and Settle arrive in it, and a Grid's first
+card (its `lead`) lights its brackets as it lands. Big acts go in rhythm
+(anticipation, a hit, a hold, the release); everything else is quiet. Nothing moves without saying what
 changed, and nothing loops while the window is hidden or behind another
 (`Theme.alive`). `SOL_FPS=1` writes the frames painted a second to the
 journal: 170 on a 170 Hz screen.

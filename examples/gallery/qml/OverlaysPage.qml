@@ -122,6 +122,7 @@ Screen {
                 spacing: Theme.s2
                 Button { text: "A notice"; onClicked: Notices.show({ world: page.win.world, title: "Saved", body: "A notice, on glass, over the page." }) }
                 Button { variant: "quiet"; text: "A failure"; onClicked: Sol.fail("Not saved", "Sol isn’t answering; it’s kept here and sent when it is.") }
+                Button { variant: "quiet"; text: "A machine’s failure"; hint: "Said as a person would, the raw words under Details"; onClicked: Sol.fail("Couldn’t play that", "ALSA function 'snd_pcm_open' failed with error 'ENOENT: No such file or directory'") }
                 Button { variant: "quiet"; text: "With a button"; hint: "A conflict’s notice, and what it opens"
                     onClicked: Notices.show({ world: page.win.world, title: "Changed on another device too", body: "Both copies are kept; you choose which stays.", action: "See both", run: () => page.win.keptAside.open(page.kept) }) }
                 Button { variant: "quiet"; text: "On the desktop"; hint: "A desktop notification, with a button"; onClicked: Sol.call("notify", { title: "A notification", body: "From the gallery, on the desktop.", action: ["hello", "Say hello"] }).catch(why => Sol.fail("Not shown", why)) }

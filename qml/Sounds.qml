@@ -6,8 +6,11 @@ import QtMultimedia
 /*
     Tiny sounds, a few milliseconds each, for a press (a button, a tab, a
     switch, a box ticked), a thing done (a write that went through), and a
-    thing taken back; a soft chime, two seconds, for a moment; and the
-    world's own voice (Saturn's soft ring, Neptune's water drop, Mercury's
+    thing taken back; a soft chime, two seconds; the big acts' stings, in
+    each flavour's own sound (made by `scripts/world-sounds.py`): a page
+    turning, the opening, a moment, a light coming on; the palette or a sheet opening and
+    closing, the keys moving on (the softest click) and something gone
+    wrong; and the world's own voice (Saturn's soft ring, Neptune's water drop, Mercury's
     bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static
     blip, made by `scripts/world-sounds.py`) for its main good moment only:
     an episode watched, a right answer, a habit done. On by default and
@@ -18,9 +21,12 @@ import QtMultimedia
     writes them on once, outside a preview, and keeps what is chosen from
     then on. Never while the window is asleep, and never two over each
     other: the voice takes the place of a "done" just played, and a burst
-    of presses ticks once.
+    of presses ticks once. Hits only, never anything under the page: a
+    burst limiter lets the first of a few sounds close together stand (a
+    weightier one still comes through) and no more than six a second.
 
         Sounds.tick()   Sounds.done()   Sounds.off()   Sounds.chime()   Sounds.voice()
+        Sounds.turn()   Sounds.opening()   Sounds.moment()   Sounds.lit()   Sounds.open()   Sounds.close()   Sounds.focus()   Sounds.error()
 */
 QtObject {
     id: sounds
@@ -49,14 +55,59 @@ QtObject {
     readonly property string voiceName: voices[world] || ""
     property SoundEffect voiceSound: SoundEffect { source: sounds.voiceName ? "../assets/sounds/" + sounds.world + ".wav" : ""; volume: 0.8 * sounds.level }
 
+    // The flavour's stings (a moon with a flavour of its own has its own; another takes its planet's).
+    readonly property string sting: "../assets/sounds/" + Theme.flavour + "-"
+    property SoundEffect turnSound: SoundEffect { source: sounds.sting + "turn.wav"; volume: 0.5 * sounds.level }
+    property SoundEffect openingSound: SoundEffect { source: sounds.sting + "opening.wav"; volume: 0.8 * sounds.level }
+    property SoundEffect momentSound: SoundEffect { source: sounds.sting + "moment.wav"; volume: 0.8 * sounds.level }
+    property SoundEffect openSound: SoundEffect { source: "../assets/sounds/open.wav"; volume: 0.6 * sounds.level }
+    property SoundEffect closeSound: SoundEffect { source: "../assets/sounds/close.wav"; volume: 0.6 * sounds.level }
+    property SoundEffect focusSound: SoundEffect { source: "../assets/sounds/focus.wav"; volume: 0.5 * sounds.level }
+    property SoundEffect errorSound: SoundEffect { source: "../assets/sounds/error.wav"; volume: 0.7 * sounds.level }
+    /** The flavours with a sting for a light coming on (`<flavour>-lit.wav`): Neptune's neon tube catching. */
+    readonly property var lights: ["neptune"]
+    property SoundEffect litSound: SoundEffect { source: sounds.lights.indexOf(Theme.flavour) >= 0 ? sounds.sting + "lit.wav" : ""; volume: 0.7 * sounds.level }
+
     readonly property bool playing: on && Theme.alive
+    // The burst limiter: what played last and how weighty it was, and the sounds of the last second.
+    property real lastAt: 0
+    property int lastWeight: -1
+    property var lastSecond: []
+    /** Whether a sound of `weight` may play now: not on the heels of one as weighty or weightier, nor a seventh in a second. */
+    function allowed(weight) {
+        const now = Date.now()
+        lastSecond = lastSecond.filter(t => now - t < 1000)
+        if (lastSecond.length >= 6) return false
+        if (now - lastAt < 90 && weight <= lastWeight) return false
+        lastAt = now
+        lastWeight = weight
+        lastSecond = lastSecond.concat([now])
+        return true
+    }
+    /** When the pointer last pressed (the window's), so moving focus by a click makes no sound. */
+    property real pressedAt: 0
+    /** A page turning: the flavour's sting, quiet. */
+    function turn() { if (playing && allowed(3)) turnSound.play() }
+    /** The world's opening: its sting, with the slam. */
+    function opening() { if (playing && allowed(4)) openingSound.play() }
+    /** A moment: the flavour's sting as its title slams in. */
+    function moment() { if (playing && allowed(4)) momentSound.play() }
+    /** The palette or a sheet opening, and closing. */
+    function open() { if (playing && allowed(2)) openSound.play() }
+    function close() { if (playing && allowed(2)) closeSound.play() }
+    /** The keys moving on to the next thing (not a click's focus): the softest click. */
+    function focus() { if (playing && Date.now() - pressedAt > 300 && allowed(0)) focusSound.play() }
+    /** A light coming on: a sign catching (the opening's, Triton's ON AIR); nothing in a flavour without one. */
+    function lit() { if (playing && lights.indexOf(Theme.flavour) >= 0 && allowed(3)) litSound.play() }
+    /** Something went wrong (a notice of a failure). */
+    function error() { if (playing && allowed(3)) errorSound.play() }
     // When each last played, so presses in a burst tick once and a voice replaces a "done".
     property real tickAt: 0
     property real doneAt: 0
     property real voiceAt: 0
     function tick() {
         const now = Date.now()
-        if (!playing || now - tickAt < 60) return
+        if (!playing || now - tickAt < 60 || !allowed(1)) return
         tickAt = now
         tickSound.play()
     }

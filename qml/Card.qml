@@ -54,12 +54,13 @@ Item {
     /** It does something when clicked (an Open link makes it so too): it gives under a press. */
     property bool pressable: false
 
-    // The card settles into place when it comes into view, a little past it and back (the spring),
-    // and leans towards the pointer.
+    // The card comes into place when it comes into view, in the world's beat (`Theme.beat`):
+    // Neptune's slides in and flickers once, Saturn's cuts in, Mercury's shows through like ink,
+    // Terra's comes up with a light bounce; and it leans towards the pointer.
     opacity: 0
-    property Translate shift: Translate { y: Theme.calm ? 0 : 12 }
+    property Translate shift: Translate { y: Theme.calm ? 0 : Theme.beat.rise; x: Theme.calm ? 0 : Theme.beat.slide }
     // Grows from its top a little as it settles; a tall one hardly at all, so its top stays where it is.
-    property Scale pop: Scale { origin.x: root.width / 2; origin.y: 0; xScale: Theme.calm ? 1 : 0.97; yScale: 1 - (1 - xScale) * Math.min(1, 400 / Math.max(1, root.height)) }
+    property Scale pop: Scale { origin.x: root.width / 2; origin.y: 0; xScale: Theme.calm ? 1 : Theme.beat.grow; yScale: 1 - (1 - xScale) * Math.min(1, 400 / Math.max(1, root.height)) }
     property Translate moved: Translate { }
     transform: [shift, pop, moved, lean.shift, lean.push]
 
@@ -83,17 +84,42 @@ Item {
     property var forget: null
     /** It has come into view: its glass is made then, not before (a card far down a page costs nothing until it is scrolled to). */
     property bool seen: false
-    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; arrive.start() })
+    // Started once the page has had its say, so a page turning has told when it lands.
+    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; Qt.callLater(() => { if (root) root.start() }) })
     Component.onDestruction: if (forget) forget()
+    /** The first card of a page (its Grid's first): its brackets light in the world's light as it lands, then go. */
+    property bool lead: false
+    /** How long until it arrives: its stagger, and while its page turns, until the page lands. */
+    property real pause: 0
+    function start() {
+        const page = Theme.screenOf(root)
+        const lands = page && page.landsAt ? Math.max(0, page.landsAt - Date.now()) : 0
+        pause = root.late ? 0 : Theme.delay(root.index) + lands
+        arrive.restart()
+    }
     Settling { when: arrive.running }
     SequentialAnimation {
         id: arrive
-        PauseAnimation { duration: root.late ? 0 : Theme.delay(root.index) }
+        PauseAnimation { duration: root.pause }
+        // A flicker first (Neptune's beat): a glimpse, gone, then it comes.
+        PropertyAction { target: root; property: "opacity"; value: Theme.beat.flick && !Theme.calm && !root.late ? 0.5 : 0 }
+        PauseAnimation { duration: Theme.beat.flick && !Theme.calm && !root.late ? Theme.flicker : 0 }
+        PropertyAction { target: root; property: "opacity"; value: 0 }
         ParallelAnimation {
-            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.settle; easing: Theme.easeOut }
-            NumberAnimation { target: root.shift; property: "y"; to: 0; duration: Theme.settle; easing: Theme.spring }
-            NumberAnimation { target: root.pop; property: "xScale"; to: 1; duration: Theme.settle; easing: Theme.spring }
+            NumberAnimation { target: root; property: "opacity"; to: 1; duration: Theme.beat.arrive; easing: Theme.easeOut }
+            NumberAnimation { target: root.shift; property: "y"; to: 0; duration: Theme.beat.arrive; easing: Theme.beat.curve }
+            NumberAnimation { target: root.shift; property: "x"; to: 0; duration: Theme.beat.arrive; easing: Theme.easeOut }
+            NumberAnimation { target: root.pop; property: "xScale"; to: 1; duration: Theme.beat.arrive; easing: Theme.spring }
         }
+        ScriptAction { script: if (root.lead && !root.late && !Theme.calm) leading.restart() }
+    }
+    // The lead's accent: its brackets lit at once as it lands, held a beat, then gone.
+    property real leadGlow: 0
+    SequentialAnimation {
+        id: leading
+        PropertyAction { target: root; property: "leadGlow"; value: 1 }
+        PauseAnimation { duration: Theme.hold }
+        NumberAnimation { target: root; property: "leadGlow"; to: 0; duration: Theme.fade; easing: Theme.easeIn }
     }
 
     // The panel: glass over the still with its top-right corner cut, and brackets in the light under the pointer.
@@ -106,8 +132,8 @@ Item {
     HudBrackets {
         anchors.fill: parent
         cuts: [0, Theme.hudCut, 0, 0]
-        color: Theme.tint(Theme.hudAccent, lean.hovered ? 0.9 : 0)
-        Behavior on color { ColorAnimation { duration: Theme.fade } }
+        color: Theme.tint(Theme.hudAccent, lean.hovered ? 0.9 : root.leadGlow)
+        Behavior on color { enabled: !leading.running; ColorAnimation { duration: Theme.fade } }
     }
     // Under the title, a hairline from edge to edge: the head, then the body.
     Rectangle { visible: head.visible; x: 20; y: head.y + head.height + 13; width: parent.width - 40; height: 1; color: Theme.line }

@@ -10,13 +10,17 @@ import Sol.Design
     person, on any device: the kit's `moment` command keeps it in the
     world's own `moments` collection (list it in `sol-world.json`). It
     plays only while the window is in front; one that comes while it isn't
-    waits for it. With less motion (`Theme.calm`) the scene shows its last
-    frame, still, for a shorter while. The window has one: `win.moment`.
+    waits for it. It goes in rhythm: the frame and its bars slam in, the
+    title slams in with the flavour's sting (`slamAt`), its figures count
+    up, a hold, and the subtitle is said on the beat (MomentCaption). With
+    less motion (`Theme.calm`) the scene shows its last frame, still, for a
+    shorter while. The window has one: `win.moment`.
 
         win.moment.play({ occasion: "saturn.finished." + key, scene: finished, facts: { … }, chime: true })
 
     `scene` is a Component whose root has `property var moment`: it reads
     `moment.progress` (0 → 1 over the moment, 1 at once with less motion),
+    `moment.elapsed` (its milliseconds) and `moment.slamAt`,
     `moment.facts` (what `play` was given) and `moment.calm`.
 
     A moment is a scene from a film: the page's still (or `ground` in the spec) fills the window, darkened
@@ -35,6 +39,10 @@ FocusScope {
     readonly property bool calm: Theme.calm
     /** 0 → 1 while the moment plays. */
     property real progress: 0
+    /** Milliseconds into the scene (all of it at once with less motion). */
+    readonly property real elapsed: calm ? 1e9 : progress * length
+    /** When the scene's title slams in (MomentCaption), its sting with it: once the frame is up and a beat after. */
+    readonly property real slamAt: Theme.fade + Theme.hit * 3
     /** How long the scene plays, in ms: `length` in the spec, `Theme.scene` unless given; half of it with less motion. */
     readonly property int length: !current ? 0 : calm ? Theme.scene / 2 : (current.length || Theme.scene)
     /** The moments waiting for the window to come to the front. */
@@ -42,8 +50,11 @@ FocusScope {
     property Item before: null
     /** The still behind the scene: the spec's `ground`, else the page's. */
     property string still: ""
-    /** The letterbox, 0 (open) → 1 (closed in to the scene). */
-    readonly property real bars: calm ? 1 : Math.min(1, progress * 7)
+    /** The letterbox, 0 (open) → 1 (closed in to the scene): slammed in over the frame's first beats. */
+    readonly property real bars: calm ? 1 : 1 - Math.pow(1 - Math.min(1, elapsed / Math.max(1, Theme.hit * 3)), 3)
+    // The sting, as the title slams in.
+    property bool stung: false
+    onElapsedChanged: if (!stung && current && elapsed >= slamAt) { stung = true; if (current.chime) Sounds.moment() }
 
     anchors.fill: parent
     z: 200
@@ -83,22 +94,24 @@ FocusScope {
         const w = root.Window.window as AppWindow
         still = spec.ground || (w && w.shell ? (w.shell as Shell).groundSource : "")
         progress = calm ? 1 : 0
+        stung = calm
         scene.sourceComponent = spec.scene
         root.forceActiveFocus()
         arrive.start()
         if (!calm) run.start()
         hold.restart()
-        if (spec.chime) Sounds.chime()
+        if (calm && spec.chime) Sounds.moment()
     }
     Connections { target: Theme; function onAliveChanged() { root.pump() } }
 
     Keys.onPressed: event => { event.accepted = true; root.dismiss() }
 
     Settling { when: arrive.running || leave.running }
-    NumberAnimation { id: arrive; target: root; property: "opacity"; to: 1; duration: root.calm ? Theme.fade : Theme.rise; easing: Theme.easeOut }
+    // In over a fade, the bars slamming in; out sharply, back to the page.
+    NumberAnimation { id: arrive; target: root; property: "opacity"; to: 1; duration: Theme.fade; easing: Theme.easeOut }
     SequentialAnimation {
         id: leave
-        NumberAnimation { target: root; property: "opacity"; to: 0; duration: root.calm ? Theme.fade : Theme.rise; easing: Theme.easeInOut }
+        NumberAnimation { target: root; property: "opacity"; to: 0; duration: root.calm ? Theme.fade : Theme.settle; easing: Theme.easeIn }
         ScriptAction { script: {
             scene.sourceComponent = undefined
             root.current = null
@@ -162,7 +175,7 @@ FocusScope {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: Theme.jpOf(Theme.worldId)
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
+            font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2)
             color: Theme.tint(Theme.artBright, 0.72)
         }
         Text {
