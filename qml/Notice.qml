@@ -1,7 +1,7 @@
 import QtQuick
 
 /*
-    One notice: it drops in, a hairline along its bottom runs out as its
+    One notice: it rises in, a hairline along its bottom runs out as its
     time does, and it waits while the pointer is on it. A failure says its
     `jp` line first, in the world's voice, then its English, with its raw
     words folded under "Details" (open, they can be selected and copied,
@@ -24,11 +24,13 @@ Item {
     required property string detail
     readonly property bool error: tone === "error"
     property bool detailsOpen: false
+    /** Its time stands still (a moment is playing over it). */
+    property bool held: false
 
     implicitHeight: content.implicitHeight + 28
 
     opacity: 0
-    transform: Translate { id: drop; y: -16 }
+    transform: Translate { id: drop; y: 16 }
     Component.onCompleted: { arrive.start(); if (error) Sounds.error() }
     ParallelAnimation {
         id: arrive
@@ -124,7 +126,7 @@ Item {
             running: true
             // One with a button stays twice as long, and waits under the pointer.
             duration: root.action !== "" ? Notices.linger * 2 : Notices.linger
-            paused: hover.hovered || root.detailsOpen
+            paused: hover.hovered || root.detailsOpen || root.held
             onFinished: Notices.dismiss(root.key)
         }
     }

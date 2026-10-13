@@ -53,6 +53,8 @@ Shape {
     readonly property var paths: ({
         "arrow-left": "M 8 2 L 3 7 L 8 12 M 3 7 L 13 7",
         "arrow-right": "M 6 2 L 11 7 L 6 12 M 11 7 L 1 7",
+        "arrow-up": "M 2 6 L 7 1 L 12 6 M 7 1 L 7 13",
+        "arrow-down": "M 2 8 L 7 13 L 12 8 M 7 13 L 7 1",
         "arrow-up-right": "M 3 11 L 11 3 M 4 3 L 11 3 L 11 10",
         "close": "M 2 2 L 12 12 M 12 2 L 2 12",
         "x": "M 2 2 L 12 12 M 12 2 L 2 12",

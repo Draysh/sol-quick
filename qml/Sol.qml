@@ -233,18 +233,25 @@ QtObject {
         `Sol.cheer()` after the world's main good act (an episode watched, a
         habit ticked, a card remembered): a warm light over the portrait,
         and now and then (the first in a few minutes) the big cheer, a hop
-        and a burst of sparks, so it stays an occasion. `react(kind)` names
-        the reaction: "happy" (the light), "cheer" (the big one).
+        and a burst of sparks, so it stays an occasion. The light rests too:
+        acts in a row (twenty cards remembered, five habits ticked) warm it
+        once in `happyRest`, not every time. `react(kind)` names the
+        reaction: "happy" (the light), "cheer" (the big one).
     */
     function cheer() {
         const now = Date.now()
         const big = now - cheeredAt > cheerRest
-        if (big) cheeredAt = now
-        reacted(big ? "cheer" : "happy")
+        if (big) { cheeredAt = now; happyAt = now; reacted("cheer"); return }
+        if (now - happyAt < happyRest) return
+        happyAt = now
+        reacted("happy")
     }
     /** When the last big cheer was, and how long the navigator rests before the next. */
     property real cheeredAt: 0
     readonly property int cheerRest: 4 * 60 * 1000
+    /** When the navigator's light last warmed, and how long it rests before it warms again. */
+    property real happyAt: 0
+    readonly property int happyRest: 20 * 1000
     function react(kind) { reacted(kind) }
     signal reacted(string kind)
 

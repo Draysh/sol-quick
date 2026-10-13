@@ -76,7 +76,8 @@ Item {
     /**
         Where the Japanese breaks when it doesn't fit on one line: after the
         、 (or 。！？) that leaves the longer of two lines shortest, both
-        fitting; -1 when it fits, or when no mark serves (then it is balanced).
+        fitting and neither a stub (under 40% of the other); -1 when it
+        fits, or when no mark serves (then it is balanced).
     */
     readonly property int jpCut: {
         const room = words.width
@@ -84,26 +85,51 @@ Item {
         let best = -1, shortest = Infinity
         for (let i = 1; i < jp.length - 1; i++) {
             if ("、。！？".indexOf(jp[i]) < 0) continue
-            const longer = Math.max(jpMetrics.advanceWidth(jp.slice(0, i + 1)), jpMetrics.advanceWidth(jp.slice(i + 1)))
-            if (longer <= room && longer < shortest) { shortest = longer; best = i + 1 }
+            const a = jpMetrics.advanceWidth(jp.slice(0, i + 1)), b = jpMetrics.advanceWidth(jp.slice(i + 1))
+            const longer = Math.max(a, b)
+            // Not when one line would be a stub under or over the other ("まず、" over ten more): balanced instead.
+            if (longer <= room && Math.min(a, b) >= longer * 0.4 && longer < shortest) { shortest = longer; best = i + 1 }
         }
         return best
     }
     /**
-        How wide words `natural` pixels long are set in `room`: as few lines
-        as fit, each about as long, so the last is never one word or one
-        character alone; `slack` is the longest thing that can't be broken.
+        How wide a line of words is set in `room`: as narrow as it can be
+        without taking another line, so its lines are about as long as each
+        other and the last is never a word or a character or two alone.
+        Measured on the words as Qt breaks them (a closing mark keeps to the
+        character before it, so counting characters alone would be off),
+        in `measure`, which no binding reads: the widths are worked out again
+        when the words, their face or the room change.
     */
-    function balanced(natural, room, slack) {
-        if (room <= 0 || natural <= room) return room
-        const lines = Math.ceil(natural / room)
-        return Math.min(room, Math.ceil(natural / lines + slack))
+    function fit(text, font, room) {
+        if (room <= 0 || text === "") return room
+        measure.font = font
+        measure.text = text
+        measure.width = room
+        const lines = measure.lineCount
+        if (lines <= 1) return room
+        // The narrowest width that still sets it in as many lines, found by halving.
+        let lo = Math.floor(measure.implicitWidth / lines) - 1, hi = Math.ceil(room)
+        while (hi - lo > 1) {
+            const mid = Math.floor((lo + hi) / 2)
+            measure.width = mid
+            if (measure.lineCount <= lines) hi = mid
+            else lo = mid
+        }
+        return Math.min(room, hi + 1)
     }
-    TextMetrics {
-        id: longestWord
-        font: lineText.font
-        text: speech.line.split(/\s+/).reduce((a, b) => b.length > a.length ? b : a, "")
+    property real jpWidth: 0
+    property real lineWidth: 0
+    function rebalance() {
+        const room = words.width
+        jpWidth = jpCut > 0 ? room : fit(jp, jpText.font, room)
+        lineWidth = fit(line, lineText.font, room)
     }
+    Component.onCompleted: rebalance()
+    onJpChanged: Qt.callLater(rebalance)
+    onLineChanged: Qt.callLater(rebalance)
+    onJpCutChanged: Qt.callLater(rebalance)
+    Text { id: measure; visible: false; wrapMode: Text.Wrap; textFormat: Text.PlainText; font.features: Theme.titleFeatures }
 
     // The Japanese takes the first half of the typing, the English the rest (all of it without Japanese).
     readonly property real jpPart: jp === "" ? 0 : line === "" ? 1 : 0.5
@@ -147,29 +173,32 @@ Item {
         id: words
         x: speech.pad + 2; y: speech.pad
         width: speech.width - x * 2
+        onWidthChanged: Qt.callLater(speech.rebalance)
         spacing: speech.large ? Theme.s1 + 2 : 3
         Text {
             id: jpText
             // Broken after a mark, or else between any two characters (a closing mark keeps to the one before it).
-            width: speech.jpCut > 0 ? parent.width : speech.balanced(size > 0 ? jpMetrics.advanceWidth(speech.jp) : 0, parent.width, font.pixelSize * 2)
+            width: speech.jpCut > 0 || speech.jpWidth <= 0 ? parent.width : Math.min(parent.width, speech.jpWidth)
+            onFontChanged: Qt.callLater(speech.rebalance)
             visible: speech.jp !== ""
             text: speech.shown(speech.jp, speech.jp.length * Math.min(1, speech.typed / Math.max(0.01, speech.jpPart)), speech.jpCut)
             textFormat: Text.StyledText
             wrapMode: Text.Wrap
             lineHeight: 1.1
-            // In the world's own face where it reads at a line's size: a face whose floor is only a
-            // little over it (Makinas, 18) sets the line at its floor, so it is said in that voice; a
-            // brush that needs more (Yuji Syuku), or a bubble without the room (`voiced` off), says it
-            // in the display face.
-            readonly property bool own: speech.voiced && Theme.titleFloor > 0 && Theme.titleFloor <= Theme.textL - 1
-            readonly property int size: speech.large ? Theme.textL : own ? Theme.titleFloor : Theme.textS + 1
+            // In the world's own face where it reads at a line's size: a face whose floor is a little
+            // over it (Makinas 18, Yuji Syuku 20) sets the line at its floor, so it is said in that
+            // voice, and a large bubble at its floor at least; a bubble without the room for that
+            // (`voiced` off) says it in the display face.
+            readonly property bool own: speech.voiced && Theme.titleFloor > 0 && Theme.titleFloor <= Theme.textL + 1
+            readonly property int size: speech.large ? (own ? Math.max(Theme.textL, Theme.titleFloor) : Theme.textL) : own ? Theme.titleFloor : Theme.textS + 1
             font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
             font.pixelSize: size
             color: speech.flavour.bright || speech.flavour.text
         }
         Text {
             id: lineText
-            width: speech.balanced(implicitWidth, parent.width, longestWord.advanceWidth + font.pixelSize * 0.5)
+            width: speech.lineWidth <= 0 ? parent.width : Math.min(parent.width, speech.lineWidth)
+            onFontChanged: Qt.callLater(speech.rebalance)
             visible: speech.line !== ""
             text: speech.shown(speech.line, speech.line.length * Math.max(0, (speech.typed - speech.jpPart) / Math.max(0.01, 1 - speech.jpPart)), -1)
             textFormat: Text.StyledText

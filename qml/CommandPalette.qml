@@ -127,8 +127,9 @@ Item {
                 tabsOf(c, group + c.label, c.icon || s.icon || "")
             }
         }
-        const commands = root.commands.filter(c => c && !c.separator).map(c => Object.assign({ kind: "command" }, c))
         const verbs = root.verbs.filter(c => c && !c.separator).map(c => Object.assign({ kind: "verb" }, c))
+        // A window's action the page offers as its own verb too ("Tick Walk" on Terra's Today) is listed once, as the page's.
+        const commands = root.commands.filter(c => c && !c.separator && !verbs.some(v => v.label === c.label)).map(c => Object.assign({ kind: "command" }, c))
         // With nothing typed: the page's verbs, what was run lately, the sections, then every action.
         if (q === "") {
             const known = verbs.concat(top, deeper, commands)

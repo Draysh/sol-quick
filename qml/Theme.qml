@@ -213,7 +213,8 @@ QtObject {
         first page's line down the right as a lit `NeonSign`) and `chroma`
         (big titles with a red and a cyan edge, `ChromaText`), `title` (its
         title face, `fontTitle`), `openingName` (the opening slams in the
-        world's whole name rather than its kanji) and `kanjiNumbers` (the sidebar's numbers
+        world's whole name rather than its kanji), `opening` (its opening's
+        own way, when not its page turn's: Luna's "moon") and `kanjiNumbers` (the sidebar's numbers
         in kanji in that face, 一, 二, 三, instead of 01, 02). A day
         flavour (Terra's noon) has `light` glass: frosted white, its words
         (`text`, `quiet`, `faint`, and `bright` the strongest) dark ink, its
@@ -233,7 +234,7 @@ QtObject {
             text: "#f2f4ff", quiet: "#c8d0ff", faint: "#8e98d8",
             sky: ["#0b0e2a", "#2b2468", "#8a3c7e", "#f07a6a", "#ffc07e"], stars: true, shade: 0.78,
             // Dusk: indigo overhead, the horizon left warm (amber over the still's own glow), night at the foot.
-            hold: 0.2, frame: [1.22, 0], letterbox: true,
+            hold: 0.2, frame: [1.22, 0], letterbox: true, openingName: true,
             grade: [[0.17, 0.14, 0.41, 0.34], [1, 0.66, 0.4, 0.16], [0.17, 0.14, 0.41, 0.46], [0.043, 0.055, 0.165, 0.86], [0.043, 0.055, 0.165, 0.96]]
         },
         mercury: {
@@ -242,7 +243,7 @@ QtObject {
             accent: "#ff8fa8", second: "#ffd58a", seal: "#e2412e", washi: "#fff4da", bubble: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.9), blush: "#ff9fb4", face: [0.5, 0.42],
             text: "#fff8ee", quiet: "#e9dccf", faint: "#a99a9e",
             sky: ["#05061a", "#121848", "#2e1e4e", "#7a2a3c", "#c94a35"], stars: true, shade: 0.8,
-            torii: true, tategaki: true, kanjiNumbers: true,
+            torii: true, tategaki: true, kanjiNumbers: true, openingName: true,
             grade: [[0.89, 0.25, 0.18, 0.12], [0.03, 0.03, 0.11, 0.3], [0.03, 0.03, 0.11, 0.5], [0.027, 0.031, 0.11, 0.86], [0.027, 0.031, 0.11, 0.96]]
         },
         neptune: {
@@ -261,7 +262,7 @@ QtObject {
             accent: "#1157ab", second: "#3b3f9e", primary: "#ffb81c", artAccent: "#ffe07a", artSecond: "#fff3a6",
             seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f", bubble: Qt.rgba(246 / 255, 250 / 255, 1, 0.92), blush: "#ffc9a0", face: [0.52, 0.44],
             bright: "#0b1730", text: "#10203a", quiet: "#33476a", faint: "#3f5378",
-            sky: ["#1f6fd6", "#4a90e2", "#8fbdf0", "#cfe4fa", "#eef6ff"], stars: false, shade: 0.2, pool: 0.4,
+            sky: ["#1f6fd6", "#4a90e2", "#8fbdf0", "#cfe4fa", "#eef6ff"], stars: false, shade: 0.2, pool: 0.4, openingName: true,
             grade: [[1, 1, 1, 0.16], [0.86, 0.93, 1, 0.1], [0.86, 0.93, 1, 0.04], [0.8, 0.9, 1, 0.1], [0.78, 0.88, 1, 0.18]]
         },
         // Luna: Terra after sunset, under the moon: indigo glass, the moon's yellow its light.
@@ -270,7 +271,7 @@ QtObject {
             ground: "#0b0d2a", glass: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.66), edge: "#dcd8ff",
             accent: "#ffe08a", second: "#b7c2ff", seal: "#ffe08a", bubble: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.9), blush: "#ffc9a0", face: [0.52, 0.44],
             text: "#f7f5ff", quiet: "#d6d3f2", faint: "#a4a1cf",
-            sky: ["#05061a", "#0d1238", "#1c2160", "#2b2f74", "#3d3a86"], stars: true, shade: 0.72,
+            sky: ["#05061a", "#0d1238", "#1c2160", "#2b2f74", "#3d3a86"], stars: true, shade: 0.72, openingName: true, opening: "moon",
             grade: [[0.05, 0.06, 0.2, 0.16], [0.05, 0.06, 0.2, 0.1], [0.05, 0.06, 0.2, 0.3], [0.043, 0.051, 0.165, 0.72], [0.043, 0.051, 0.165, 0.9]]
         }
     })

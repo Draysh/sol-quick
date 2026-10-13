@@ -21,8 +21,9 @@ import QtQuick.Effects
 
     With `aside`, in a window under 1300 px wide the title card stands
     beside the page instead of over it: a column down the left of the pane,
-    on the still, the title at its top and what sits under it at its foot,
-    and the page's own content to its right from the first line (a page
+    on the still, the title at its top and what sits under it a step below
+    it, one group, the rest of the column left to the still, and the
+    page's own content to its right from the first line (a page
     places its column at the Screen's `startX`, `startWidth` wide).
 
         Sheet { world: "terra"; callout: ["Walk = done"]; figures: [{ value: "12", label: "Streak", jp: "連続" }, { value: "3/5", label: "Today", jp: "今日" }] }
@@ -162,8 +163,11 @@ Item {
                 elide: Text.ElideRight
                 // Beside the page a title takes up to three lines of the column, as a poster's does.
                 // (Beside, as large as its longest word allows on a line of the column.)
-                readonly property int longest: text.split(/\s+/).reduce((m, w) => Math.max(m, w.length), 1)
-                readonly property real size: root.beside ? Math.round(Math.max(28, Math.min(text.length > 16 ? 44 : 60, width / (longest * 0.68)))) : root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
+                // (Japanese breaks after its 、 and 。 as English does between words.)
+                readonly property int longest: text.replace(/([、。])/g, "$1 ").split(/\s+/).reduce((m, w) => Math.max(m, w.length), 1)
+                // A Latin letter is about two thirds of a square wide, a kana or kanji a whole one.
+                readonly property real per: Theme.hasJp(text) ? 1.04 : 0.68
+                readonly property real size: root.beside ? Math.round(Math.max(28, Math.min(text.length > 16 ? 44 : 60, width / (longest * per)))) : root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
                 font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size); font.pixelSize: size
                 // Broken between words only: the size keeps the longest word on its line.
                 wrapMode: root.beside ? Text.WordWrap : Text.NoWrap
@@ -209,7 +213,7 @@ Item {
             visible: wanted && root.vertical !== "" && !root.portrait
             text: root.vertical
             size: root.tight ? 22 : 28
-            room: root.beside ? Math.max(120, center.y - y - Theme.s4) : root.fullHeight - y - Theme.s3
+            room: root.beside ? Theme.s7 * 2 + Theme.s5 : root.fullHeight - y - Theme.s3
             x: band.width - (root.beside ? Theme.s3 : Theme.margin(root.width)) - width
             y: root.beside ? hero.y + hudLine.height + Theme.s2 : root.tight ? Theme.s3 : Theme.s4
             opacity: Math.max(0, 1 - root.collapse * 3)
@@ -220,7 +224,9 @@ Item {
         Item {
             id: center
             x: hero.x
-            y: root.beside ? Math.max(hero.y + hero.height + Theme.s4, band.height - height - Theme.s4) : hero.y + hero.height + Theme.s3
+            // Beside the page, one group with the title, a step under it (and under the sign hung
+            // beside it): the column is composed at its top, the rest of it left to the still.
+            y: root.beside ? Math.max(Theme.s4, Math.min(band.height - height - Theme.s4, Math.max(hero.y + hero.height, sign.visible ? sign.y + sign.height : 0) + Theme.s5)) : hero.y + hero.height + Theme.s3
             opacity: root.landed * Math.max(0, 1 - root.collapse * 1.6)
             readonly property bool both: underBox.visible && figureRow.visible
             readonly property bool beside: !both || !root.beside && underBox.width + Theme.s6 + figureRow.implicitWidth <= root.width - Theme.margin(root.width) * 2
@@ -324,7 +330,7 @@ Item {
             visible: tonight.events.length > 0 && root.collapse < 0.3
             readonly property real edge: Theme.margin(root.width)
             x: root.beside ? hero.x : band.width - width - edge
-            y: root.beside ? center.y - height - Theme.s3 : band.height - height - Theme.s3
+            y: root.beside ? center.y + center.height + Theme.s4 : band.height - height - Theme.s3
             width: root.portrait || root.beside ? band.width - edge * 2 : 300
             height: tonightColumn.implicitHeight
             property var asked: []

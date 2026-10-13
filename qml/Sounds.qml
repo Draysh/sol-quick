@@ -26,7 +26,7 @@ import QtMultimedia
     weightier one still comes through) and no more than six a second.
 
         Sounds.tick()   Sounds.done()   Sounds.off()   Sounds.chime()   Sounds.voice()
-        Sounds.turn()   Sounds.opening()   Sounds.moment()   Sounds.lit()   Sounds.open()   Sounds.close()   Sounds.focus()   Sounds.error()
+        Sounds.turn()   Sounds.opening()   Sounds.hushOpening()   Sounds.moment()   Sounds.lit()   Sounds.open()   Sounds.close()   Sounds.focus()   Sounds.error()
 */
 QtObject {
     id: sounds
@@ -43,9 +43,10 @@ QtObject {
     /** How loud they all are, 0 to 1: low, under music and speech. Each sound's own volume is its share of it. */
     readonly property real level: 0.5
     property SoundEffect tickSound: SoundEffect { source: "../assets/sounds/tick.wav"; volume: 0.45 * sounds.level }
-    property SoundEffect doneSound: SoundEffect { source: "../assets/sounds/done.wav"; volume: 0.5 * sounds.level }
+    // "Done" plays for every write that goes through, so it sits a little under the stings.
+    property SoundEffect doneSound: SoundEffect { source: "../assets/sounds/done.wav"; volume: 0.35 * sounds.level }
     property SoundEffect offSound: SoundEffect { source: "../assets/sounds/off.wav"; volume: 0.4 * sounds.level }
-    property SoundEffect chimeSound: SoundEffect { source: "../assets/sounds/chime.wav"; volume: 0.4 * sounds.level }
+    property SoundEffect chimeSound: SoundEffect { source: "../assets/sounds/chime.wav"; volume: 0.28 * sounds.level }
 
     /** The worlds with a voice of their own, and what it sounds like (DeviceCard says). */
     readonly property var voices: ({ saturn: "a soft ring", neptune: "a water drop", mercury: "a bell", terra: "a wood tick", luna: "a chime", titan: "a whoosh", triton: "a static blip" })
@@ -53,20 +54,43 @@ QtObject {
     /** Whose voice: the world of the page in front (the Shell sets it: a carried moon's own on its pages). */
     property string world: Sol.world
     readonly property string voiceName: voices[world] || ""
-    property SoundEffect voiceSound: SoundEffect { source: sounds.voiceName ? "../assets/sounds/" + sounds.world + ".wav" : ""; volume: 0.8 * sounds.level }
+    property SoundEffect voiceSound: SoundEffect { source: sounds.voiceName ? "../assets/sounds/" + sounds.world + ".wav" : ""; volume: 0.7 * sounds.level }
 
     // The flavour's stings (a moon with a flavour of its own has its own; another takes its planet's).
     readonly property string sting: "../assets/sounds/" + Theme.flavour + "-"
-    property SoundEffect turnSound: SoundEffect { source: sounds.sting + "turn.wav"; volume: 0.5 * sounds.level }
-    property SoundEffect openingSound: SoundEffect { source: sounds.sting + "opening.wav"; volume: 0.8 * sounds.level }
-    property SoundEffect momentSound: SoundEffect { source: sounds.sting + "moment.wav"; volume: 0.8 * sounds.level }
+    /**
+        Each flavour's stings matched to the others of their kind, in dB on
+        the kind's volume, so no world's opening, moment, turn or light is
+        louder than another's by more than a decibel or so (measured as
+        BS.1770 has loudness, the loudest 400 ms, on 2026-10-13): the
+        openings and moments at about -32 LUFS as they play, the lights at
+        -38 (Mercury's seal, pressed on every right answer, at -42), the
+        turns at -43, under them all.
+    */
+    readonly property var trims: ({
+        "saturn-opening": 3, "neptune-opening": 4.5, "terra-opening": -2.5,
+        "saturn-moment": 2, "neptune-moment": 4,
+        "saturn-turn": 2.5, "mercury-turn": 2, "luna-turn": -2.5,
+        "neptune-lit": -4, "saturn-lit": 3.5, "mercury-lit": 4, "terra-lit": -1.5
+    })
+    /** The share `share` of the level for this flavour's `kind` of sting, with its trim. */
+    function stingVolume(kind, share) { return Math.min(1, share * level * Math.pow(10, (trims[Theme.flavour + "-" + kind] || 0) / 20)) }
+    property SoundEffect turnSound: SoundEffect { source: sounds.sting + "turn.wav"; volume: sounds.stingVolume("turn", 0.5) }
+    property SoundEffect openingSound: SoundEffect { source: sounds.sting + "opening.wav"; volume: sounds.stingVolume("opening", 0.8) * sounds.openingLeft }
+    /** How much of the opening's sting is left to hear, 1 → 0 as it is hushed (`hushOpening`). */
+    property real openingLeft: 1
+    property NumberAnimation hushing: NumberAnimation {
+        target: sounds; property: "openingLeft"; to: 0; duration: Theme.fade; easing: Theme.easeIn
+        onFinished: { sounds.openingSound.stop(); sounds.openingLeft = 1 }
+    }
+    property SoundEffect momentSound: SoundEffect { source: sounds.sting + "moment.wav"; volume: sounds.stingVolume("moment", 0.8) }
     property SoundEffect openSound: SoundEffect { source: "../assets/sounds/open.wav"; volume: 0.6 * sounds.level }
     property SoundEffect closeSound: SoundEffect { source: "../assets/sounds/close.wav"; volume: 0.6 * sounds.level }
     property SoundEffect focusSound: SoundEffect { source: "../assets/sounds/focus.wav"; volume: 0.5 * sounds.level }
     property SoundEffect errorSound: SoundEffect { source: "../assets/sounds/error.wav"; volume: 0.7 * sounds.level }
-    /** The flavours with a sting for a light coming on (`<flavour>-lit.wav`): Neptune's neon tube catching. */
-    readonly property var lights: ["neptune"]
-    property SoundEffect litSound: SoundEffect { source: sounds.lights.indexOf(Theme.flavour) >= 0 ? sounds.sting + "lit.wav" : ""; volume: 0.7 * sounds.level }
+    /** The flavours with a sting for something catching (`<flavour>-lit.wav`): Neptune's neon tube, Saturn's projector lamp, Mercury's seal pressed into paper, Terra's furin in the wind. */
+    readonly property var lights: ["neptune", "saturn", "mercury", "terra"]
+    property SoundEffect litSound: SoundEffect { source: sounds.lights.indexOf(Theme.flavour) >= 0 ? sounds.sting + "lit.wav" : ""; volume: sounds.stingVolume("lit", 0.7) }
 
     readonly property bool playing: on && Theme.alive
     // The burst limiter: what played last and how weighty it was, and the sounds of the last second.
@@ -86,10 +110,19 @@ QtObject {
     }
     /** When the pointer last pressed (the window's), so moving focus by a click makes no sound. */
     property real pressedAt: 0
-    /** A page turning: the flavour's sting, quiet. */
-    function turn() { if (playing && allowed(3)) turnSound.play() }
+    /** A page turning: the flavour's sting, quiet; pages turned in quick succession sound once in `turnRest`. */
+    function turn() {
+        const now = Date.now()
+        if (!playing || now - turnAt < turnRest || !allowed(3)) return
+        turnAt = now
+        turnSound.play()
+    }
+    property real turnAt: 0
+    readonly property int turnRest: 1200
     /** The world's opening: its sting, with the slam. */
-    function opening() { if (playing && allowed(4)) openingSound.play() }
+    function opening() { if (playing && allowed(4)) { hushing.stop(); openingLeft = 1; openingSound.play() } }
+    /** An opening skipped: its sting fades out over `fade` rather than ringing on under what was pressed. */
+    function hushOpening() { if (openingSound.playing && !hushing.running) hushing.restart() }
     /** A moment: the flavour's sting as its title slams in. */
     function moment() { if (playing && allowed(4)) momentSound.play() }
     /** The palette or a sheet opening, and closing. */

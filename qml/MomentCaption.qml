@@ -36,6 +36,10 @@ Column {
     property bool centred: true
     /** Over a picture's dark scrim: light words in either light. */
     property bool onPhoto: false
+    /** How the Japanese arrives: SlamText's `way` ("slam"; a softer "bounce" or "rise"). */
+    property string way: "slam"
+    /** The Japanese's colour: white, or a world's own light (Luna's moon yellow). */
+    property color jpColor: Theme.artBright
     /** The English title's size under a Japanese one. */
     property int titleSize: Theme.textLede
     readonly property color bright: onPhoto ? "#ffffff" : Theme.artBright
@@ -80,8 +84,9 @@ Column {
         wrap: !root.titled
         maximumLineCount: 2
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
-        color: root.titled ? Theme.artBright : root.bright
+        color: root.titled ? root.jpColor : root.bright
         glint: Theme.artAccent
+        way: root.way
         at: root.t - root.slamAt
     }
     // Under a Japanese title, the English, in the display face, landing after the hold.

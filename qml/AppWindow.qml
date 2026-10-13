@@ -314,23 +314,29 @@ Window {
         Settling { when: frameIn.running }
         NumberAnimation { id: frameIn; target: frame; property: "opacity"; to: 1; duration: Theme.rise; easing: Theme.easeOut }
     }
-    // Notices drop in at the top right of the pages, clear of a first page's title
-    // card on the left: over the frame, not in it, so their glass blurs the pages
-    // and not themselves.
+    // Notices rise in at the bottom right of the pages, above a footer: the top of a page is
+    // its title, its sign and its first cards, which a notice would cover. Over the frame,
+    // not in it, so their glass blurs the pages and not themselves. While a moment plays they
+    // step aside and their time stands still, and they come back as it goes.
     // A view, not a column, so a notice that goes fades out and the rest
     // close up after it instead of jumping.
     ListView {
         id: noticeStack
         readonly property Item area: win.shell ? win.shell.pageArea : null
+        readonly property real areaHeight: win.shell ? win.shell.pagesHeight : win.height
         x: area ? area.x + area.width - width - Theme.s4 : win.width - width - Theme.s4
-        y: Theme.s4
+        y: (area ? area.y : 0) + areaHeight - height - Theme.s4
         width: Math.min(380, (area ? area.width : win.width) - 32)
-        height: contentHeight
+        height: Math.min(contentHeight, areaHeight - Theme.s4 * 2)
+        verticalLayoutDirection: ListView.BottomToTop
         spacing: Theme.s2
         z: 50
         interactive: false
+        opacity: momentBox.showing ? 0 : 1
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Theme.fade; easing: Theme.ease } }
         model: Notices.list
-        delegate: Notice { width: noticeStack.width }
+        delegate: Notice { width: noticeStack.width; held: momentBox.showing }
         remove: Transition {
             ParallelAnimation {
                 NumberAnimation { property: "opacity"; to: 0; duration: Theme.fade; easing: Theme.ease }
@@ -341,16 +347,29 @@ Window {
     }
     Tour { id: tourBox; world: win.world; cards: win.tour; go: path => win.shell && win.shell.go(path); onClosed: if (!Sol.preview) tourPrefs.toured = true }
     Moment { id: momentBox }
-    // A star lit in the world's Sky (a milestone reached, a comet caught): its moment.
+    // A star lit in the world's Sky (a milestone reached, a comet caught): its moment, a beat after
+    // the act that lit it, so that act lands and its own moment (Terra's sunrise) comes first.
     Component { id: starScene; StarScene { } }
     Connections {
         target: Sol
         function onEvent(name, data) {
-            if (name === "sky.lit") momentBox.play({ scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
+            if (name === "sky.lit") win.starLater({ scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
         }
         function onEventIn(world, name, data) {
-            if (name === "sky.lit") momentBox.play({ world: world, scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
+            if (name === "sky.lit") win.starLater({ world: world, scene: starScene, chime: true, facts: { title: data.title, story: data.story, constellation: data.constellation_title } })
         }
+    }
+    /** Plays a star's moment after `Theme.settle` twice (at once with less motion). */
+    function starLater(spec) {
+        starWait.specs = starWait.specs.concat([spec])
+        if (Theme.calm) starWait.triggered()
+        else starWait.restart()
+    }
+    Timer {
+        id: starWait
+        property var specs: []
+        interval: Math.max(1, Theme.settle * 2)
+        onTriggered: { const all = specs; specs = []; for (const s of all) momentBox.play(s) }
     }
     // A page of this app asked for by the screens (`Sol.go`): a carried moon's, or the planet's.
     Connections { target: Sol; function onGo(path) { win.goTo(path, win.shell) } }

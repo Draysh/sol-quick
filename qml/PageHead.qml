@@ -31,6 +31,8 @@ Item {
         by its type. Off, the title is the HUD line's English subtitle.
     */
     property bool named: false
+    /** A `feature` under the band carries the name large already (an album's): the band takes it only as the feature folds away. False when the feature is something else (a month's figures), so the band has the name from the start. */
+    property bool featureNamed: true
     /** The size a `named` title is set at: over every title face's floor (`Theme.titleFloors`). */
     readonly property int namedSize: 30
     /** The title in Japanese: "書庫". Its section's `jp` when not given. */
@@ -298,7 +300,7 @@ Item {
                     visible: !root.editable
                     readonly property real room: textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0)
                     /** 1 where the name stands in the title face, 0 where the subtitle does. */
-                    readonly property real named: !root.named ? 0 : root.pins ? Math.max(0, Math.min(1, (root.collapse - 0.45) / 0.4)) : 1
+                    readonly property real named: !root.named ? 0 : root.pins && root.featureNamed ? Math.max(0, Math.min(1, (root.collapse - 0.45) / 0.4)) : 1
                     width: Math.min(Math.max(subtitle.visible ? subtitle.implicitWidth : 0, nameText.visible ? nameText.implicitWidth : 0), room)
                     height: root.named ? nameText.implicitHeight : subtitle.implicitHeight
                     Text {

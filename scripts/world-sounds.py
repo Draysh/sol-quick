@@ -6,7 +6,9 @@
   Triton's static blip (`<world>.wav`, `Sounds.voice()`).
 - Each flavour's stings, hits only (`<flavour>-turn.wav`, `-opening.wav`,
   `-moment.wav`; a moon without a flavour of its own takes its planet's),
-  and Neptune's `-lit.wav`, a neon tube catching (`Sounds.lit()`):
+  and `-lit.wav` for something catching (`Sounds.lit()`: Neptune's neon tube,
+  Saturn's projector lamp, Mercury's seal pressed into paper, Terra's furin
+  in a breath of wind):
   Neptune's a glitch and a synth stab, Saturn's a film's thump and a low
   boom with the rings' bell, Mercury's a brush, a taiko and a rin, Terra's
   a sweep of air, a furin and a sunrise of glass bells, Luna's the same
@@ -211,6 +213,46 @@ def neptune_lit():
     return lowpass(out, 4000)
 
 
+def saturn_lit():
+    # A projector's lamp catching: the gate's two clicks, a soft low thump as the lamp strikes,
+    # and the reel's whirr for a moment under it, let go.
+    out = np.zeros(int(RATE * 0.42))
+    for at, level in ((0.0, 0.8), (0.045, 0.55)):
+        t = t_of(0.012)
+        place(out, level * bandpass(rng.normal(0, 1, len(t)), 1800, 6000) * np.exp(-t / 0.003), at)
+    place(out, 0.7 * thump(150, 70, 0.3, 0.07), 0.05)
+    t = t_of(0.3)
+    whirr = bandpass(rng.normal(0, 1, len(t)), 300, 1400) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 24 * t)))
+    place(out, 0.18 * fade(whirr * np.exp(-t / 0.12), 0.02, 0.1), 0.07)
+    return lowpass(out, 6000)
+
+
+def mercury_lit():
+    # A seal pressed into paper: the hanko's soft knock through the sheet onto the desk, the paper
+    # giving under it with a little crush, and the wood's short ring. Soft: it comes with every
+    # right answer.
+    out = np.zeros(int(RATE * 0.3))
+    t = t_of(0.05)
+    place(out, 0.5 * bandpass(rng.normal(0, 1, len(t)), 250, 1800) * np.exp(-t / 0.005), 0)
+    place(out, 0.9 * thump(170, 95, 0.16, 0.035), 0.002)
+    t = t_of(0.08)
+    place(out, 0.1 * bandpass(rng.normal(0, 1, len(t)), 2200, 6500) * np.exp(-t / 0.025), 0.006)
+    t = t_of(0.12)
+    place(out, 0.18 * np.sin(2 * np.pi * 640 * t) * np.exp(-t / 0.03), 0.004)
+    return lowpass(out, 5000)
+
+
+def terra_lit():
+    # A furin in a breath of wind: the clapper touches the glass once, clear and high, and once
+    # more softly as it swings back; the glass's own tick under the first.
+    out = np.zeros(int(RATE * 0.62))
+    t = t_of(0.01)
+    place(out, 0.12 * bandpass(rng.normal(0, 1, len(t)), 3000, 9000) * np.exp(-t / 0.0015), 0)
+    place(out, bell(2349, [(1, 1.0), (2.76, 0.22), (5.4, 0.06)], 0.2, 0.5), 0.001)
+    place(out, 0.4 * bell(2349, [(1, 1.0), (2.76, 0.18)], 0.16, 0.42), 0.16)
+    return out
+
+
 def neptune_moment():
     # A synth stab, a minor seventh, with a tail.
     t = t_of(1.4)
@@ -361,6 +403,9 @@ STINGS = {
     "error": (error, 0.18),
     # Last, so the seeded noise of every sound above stays as it was.
     "neptune-lit": (neptune_lit, 0.14),
+    "saturn-lit": (saturn_lit, 0.14),
+    "mercury-lit": (mercury_lit, 0.12),
+    "terra-lit": (terra_lit, 0.12),
 }
 
 SOUNDS = {

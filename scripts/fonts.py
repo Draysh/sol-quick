@@ -16,7 +16,11 @@ already downloaded, the same way:
 - Corporate Logo Bold (LOGOTYPE.JP, SIL Open Font License): Saturn's titles
   and every app's subtitles and big figures (`Theme.fontDisplay`). Its
   licence is `OFL-CorporateLogo.txt`. Its space is half a square, too wide
-  between English words, so the cut narrows it (`--space 0.25`).
+  between English words, so the cut narrows it (`--space 0.25`). Its em
+  dash is made a mark (in GDEF, with no width), so a shaper set it with no
+  room at all and a "—" alone (a HeroFigure with no value yet) drew
+  nothing; every cut makes such a character a character again, with the
+  width its ink needs (the backtick too).
 
 None of these has proportional punctuation (`palt`, which sets 、。「」 in
 half a square in a title), so `--palt` gives a cut one, worked out from
@@ -86,6 +90,38 @@ def cut(font, to, text):
         "--layout-features=*", "--name-IDs=*", "--no-hinting",
         f"--output-file={to}",
     ], check=True)
+
+
+def give_widths(font):
+    """Makes each character in `font` that is no mark but was made one (classed a mark, which a shaper
+    sets with no width, or drawn with no width) a character of its own: classed a base, with the width
+    its ink and its left bearing need."""
+    import unicodedata
+
+    from fontTools.pens.boundsPen import BoundsPen
+    from fontTools.ttLib import TTFont
+
+    f = TTFont(font)
+    glyphs = f.getGlyphSet()
+    classes = f["GDEF"].table.GlyphClassDef.classDefs if "GDEF" in f and f["GDEF"].table.GlyphClassDef else {}
+    changed = False
+    for code, name in f.getBestCmap().items():
+        if unicodedata.category(chr(code)).startswith("M"):
+            continue
+        if classes.get(name) == 3:
+            classes[name] = 1
+            changed = True
+        advance, left = f["hmtx"][name]
+        if advance:
+            continue
+        pen = BoundsPen(glyphs)
+        glyphs[name].draw(pen)
+        if pen.bounds is None or pen.bounds[0] < 0:
+            continue
+        f["hmtx"][name] = (round(pen.bounds[2] + pen.bounds[0]), left)
+        changed = True
+    if changed:
+        f.save(font)
 
 
 def narrow_space(font, em):
@@ -174,6 +210,7 @@ def main():
             text = Path(tmp) / "japanese.txt"
             text.write_text(japanese())
             cut(font, to, text)
+        give_widths(to)
         if "--space" in rest:
             narrow_space(to, float(rest[rest.index("--space") + 1]))
         if "--palt" in rest:

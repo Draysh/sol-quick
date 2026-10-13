@@ -2,8 +2,9 @@ pragma Singleton
 import QtQuick
 
 /*
-    In-app notices: short messages at the top edge. They fade in and leave
-    after six seconds; the time stops while the pointer is on one. The
+    In-app notices: short messages at the bottom right of the pages. They
+    rise in and leave after six seconds; the time stops while the pointer
+    is on one, and while a moment plays (they step aside for it). The
     window shows them; anything can post one.
 
         Notices.show({ world: "terra", title: "Not saved", body: why, tone: "error" })

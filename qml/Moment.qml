@@ -57,7 +57,9 @@ FocusScope {
     onElapsedChanged: if (!stung && current && elapsed >= slamAt) { stung = true; if (current.chime) Sounds.moment() }
 
     anchors.fill: parent
-    z: 200
+    // Over everything in the window while it plays: a hint the pointer left up, an open menu
+    // or the palette (the notices step aside for it themselves).
+    z: 1100
     visible: opacity > 0
     opacity: 0
     enabled: showing

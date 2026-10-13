@@ -146,7 +146,12 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   PointHandler skip it (`drawnIn()`), the event going on. AppWindow's frame
   skips its own fade-in while `Shell.opening` is true. It never plays with
   `Theme.calm`, `Sol.background`, or in `SOL_SHOT`/`SOL_SHOTS` unless the
-  path has `_opening=1`.
+  path has `_opening=1`. When the window was asked for a carried moon's page
+  (`SolBackend.openPath`, or a staged shot's path) whose moon has a flavour of
+  its own, it sets `Theme.worldId` to the moon before it plays, so the moon's
+  opening (its flavour's `opening`, Luna's "moon") and sting come from the
+  first frame. A star's moment (`sky.lit`) waits `Theme.settle` twice in
+  AppWindow (`starLater`), so the act that lit it, and its own moment, come first.
 - **The hero flight** morphs by scale: the flyer takes the landing's size
   and is scaled from where it left (Pictures are square, so it reads no
   `rounded` or `radius`).
@@ -256,13 +261,15 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `<Theme.flavour>-turn|opening|moment.wav` (saturn, mercury, neptune,
   terra, luna): a new flavour adds its three there; `-lit.wav` (a light
   coming on, `Sounds.lit()`) only for the flavours in `Sounds.lights`
-  (Neptune's), added last in `world-sounds.py` so the seeded noise of the
-  others stays; `open`, `close`,
+  (Neptune's, Saturn's, Mercury's, Terra's), each added last in `world-sounds.py` so the seeded
+  noise of the others stays; `open`, `close`,
   `focus`, `error` are the kit's. AppWindow records presses in
   `Sounds.pressedAt` so a click's focus makes no `focus()` sound.
   `Sol.cheer()` sends `reacted("cheer")` (the big one: a jump and sparks) at
   most once in `Sol.cheerRest`, and `reacted("happy")` (the warm light)
-  between.
+  between, at most once in `Sol.happyRest` (20 s). A new flavour's stings
+  are measured against the others (their loudness as BS.1770 has it) and
+  matched by an entry in `Sounds.trims`; see `docs/yozora.md`, "Direction".
 - **Rust ↔ QML**: every `SolBackend` property, method and signal name
   (`bridge.rs`); the commands the kit's QML calls (the shared ones in
   `README.md`: `moment` from Moment, `undoable` and `restore` from

@@ -10,7 +10,9 @@ import QtQuick
     hit. Whoever plays it drives `at`, the milliseconds since the slam
     began (a moment's clock, the opening's), so it follows that clock and
     rests whole wherever it is not driven. The opening's kanji, a moment's
-    title.
+    title. Its `way` may be gentler: "bounce" (Terra's opening: it drops in
+    from a little smaller, a touch past its size and back, a sun's glint
+    along it) or "rise" (Luna's: it comes up out of the dark, no glint).
 
         SlamText { text: "海"; size: 280; at: opening.at }
         SlamText { text: "満点"; size: 150; at: moment.elapsed - 480 }
@@ -36,6 +38,8 @@ Item {
     property bool chroma: !!Theme.hud.chroma
     /** A glitch's tear: the half above the cut pushed this many pixels right, the half below as far left (Neptune's opening jolts it twice in its hold). */
     property real tear: 0
+    /** How it arrives: "slam" (cut, the halves meeting), "bounce" (a soft drop, a touch past its size) or "rise" (up out of the dark). */
+    property string way: "slam"
     /** A soft shadow under the words, so they read over a still. */
     property color shadow: Theme.tint(Theme.hud.dim || Theme.hud.ground, 0.6)
 
@@ -44,17 +48,30 @@ Item {
 
     readonly property real hit: Math.max(1, Theme.hit)
     readonly property real k: Math.max(0, Math.min(1, at / hit))
-    /** Past the hit: one frame past its size, then at its size. */
-    readonly property real s: at < 0 ? 1.3 : at < hit ? 1.3 - 0.34 * k * k : at < hit + Theme.flicker ? 0.96 : 1
+    /** 0 → 1 over the hold after the hit: a bounce settling, a rise ending. */
+    readonly property real held: Math.max(0, Math.min(1, (at - hit) / Math.max(1, Theme.hold)))
+    readonly property real eased: 1 - Math.pow(1 - k, 3)
+    /** A rise takes the hit and the hold. */
+    readonly property real risen: 1 - Math.pow(1 - Math.max(0, Math.min(1, at / (hit + Math.max(1, Theme.hold)))), 3)
+    /** Past the hit: one frame past its size, then at its size (a bounce: a touch past, easing back over a hold). */
+    readonly property real s: way === "bounce" ? (at < 0 ? 0.82 : at < hit ? 0.82 + 0.24 * eased : 1.06 - 0.06 * (1 - Math.pow(1 - held, 2)))
+        : way === "rise" ? (at < 0 ? 0.97 : 0.97 + 0.03 * risen)
+        : at < 0 ? 1.3 : at < hit ? 1.3 - 0.34 * k * k : at < hit + Theme.flicker ? 0.96 : 1
+    /** How far it is from its place, up or down: a bounce drops from above, a rise comes up from below. */
+    readonly property real lift: way === "bounce" ? (at < hit ? -Theme.s4 * (1 - eased) : 0)
+        : way === "rise" ? Theme.s3 * (1 - risen) : 0
     /** How far apart the halves are, closing over the hit. */
-    readonly property real apart: at < hit && at >= 0 ? Math.pow(1 - k, 2) * Math.max(24, width * 0.16) : 0
+    readonly property real apart: way === "slam" && at < hit && at >= 0 ? Math.pow(1 - k, 2) * Math.max(24, width * 0.16) : 0
     /** The glint and the ghosts, from the hit through a hold. */
-    readonly property real after: at < 0 ? 0 : at < hit ? k : Math.max(0, 1 - (at - hit) / Math.max(1, Theme.hold))
+    readonly property real after: way === "rise" || at < 0 ? 0 : at < hit ? k : Math.max(0, 1 - (at - hit) / Math.max(1, Theme.hold))
     /** Where the cut runs, from the top. */
     readonly property real cut: Math.round(height * 0.54)
 
-    opacity: at < 0 ? 0 : Math.min(1, 0.4 + k)
-    transform: Scale { origin.x: root.width / 2; origin.y: root.height / 2; xScale: root.s; yScale: root.s }
+    opacity: at < 0 ? 0 : way === "rise" ? risen : Math.min(1, 0.4 + k)
+    transform: [
+        Scale { origin.x: root.width / 2; origin.y: root.height / 2; xScale: root.s; yScale: root.s },
+        Translate { y: root.lift }
+    ]
 
     component Face: Text {
         text: root.text

@@ -103,6 +103,8 @@ Item {
     property alias footer: footSlot.data
     /** Where the pages show, beside the sidebar (the window puts notices over it). */
     readonly property alias pageArea: pane
+    /** How tall the pages are in the pane: all of it but the footer. */
+    readonly property real pagesHeight: paneSlot.height
     /** The page on screen. */
     readonly property Item page: history.length ? history[here].item : null
     readonly property string path: history.length ? history[here].path : ""

@@ -180,8 +180,11 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   would, Japanese then English (`lineFor`: the kit's lines for sound, the
   network, keys, the server and the disk, after a world's own added with
   `speak([{ pattern, jp, line }])`), the raw words behind "Details"; a
-  short plain reason shows as it is.
-- `Sounds`: `tick` (Button, Chip, Tabs, Select, Toggle and Check tick by themselves), `done` (`Sol.undoable` plays it when a write goes through), `off`, `chime` (two soft seconds), the big acts' stings in the flavour's own sound (`turn`, the Shell's page turn; `opening`; `moment`, as a moment's title slams in, for a spec with `chime`; `lit`, a light coming on, for the flavours in `lights`: Neptune's neon catching, the opening's sign and Triton's ON AIR), `open` and `close` (the palette, the dialog, the tour, KeptAside), `focus` (the keys moving on, the softest click; never for focus a click moved), `error` (a failure's notice), and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which; it takes the place of a `done` just played). On by default and low (`level`, 0.5, under each sound's own share), one switch in `DeviceCard` for all; a device that has said keeps what it said. A burst limiter lets the first of sounds close together stand (a weightier one still plays) and no more than six a second. All made by `scripts/world-sounds.py`.
+  short plain reason shows as it is. The window shows them at the bottom
+  right of the pages, above a footer; while a moment plays they step aside
+  and their time stands still. A moment is over everything else in the
+  window (a hint, a menu, the palette).
+- `Sounds`: `tick` (Button, Chip, Tabs, Select, Toggle and Check tick by themselves), `done` (`Sol.undoable` plays it when a write goes through), `off`, `chime` (two soft seconds), the big acts' stings in the flavour's own sound (`turn`, the Shell's page turn; `opening`; `moment`, as a moment's title slams in, for a spec with `chime`; `lit`, a light coming on, for the flavours in `lights`: Neptune's neon catching, the opening's sign and Triton's ON AIR; Saturn's projector lamp, an episode's title card and Titan's pick for tonight; Mercury's seal pressed into paper, a right answer's seal and the kanji of the day; Terra's furin in the wind, the day's last stamp and Terra's opening), `open` and `close` (the palette, the dialog, the tour, KeptAside), `focus` (the keys moving on, the softest click; never for focus a click moved), `error` (a failure's notice), and `voice` (the world's own, for its main good moment only: Saturn's soft ring, Neptune's water drop, Mercury's bell, Terra's wood tick, Luna's chime, Titan's whoosh, Triton's static blip; `voiceName` says which; it takes the place of a `done` just played). On by default and low (`level`, 0.5, under each sound's own share; each flavour's stings matched to the other worlds' by `trims`, in dB: openings and moments about -32 LUFS as they play, lights -38, turns -43, the voices and "done" no louder than the openings; pages turned in quick succession sound once in `turnRest`), one switch in `DeviceCard` for all; a device that has said keeps what it said. A burst limiter lets the first of sounds close together stand (a weightier one still plays) and no more than six a second. All made by `scripts/world-sounds.py`.
 - `SolBackend` (Rust, `bridge.rs`): what `Sol` and `AppWindow` are built on.
 
 **The frame**
@@ -237,7 +240,9 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (`named: true` sets that title in the title face, large).
 - `PageHead`: a working page's toolbar (title, a quiet line, actions, the
   way back, `editable`, `tabs`; `named: true` sets the title itself in the
-  title face, large, for a detail page's name: a series, an album). With `tabs: [{ id, label, count?, hint? }]`
+  title face, large, for a detail page's name: a series, an album; under a
+  `feature` that shows the name already it comes in as the feature folds,
+  unless `featureNamed: false`, a feature of figures). With `tabs: [{ id, label, count?, hint? }]`
   and `tab: page.params.tab || ""`, the tabs run along its foot, the one
   that is on drawn over its hairline; choosing one puts it in the page's
   path (`/schedule?tab=calendar`, through `Shell.retab`, no new step), so
@@ -263,8 +268,9 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   the title card, what sits under it (moon links, the main action) beside
   two or three `figures: [{ value, label, jp }]` (HeroFigures), a comet on
   its days; compact (about 220 px) in a window under 1300 px wide, or with
-  `aside` a column beside the page there (`beside`), the page's own column
-  starting at `Screen.startX`, `startWidth` wide.
+  `aside` a column beside the page there (`beside`: the title and what
+  sits under it one group at its top, the rest left to the still), the
+  page's own column starting at `Screen.startX`, `startWidth` wide.
   `HeroFigure`: one big figure, its label and its Japanese tag; the
   number counts up as it comes into view (on from the one before when it
   changes), in the room its value takes.
@@ -372,11 +378,15 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   chime, length, hud, ground })`; its clock `elapsed` and `slamAt`) and
   `MomentCaption`, a scene's words in kinetic type (`jp`, or the title,
   slams in with the sting, the figures count up, the subtitle comes on the
-  beat: `jp`, `subtitleJp`, `subtitle`, `titleSize`); `SlamText`, words
+  beat: `jp`, `subtitleJp`, `subtitle`, `titleSize`, and `way` and
+  `jpColor` for a softer arrival in a world's own light); `SlamText`, words
   that slam in (cut in two, from 1.3 to a frame past their size, a glint
-  along the cut), driven by `at`; `Opening`, the world's opening, once a
+  along the cut), driven by `at`, or arrive more gently (`way`: "bounce",
+  "rise"); `Opening`, the world's opening, once a
   launch, which the Shell plays (skipped by any key or click, which still
-  land; none with less motion or in pictures unless `_opening=1`); `Tour` (one per
+  land; none with less motion or in pictures unless `_opening=1`; a window
+  opened on a carried moon with a flavour of its own opens in the moon's
+  way, the flavour's `opening`); `Tour` (one per
   window, `win.tourSheet`, filled from `AppWindow.tour`): both in
   `docs/world-apps.md` ("Moments", "The first run").
 - `SkyPage` (a world's `/sky`: the map and a card per constellation, from
@@ -415,8 +425,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   squared face turns fussy; marks (a seal, the rail's diamond, Mercury's rail
   numbers) keep the title face. The navigator's Japanese line is said at the
   face's floor where that is only a little over a line's size (Lucy's, in
-  Makinas at 18) when its bubble still leaves the portrait its room
-  (`Speech.voiced`), else in the display face. `Empty` sets its `jp` over its line in it. The
+  Makinas at 18; Mitsuha's, in Yuji Syuku at 20) when its bubble still leaves the portrait its room
+  (`Speech.voiced`), else in the display face; a large bubble says it at the floor at least. `Empty` sets its `jp` over its line in it. The
   Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
   one of the world's stills turned over by section, `Theme.groundsOf`, a
   moon's own when it has some, `Theme.ownGroundsOf`, graded, the shade
@@ -442,7 +452,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   (as `AngledButton`), a round one a diamond, Progress is `SlantTicks`,
   chips are pills, Display's figures are in the HUD face. `Card` is glass
   with brackets (its glass is made once the card has come into view),
-  `HudPanel` likewise; `Empty` is the world's navigator, large, saying its
+  `HudPanel` likewise (it arrives in the world's beat as a Card does, and a
+  `lead` one lights its brackets as it lands); `Empty` is the world's navigator, large, saying its
   line in a bubble (the glyph in a diamond without the portrait, and in a
   card). `Navigator` (in the rail's foot) is the world's character: its
   portrait (`NavigatorFace`) in a cut frame breaking the rail's edge,
@@ -517,7 +528,7 @@ paths, added to `lines` in `Icon.qml` and to the list here.
 
 | Group | Names |
 | --- | --- |
-| The chrome's | `arrow-left`, `arrow-right`, `arrow-up-right`, `close` (also `x`), `tick` (also `check`), `chevron-down`, `search`, `plus`, `minus`, `play`, `sound` |
+| The chrome's | `arrow-left`, `arrow-right`, `arrow-up`, `arrow-down`, `arrow-up-right`, `close` (also `x`), `tick` (also `check`), `chevron-down`, `search`, `plus`, `minus`, `play`, `sound` |
 | Places and pages | `home`, `sun` (today), `sunrise`, `moon`, `bed`, `calendar`, `days`, `week`, `grid`, `clock`, `history`, `timeline`, `chart`, `trend`, `activity`, `settings` |
 | Writing and learning | `book`, `book-open` (a dictionary), `diary`, `pen` (write), `edit`, `cards` (a review), `layers` (decks), `languages` (kana), `mic`, `flame` (a streak), `target`, `checklist`, `smile`, `tag` |
 | Watching and listening | `library`, `compass` (discover), `telescope`, `sparkles` (a season), `star` (picks), `heart` (favourites), `bookmark`, `eye`, `orbit` (a galaxy), `film`, `tv`, `music`, `disc` (an album), `user` (an artist), `list`, `playlist`, `queue`, `radio`, `antenna` (stations) |
@@ -859,8 +870,8 @@ on `fail()`; a `Card` with a `menu` opens it on right-click and from its ⋯. `S
 draws a page's shape while its data is on the way. `Sounds` (on and low
 unless turned off in `DeviceCard`) gives a tick, a done and an off, and
 the big acts their stings. Once a launch the world's `Opening` plays over
-the first page: its kanji slams in, a hold, the frame goes the world's way
-as the rail draws in, and the page's title lands, about a second in all. Fractional scaling works as
+the first page: its kanji slams in (Mercury's name is brushed in, one stroke), a hold, the frame goes the world's way
+as the rail draws in, and the page's title lands: the name held about half a second, all gone within 0.72 to 1.06 s, each world in its own rhythm (`docs/yozora.md`, "Direction"). Fractional scaling works as
 Qt does it: `QT_SCALE_FACTOR=1.5` to check.
 
 ## Motion
