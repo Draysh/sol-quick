@@ -1,5 +1,6 @@
 //! Builds the `Sol.Design` QML module: every `.qml` file in `qml/` (a file
-//! that starts with `pragma Singleton` is registered as one), the assets
+//! that starts with `pragma Singleton` is registered as one, and must be
+//! listed in `qml/qmldir`, which goes beside the files), the assets
 //! (fonts, the worlds' photographs) and the compiled shaders, plus
 //! the Rust QObjects in `src/bridge.rs`. `export()` hands the module to the
 //! app that depends on this crate. The Qt version it was built against goes
@@ -33,6 +34,7 @@ fn main() {
         println!("cargo::rerun-if-changed={dir}");
     }
     let mut module = QmlModule::new("Sol.Design");
+    let mut singletons = Vec::new();
     for file in files("qml", |p| p.extension().is_some_and(|e| e == "qml")) {
         println!("cargo::rerun-if-changed={file}");
         // `pragma Singleton` among the pragmas the file starts with.
@@ -42,12 +44,35 @@ fn main() {
             .map(str::trim)
             .take_while(|l| l.is_empty() || l.starts_with("pragma") || l.starts_with("//"))
             .any(|l| l == "pragma Singleton");
+        if singleton {
+            let name = Path::new(&file).file_stem().expect("a qml file name");
+            singletons.push(name.to_string_lossy().into_owned());
+        }
         module = module.qml_file(QmlFile::from(file.as_str()).singleton(singleton));
     }
+    // The files' own folder lists the singletons too (`qml/qmldir`, packed
+    // beside them): a file names its neighbours through that folder first,
+    // and without the list the first to name a singleton so made it a
+    // plain component for the whole app (every Theme token undefined).
+    println!("cargo::rerun-if-changed=qml/qmldir");
+    let listed = fs::read_to_string("qml/qmldir")
+        .expect("qml/qmldir, the singletons of the folder")
+        .lines()
+        .filter_map(|l| l.strip_prefix("singleton "))
+        .filter_map(|l| l.split_whitespace().next())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    let mut sorted = listed.clone();
+    sorted.sort();
+    assert_eq!(
+        sorted, singletons,
+        "qml/qmldir must list every file with `pragma Singleton` as `singleton <Name> 1.0 <Name>.qml`, and no other"
+    );
     let resources = files("assets", |p| {
         !p.extension().is_some_and(|e| e == "txt" || e == "md")
     })
     .into_iter()
+    .chain(["qml/qmldir".to_owned()])
     .chain(files("shaders", |p| {
         p.extension().is_some_and(|e| e == "qsb")
     }))

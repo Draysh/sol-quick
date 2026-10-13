@@ -38,10 +38,11 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 
 ## Adding or changing a component
 
-- Drop `qml/Foo.qml`; `build.rs` registers every `.qml` under `qml/` (no
-  `qmldir`). A singleton has `pragma Singleton` among its leading lines
-  (only blank lines, other pragmas or `//` comments before it) and must
-  `import Sol.Design` to see `SolBackend`.
+- Drop `qml/Foo.qml`; `build.rs` registers every `.qml` under `qml/`. A
+  singleton has `pragma Singleton` among its leading lines (only blank
+  lines, other pragmas or `//` comments before it), a line in `qml/qmldir`
+  (`singleton Foo 1.0 Foo.qml`; the build refuses to run while the two
+  disagree), and must `import Sol.Design` to see `SolBackend`.
 - Inside the kit, Qt's own `Screen` wins over ours: `import Sol.Design as
   Design` and write `Design.Screen` (casts: `x as Design.Screen`).
 - A shader: edit `shaders/<name>.frag`, rebuild the `.qsb` with the
@@ -363,6 +364,17 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `qrc:/qt/qml/Sol/<World>/qml/` (from `World::main`) to `World::source`'s
   `qml/`. A file's folder on disk must stay laid out as in the module
   (`qml/`, `../assets`, `../shaders`).
+- **The folder's singletons** (`qml/qmldir`, packed at
+  `qrc:/qt/qml/Sol/Design/qml/qmldir`): the files sit in `qml/` under the
+  module's folder, and a file names its neighbours through its own folder
+  (the implicit import) before `import Sol.Design`. Qt keeps one type per
+  file, made the first time any file names it: named through a folder
+  with no list, a singleton became a plain component for the whole app.
+  That is what blanked every screen of the built apps of 2026-10-13
+  (`Sol.qml` began to name `Sounds`, which loads before anything else had
+  named `Theme` and named it through the folder: every `Theme.x` was
+  undefined, `Theme.tint` "not a function"). Previews read the checkouts'
+  QML, where the order differed, so no picture showed it.
 - **Test helpers** (`testing.rs`, always built, with orbit's `testing`):
   the worlds' tests call `offline_link`,
   `assert_manifest`/`Expect`, `capture_q`, `assert_asked`, `assert_told`,
@@ -433,6 +445,14 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `anyhow::Result` and `Commands` says the error (`say`); `undoable` is a
   name `Commands::call` answers itself, so no world may name a command so. `SolBackend` subscribes to
   the link before reading its state.
+- **Previews read the checkouts' QML, releases the compiled module.**
+  `hidden.sh` defaults to `SOL_QML_LIVE=1`, so every picture and shot runs
+  the QML from disk, never the module compiled into the binary; a fault of
+  the module alone (how its types are registered, what qmlcachegen made)
+  shows only with `SOL_QML_LIVE=0`. The full checks (`/checks`) run each
+  world's app, and Terra's for the kit, with compiled QML; before a
+  release, run each binary so (`SOL_QML_LIVE=0 scripts/shots.sh …`, or
+  `shoot.py --compiled`) and read the journal.
 - QML errors go to the journal, not stderr. `QT_QPA_PLATFORM=offscreen`
   draws neither the body shader nor glyph images: look at real windows,
   on the hidden display (`../../docs/agents.md`). A drive's TestEvent click needs a mouse move onto the item first.

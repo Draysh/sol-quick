@@ -5,6 +5,9 @@
 # Builds nothing: it runs the debug binary as it is, reading the kit's and
 # the world's QML from their checkouts (so after a .qml edit, just run it
 # again; after a Rust edit or a new .qml file, build the world first).
+# SOL_QML_LIVE=0 runs the QML compiled into the binary instead, as a release
+# runs it (build after every .qml edit then): the checkouts' QML can hide a
+# fault only the compiled module has.
 #
 #   scripts/shots.sh <world> <folder> <name>=<path?keys>…
 #   scripts/shots.sh <world> <folder> --file <list>
@@ -57,6 +60,7 @@ for s in "${specs[@]}"; do
 done
 joined=$(IFS=';'; echo "${list[*]}")
 
+if [[ ${SOL_QML_LIVE:-1} == 1 ]]; then echo "QML: read from the checkouts"; else echo "QML: compiled into $bin"; fi
 start=$(date '+%Y-%m-%d %H:%M:%S')
 # The most the run may take: every picture at its longest, and the start.
 after=${SOL_SHOT_AFTER:-8000}

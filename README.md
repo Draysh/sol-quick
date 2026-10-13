@@ -140,8 +140,9 @@ replaced: don't use them.
 
 ## The QML module (`qml/`, `Sol.Design`)
 
-Every `.qml` file in `qml/` is registered (no `qmldir`); one whose leading
-lines include `pragma Singleton` is a singleton. `import Sol.Design` in a
+Every `.qml` file in `qml/` is registered; one whose leading lines include
+`pragma Singleton` is a singleton, and is listed in `qml/qmldir` too (so
+the files beside it know it as one; the build checks the two agree). `import Sol.Design` in a
 world's files; inside the kit and in a world, `import Sol.Design as Design`
 for `Design.Screen` (Qt has a `Screen` of its own).
 

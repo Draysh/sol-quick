@@ -1,0 +1,13 @@
+# The singletons of Sol.Design, for the files in this folder. A file here
+# sees the others through its own folder (the implicit import) before
+# `import Sol.Design`, and a folder without this list would make Theme a
+# plain component there: the first file to name it that way (Sounds, which
+# loads before anything else) left Theme empty for every screen in a built
+# app. build.rs refuses a build where this list and the files' `pragma
+# Singleton` disagree.
+singleton Format 1.0 Format.qml
+singleton Notices 1.0 Notices.qml
+singleton Sol 1.0 Sol.qml
+singleton Sounds 1.0 Sounds.qml
+singleton Theme 1.0 Theme.qml
+singleton Worlds 1.0 Worlds.qml
