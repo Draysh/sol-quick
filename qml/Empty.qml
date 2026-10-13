@@ -68,7 +68,6 @@ Item {
             x: talk.faceWidth + Theme.s4
             y: Math.max(0, (navFace.height - implicitHeight) / 2 - Theme.s3)
             width: talk.bubbleWidth
-            world: root.world
             large: true
             jp: root.jp
             line: root.line

@@ -94,7 +94,7 @@ Item {
             width: parent.width; height: parent.height
             cuts: [0, face.cut, 0, 0]
             motif: "washi"
-            tint: face.flavour.washi || face.flavour.bubble
+            tint: face.flavour.washi || "transparent"
             line: Theme.tint(face.flavour.seal, 0.5)
             accent: face.flavour.seal
         }
@@ -130,16 +130,18 @@ Item {
             sourceSize.height: Math.max(1, Math.ceil(face.height / crop.h * Screen.devicePixelRatio))
         }
         // The part of the picture in the frame: as much as fills it, round the face when close.
+        // The flavour's `face` is where the face is in its portrait, and how close the frame
+        // comes ([x, y, zoom]: a whole figure, a cut-out, wants more than a close crop).
         QtObject {
             id: crop
             readonly property real frame: face.width / Math.max(1, face.height)
-            readonly property real zoom: face.diamond ? 1.3 : 1
+            readonly property var at: face.flavour.face || [0.5, 0.4]
+            readonly property real zoom: (at[2] || 1) * (face.diamond ? 1.3 : 1)
             readonly property real w: (frame < picture.aspect ? frame / picture.aspect : 1) / zoom
             readonly property real h: (frame < picture.aspect ? 1 : picture.aspect / frame) / zoom
-            readonly property var at: face.flavour.face || [0.5, 0.4]
-            // Head and shoulders keep the top of the picture; the chip centres the face.
+            // Head and shoulders: the face a little above the frame's middle, the hair in; the chip centres it.
             readonly property real x: Math.max(0, Math.min(1 - w, at[0] - w / 2))
-            readonly property real y: Math.max(0, Math.min(1 - h, face.diamond ? at[1] - h / 2 : at[1] - 0.4))
+            readonly property real y: Math.max(0, Math.min(1 - h, face.diamond ? at[1] - h / 2 : at[1] - h * 0.45))
         }
         // Cut like the panels: the picture shows through the glass shader's shape, with the
         // world's motif (Neptune's neon edge and scanlines, Terra's daylight).

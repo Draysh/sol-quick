@@ -96,6 +96,7 @@ Item {
             }
         }
         Text {
+            id: labelText
             width: parent.width - 30 - (metaText.visible ? metaText.implicitWidth + 14 : 0)
             anchors.verticalCenter: parent.verticalCenter
             text: root.label
@@ -109,7 +110,8 @@ Item {
         Quiet {
             id: metaText
             visible: root.meta !== ""
-            anchors.verticalCenter: parent.verticalCenter
+            // On the label's line: its baseline.
+            anchors.baseline: labelText.baseline
             text: root.meta
             onTextChanged: fadeIn.restart()
             NumberAnimation on opacity { id: fadeIn; from: 0; to: 1; duration: Theme.fade; running: false }

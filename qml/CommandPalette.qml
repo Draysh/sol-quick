@@ -175,7 +175,7 @@ Item {
                     anchors.bottom: parent.bottom
                     spacing: Theme.s2
                     Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; rotation: 45; antialiasing: true; color: Theme.hudAccent }
-                    Text { anchors.verticalCenter: parent.verticalCenter; text: "コマンド"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold; color: Theme.hudAccent }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "コマンド"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle; color: Theme.hudAccent }
                     Text { anchors.verticalCenter: parent.verticalCenter; text: "Command · Ctrl+K"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudAccent }
                 }
                 Text { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.bottom: parent.bottom; text: root.busy ? "Looking…" : root.trail.length ? "Esc · back" : "Esc"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudFaint }
@@ -238,7 +238,7 @@ Item {
                                 x: Theme.s4
                                 y: Theme.s3 - 2
                                 spacing: Theme.s2
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.jp : ""; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold; color: Theme.hudQuiet }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.jp : ""; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle; color: Theme.hudQuiet }
                                 Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.label : ""; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudQuiet }
                             }
                             // The light on the chosen row: a slanted bar in the world's light.

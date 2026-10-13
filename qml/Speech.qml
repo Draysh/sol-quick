@@ -5,9 +5,10 @@ import QtQuick.Shapes
 import Sol.Design
 
 /*
-    What the navigator says, in a manga speech bubble: the world's paper
-    (`bubble`), round (the one round thing in the look), with a tail
-    towards the portrait and a hard shadow in the world's light. The
+    What the navigator says, in a manga speech bubble: the world's glass
+    (`bubble`: dark, or frost on a light flavour) inside a light outline
+    in its `edge`, round (the one round thing in the look), with a tail
+    towards the portrait and a faint hard shadow in the world's light. The
     Japanese line comes first, in the title serif; the English under it,
     in the sans. When the words change they are typed in, the Japanese
     and then the English, over `Theme.speak` (at once with less motion,
@@ -31,9 +32,8 @@ Item {
     property real tailAt: Theme.s4
     /** Larger words, for a bubble beside an empty page or in a moment. */
     property bool large: false
-    /** Whose paper and ink: the window's world. */
-    property string world: Sol.world
-    readonly property var flavour: Theme.yozoraOf(world)
+    // Glass in the window: it wears the look the window wears (Luna's indigo on her pages in Terra's).
+    readonly property var flavour: Theme.hud
     readonly property bool says: jp !== "" || line !== ""
 
     readonly property real pad: large ? Theme.s3 : Theme.s2 + 2
@@ -116,23 +116,24 @@ Item {
         return p
     }
 
-    // A hard shadow in the world's light, as a manga panel's bubble pops off the page.
+    // A hard shadow in the world's light, as a manga panel's bubble pops off the page: faint, under glass.
     Shape {
         x: 3; y: 3
         width: speech.width; height: speech.implicitHeight
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
             strokeWidth: 0; strokeColor: "transparent"
-            fillColor: Theme.tint(speech.flavour.accent, 0.5)
+            fillColor: Theme.tint(speech.flavour.accent, speech.flavour.light ? 0.4 : 0.28)
             PathSvg { path: speech.outline }
         }
     }
+    // The glass, inside its outline: the edge's light on dark glass, the deep ink's hairline on frost.
     Shape {
         width: speech.width; height: speech.implicitHeight
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
-            strokeWidth: 0; strokeColor: "transparent"
-            fillColor: Theme.tint(speech.flavour.bubble, 0.96)
+            strokeWidth: 1; strokeColor: Theme.tint(speech.flavour.edge, speech.flavour.light ? 0.45 : 0.7)
+            fillColor: speech.flavour.bubble
             PathSvg { path: speech.outline }
         }
     }
@@ -151,9 +152,9 @@ Item {
             textFormat: Text.StyledText
             wrapMode: Text.Wrap
             lineHeight: 1.1
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle
             font.pixelSize: speech.large ? Theme.textL : Theme.textS + 1
-            color: speech.flavour.ground
+            color: speech.flavour.bright || speech.flavour.text
         }
         Text {
             id: lineText
@@ -164,7 +165,7 @@ Item {
             wrapMode: Text.Wrap
             lineHeight: 1.12
             font.family: Theme.font; font.pixelSize: speech.large ? Theme.textM : Theme.textXs + 1
-            color: Theme.tint(speech.flavour.ground, 0.78)
+            color: speech.flavour.quiet
         }
     }
 }

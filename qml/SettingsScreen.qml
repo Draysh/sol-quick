@@ -25,8 +25,7 @@ Design.Screen {
 
     title: "Settings"
     // The list and a panel of rows that read well, at the start: a wide window's room is the still's.
-    atStart: true
-    maxWidth: 232 + Theme.s5 + 720
+    maxWidth: 232 + Theme.s4 + 720
     /** The line beside the title. */
     property string lead: ""
     /** The parts: the kit's below, then the world's children. */
@@ -65,12 +64,12 @@ Design.Screen {
             height: Math.max(list.visible ? list.height : 0, panel.y + stack.height)
 
             // On a light flavour's still (Terra's noon) the list stands on glass, as the rail does,
-            // so its dark words read; over a dark one it is bare.
+            // so its dark words read; over a dark one it is bare. Its edges are the page's: its
+            // left on the one left edge, its top level with the cards beside it.
             Design.HudGlass {
                 visible: Theme.light && list.visible
-                x: -Theme.s2; y: -Theme.s2
-                width: list.width + Theme.s2 * 2
-                height: list.height + Theme.s2 * 2
+                width: list.width
+                height: list.height
                 cuts: [0, Theme.hudCut, 0, 0]
             }
             // The parts: a numbered list, the chosen one lit.
@@ -78,6 +77,8 @@ Design.Screen {
                 id: list
                 visible: !page.narrow
                 width: page.listWidth
+                topPadding: Theme.light ? Theme.s2 : 0
+                bottomPadding: topPadding
                 spacing: 2
                 Repeater {
                     model: page.offered
@@ -99,24 +100,26 @@ Design.Screen {
                             }
                         }
                         Rectangle { visible: row.on; width: 3; height: parent.height; color: Theme.hudAccent }
+                        // The number, the Japanese and the name on one baseline, the name's.
                         Row {
                             x: Theme.s3
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.s3
                             Text {
-                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.baseline: rowName.baseline
                                 text: (row.index + 1 < 10 ? "0" : "") + (row.index + 1)
                                 font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
                                 color: row.on ? Theme.hudAccent : Theme.hudFaint
                             }
                             Text {
                                 visible: text !== ""
-                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.verticalCenter: rowName.verticalCenter
                                 text: row.modelData.jp
-                                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Font.Bold
+                                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
                                 color: row.on || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
                             }
                             Text {
+                                id: rowName
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: row.modelData.label
                                 font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: row.on ? Theme.weightName : Theme.weightValue
@@ -140,7 +143,7 @@ Design.Screen {
             // The chosen part's cards.
             Item {
                 id: panel
-                x: page.narrow ? 0 : page.listWidth + Theme.s5
+                x: page.narrow ? 0 : page.listWidth + Theme.s4
                 y: page.narrow ? tabs.height + Theme.s4 : 0
                 width: page.narrow ? menu.width : Math.min(720, menu.width - x)
                 Item {

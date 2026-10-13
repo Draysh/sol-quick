@@ -34,8 +34,10 @@ Settle {
     property string jp: ""
     /** A carried moon's row: its number in the world's second light. */
     property bool moon: false
-    /** The number it shows on the floating rail: its place, from 01. */
-    readonly property string number: (place + 1 < 10 ? "0" : "") + (place + 1)
+    /** Whether the flavour writes the numbers in kanji (Mercury's: 一, 二, 三), in its title face. */
+    readonly property bool kanjiNumber: !!Theme.hud.kanjiNumbers
+    /** The number it shows on the floating rail: its place, from 01 (or 一). */
+    readonly property string number: kanjiNumber ? Format.kanji(place + 1) : (place + 1 < 10 ? "0" : "") + (place + 1)
     readonly property bool numbered: hud && !door
     /** Its Japanese on the rail, under the number: only when it is short enough to read there. */
     readonly property string railJp: jp.length > 0 && jp.length <= 2 ? jp : ""
@@ -75,14 +77,15 @@ Settle {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: row.number
-            font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
+            font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
+            font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
             color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
         }
         Text {
             visible: row.railJp !== ""
             anchors.horizontalCenter: parent.horizontalCenter
             text: row.railJp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
             color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
         }
     }
@@ -98,8 +101,12 @@ Settle {
             visible: row.numbered && !row.rail
             anchors.verticalCenter: parent.verticalCenter
             text: row.number
-            font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
-            font.letterSpacing: Theme.track(0.06, Theme.textXs)
+            // A kanji number takes the square two figures take, so the names still start in one column.
+            width: row.kanjiNumber ? Math.max(implicitWidth, Math.ceil(Theme.textS * 1.2)) : implicitWidth
+            horizontalAlignment: Text.AlignHCenter
+            font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
+            font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
+            font.letterSpacing: row.kanjiNumber ? 0 : Theme.track(0.06, Theme.textXs)
             color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
@@ -109,7 +116,7 @@ Settle {
             anchors.verticalCenter: parent.verticalCenter
             // Another world: its kanji in a small diamond.
             Rectangle { visible: row.world !== ""; anchors.centerIn: parent; width: 12; height: 12; rotation: 45; antialiasing: true; color: "transparent"; border.width: 1; border.color: rowMouse.containsMouse ? Theme.hudAccent : Theme.lineStrong }
-            Text { visible: row.world !== ""; anchors.centerIn: parent; text: Theme.jpOf(row.world || "sol").charAt(0); font.family: Theme.fontTitle; font.pixelSize: 8; font.weight: Font.Black; color: Theme.hudText }
+            Text { visible: row.world !== ""; anchors.centerIn: parent; text: Theme.jpOf(row.world || "sol").charAt(0); font.family: Theme.fontTitle; font.pixelSize: 8; font.weight: Theme.weightTitle; color: Theme.hudText }
             Icon {
                 visible: row.iconed
                 name: row.icon || "close"
@@ -138,7 +145,7 @@ Settle {
             visible: row.hud && row.jp !== "" && !row.rail
             anchors.verticalCenter: parent.verticalCenter
             text: row.jp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textS; font.weight: Theme.weightTitle
             color: row.current || rowMouse.containsMouse ? Theme.hudText : Theme.hudQuiet
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }

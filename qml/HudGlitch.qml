@@ -24,6 +24,9 @@ Item {
         run.restart()
     }
 
+    /** Stops it at once (a tab's page, which only fades). */
+    function stop() { run.stop() }
+
     visible: run.running
     enabled: false
 

@@ -323,15 +323,18 @@ Item {
             if (section) sectionPages[key] = item
         }
         e.item = item
+        // The same step, a new page: `page` reads the history, so it is handed a new list.
+        history = history.slice()
         // A page that was no section's goes once it has left.
         if (!Object.values(sectionPages).includes(was)) dropping = was
-        show(here, "up", was)
+        show(here, "tab", was)
     }
     /** A page left by `retab` that nothing leads to any more: destroyed once it has left. */
     property Item dropping: null
 
     /** `dir`: `up` for a section (it settles), `in` for a page opened from another (it slides in from
-        the right), `out` for going back (the page slides out to the right, the one under it comes back).
+        the right), `out` for going back (the page slides out to the right, the one under it comes back),
+        `tab` for a tab's own page taking its step (a plain fade, no page turn).
         `from`: the page leaving, when it isn't the one at `here` (a tab's own page taking its step). */
     function show(i, dir, from) {
         // A leave still running (back and forth quickly) is finished first.
@@ -352,15 +355,17 @@ Item {
         if (was && was !== item) {
             // The page that was here leaves under the one arriving; one coming back settles in again.
             // Saturn's cut: the page that was here is gone at once, as in a film; with less motion, a fade only.
-            const cut = Theme.hud.motif === "dusk" && !Theme.calm
+            // A tab only fades, the one under the other, whatever the flavour.
+            const tab = dir === "tab"
+            const cut = Theme.hud.motif === "dusk" && !Theme.calm && !tab
             leaving.target = was
             slideOut.target = was
             slideOut.to = dir === "out" && !Theme.calm && !cut ? 40 : 0
-            slideOut.duration = cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
-            leaving.duration = cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
+            slideOut.duration = tab ? Theme.fade : cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
+            leaving.duration = tab ? Theme.fade : cut ? Theme.snap : dir === "out" ? Theme.turn : Theme.lock
             leave.restart()
             if (item.hasOwnProperty("reveal")) item.reveal(dir === "out" ? "back" : dir)
-            turn.play(dir === "out" ? "back" : dir)
+            if (!tab) turn.play(dir === "out" ? "back" : dir)
         }
         shell.forceActiveFocus()
         const screen = page as Design.Screen

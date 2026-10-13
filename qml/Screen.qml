@@ -10,10 +10,11 @@ import QtQuick
     alive while the history leads to it, so going back lands where you
     left off.
 
-    The content is never wider than `maxWidth` (about 1400 px): a wider
-    pane centres it, or gives the room to the page's `side` column (a
-    cover, art, a navigator), which goes above the content when the pane
-    is too narrow for both. A page with little on it says `sparse`: on a
+    The content starts at the pane's left margin, as a first page's Sheet
+    does, and is never wider than `maxWidth` (about 1400 px): a wider pane
+    leaves the rest on the right to the still. The page's `side` column (a
+    cover, art, a navigator) stands just right of the content, or above it
+    when the pane is too narrow for both. A page with little on it says `sparse`: on a
     wide pane its title is set large over the still and its content stands
     under it (beside it, when the title is written down), one group low on
     the left, so the still's figure keeps the rest of the pane.
@@ -74,12 +75,10 @@ Item {
     property bool padded: true
     /** Space above the content (and, on a page with no header, room for the way back floating over it). */
     property real topPad: padded ? Theme.s4 : 0
-    /** The widest the content goes; a wider pane centres it, or gives the rest to `side`. */
+    /** The widest the content goes; a wider pane leaves the rest to the still (after `side`, when there is one). */
     property real maxWidth: 1400
     /** A column beside the content on a wide pane (above it on a narrow one): a cover, art, a navigator. */
     property alias side: sideSlot.data
-    /** The content keeps to the start of a wide pane instead of its middle, leaving the still's figure the other side. */
-    property bool atStart: false
     /** On a pane too narrow for the side column beside the content, it goes above it; false leaves it out there (a page that keeps the same things in its column then). */
     property bool sideAbove: true
     /** A page with little on it: on a wide pane, its title large over the still and its content in a column under it, low on the left. */
@@ -89,19 +88,19 @@ Item {
     readonly property bool hasSide: sideSlot.children.length > 0 && (sideAbove || room >= 1040)
     /** The side column beside the content (else above it). */
     readonly property bool sideBeside: hasSide && room >= 1040
-    readonly property real sideWidth: !hasSide ? 0 : sideBeside ? Math.round(Math.max(300, Math.min(440, room - maxWidth - Theme.s5, room * 0.3))) : room
+    readonly property real sideWidth: !hasSide ? 0 : sideBeside ? Math.round(Math.max(300, Math.min(440, room - maxWidth - sideGap, room * 0.3))) : room
+    /** The gutter between the content and the side column: a Grid's own, so a page's gutters are all one. */
+    readonly property real sideGap: Theme.s4
     /** Composed to the still: only on a pane wide enough to leave the still its figure. */
     readonly property bool composed: sparse && padded && room >= 960
     /** Where the content starts across the pane, and how wide it is (a PageHead lines its words up with it). */
     readonly property real contentWidth: !padded ? width
         : composed ? Math.min(560, Math.round(room * 0.46), width - margin - groupX - (bigTitle.down ? bigTitle.downWidth + Theme.s5 : 0))
-        : sideBeside ? Math.min(maxWidth, room - sideWidth - Theme.s5)
+        : sideBeside ? Math.min(maxWidth, room - sideWidth - sideGap)
         : Math.min(maxWidth, room)
     readonly property real contentX: !padded ? 0
         : composed ? groupX + (bigTitle.down ? bigTitle.downWidth + Theme.s5 : 0)
-        : sideBeside ? margin + Math.max(0, (room - contentWidth - sideWidth - Theme.s5) / 2)
-        : atStart ? margin
-        : margin + (room - contentWidth) / 2
+        : margin
     /** Where a composed page's group (its big title and its column) starts: clear of the navigator where its frame breaks the sidebar's edge into the pane. */
     readonly property real groupX: Math.max(margin, shell && shell.navigatorReach > 0 ? shell.navigatorReach + Theme.s6 : 0)
     property alias header: headSlot.data
@@ -113,7 +112,7 @@ Item {
     readonly property real margin: Theme.margin(width)
     /** Settles the page in again, as when it first opened; `in` slides from the right, `back` from the left.
         The Shell calls it each time the page shows, so a page must not declare a `reveal` of its own. */
-    function reveal(dir) { flick.reveal(dir); revealHead(dir); glitch.play() }
+    function reveal(dir) { flick.reveal(dir); revealHead(dir); if (dir === "tab") glitch.stop(); else glitch.play() }
     /** The header's words settle in with the page, when it can (a PageHead). */
     function revealHead(dir) { for (const h of headSlot.children) if (typeof h.reveal === "function") h.reveal(dir) }
     /** Scrolls the page by `dy` pixels (the keys' arrows and pages), eased like a wheel notch. */
@@ -203,7 +202,7 @@ Item {
         Item {
             id: sideSlot
             visible: screen.hasSide
-            x: screen.sideBeside ? screen.contentX + screen.contentWidth + Theme.s5 : screen.margin
+            x: screen.sideBeside ? screen.contentX + screen.contentWidth + screen.sideGap : screen.margin
             y: screen.topPad
             width: screen.sideWidth
             height: childrenRect.height
@@ -235,7 +234,7 @@ Item {
                 lineHeightMode: bigTitle.down ? Text.FixedHeight : Text.ProportionalHeight
                 lineHeight: bigTitle.down ? Math.round(font.pixelSize * 1.06) : 1
                 horizontalAlignment: bigTitle.down ? Text.AlignHCenter : Text.AlignLeft
-                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black
+                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle
                 font.pixelSize: bigTitle.down ? bigTitle.downSize : Theme.textHero
                 fontSizeMode: bigTitle.down ? Text.FixedSize : Text.HorizontalFit; minimumPixelSize: 40
                 color: Theme.artBright
@@ -246,7 +245,7 @@ Item {
                 width: parent.width
                 text: bigTitle.head && bigTitle.head.title ? bigTitle.head.title : screen.title
                 horizontalAlignment: bigTitle.down ? Text.AlignHCenter : Text.AlignLeft
-                font.family: Theme.fontCaps; font.pixelSize: Theme.textM; font.weight: Font.DemiBold
+                font.family: Theme.fontDisplay; font.pixelSize: Theme.textM; font.weight: Font.Bold
                 font.letterSpacing: Theme.track(Theme.trackHud, Theme.textM); font.capitalization: Font.AllUppercase
                 color: Theme.hudAccent
                 visible: Theme.capsFor(text)
@@ -272,16 +271,19 @@ Item {
         // Terra's rises softly into the light, Neptune's slides in under its glitch. With less
         // motion, a fade only.
         readonly property string motif: Theme.hud.motif
+        /** Arriving as a tab does: a plain fade, in place. */
+        property bool plain: false
         function reveal(dir) {
             arrive.stop(); flick.opacity = 0
-            const still = Theme.calm || motif === "shrine"
+            plain = dir === "tab"
+            const still = Theme.calm || motif === "shrine" || plain
             shift.y = still ? 0 : motif === "dusk" ? 4 : motif === "summer" ? 10 : dir === "in" || dir === "back" ? 0 : 6
             shift.x = still || motif === "dusk" ? 0 : dir === "in" ? 28 : dir === "back" ? -16 : 0
             arrive.start()
         }
         ParallelAnimation {
             id: arrive
-            NumberAnimation { target: flick; property: "opacity"; to: 1; duration: flick.motif === "dusk" && !Theme.calm ? Theme.lock : Theme.turn; easing: Theme.easeOut }
+            NumberAnimation { target: flick; property: "opacity"; to: 1; duration: flick.plain ? Theme.fade : flick.motif === "dusk" && !Theme.calm ? Theme.lock : Theme.turn; easing: Theme.easeOut }
             NumberAnimation { target: shift; property: "y"; to: 0; duration: Theme.turn; easing: flick.motif === "dusk" ? Theme.spring : Theme.easeOut }
             NumberAnimation { target: shift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
         }

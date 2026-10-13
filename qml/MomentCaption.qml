@@ -62,7 +62,7 @@ Column {
         text: root.jp
         elide: Text.ElideRight
         readonly property real size: Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95))
-        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: size; font.weight: Font.Black
+        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: size; font.weight: Theme.weightTitle
         color: Theme.artBright
         style: Text.Raised; styleColor: Theme.tint(Theme.artSecond, 0.35)
     }
@@ -74,10 +74,11 @@ Column {
         wrapMode: Text.Wrap
         maximumLineCount: 2
         elide: Text.ElideRight
-        font.family: Theme.fontTitle
+        // Under a Japanese title it is the English subtitle, in the display face; alone, the title itself.
+        font.family: root.titled ? Theme.fontDisplay : Theme.fontTitle
         font.features: Theme.titleFeatures
         font.pixelSize: root.titled ? Theme.textLede : Theme.text2xl * 1.25
-        font.weight: root.titled ? Font.Medium : Font.Black
+        font.weight: root.titled ? Font.Bold : Theme.weightTitle
         color: root.bright
     }
     Text {
@@ -87,7 +88,7 @@ Column {
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
         wrapMode: Text.Wrap
         text: root.line
-        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textL; font.weight: Font.Medium
+        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textL; font.weight: Theme.weightTitle
         color: root.value
     }
     // The world's navigator says the subtitle: large, low on the right, standing on the bottom bar,
@@ -128,7 +129,7 @@ Column {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.Wrap
             text: root.subtitleJp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Theme.weightTitle
             color: "#ffffff"
             style: Text.Outline; styleColor: Theme.tint("#000000", 0.6)
         }
@@ -158,7 +159,7 @@ Column {
                 opacity: root.moment && root.moment.calm ? 1 : Math.max(0, Math.min(1, (root.p - 0.12 - fact.index * 0.06) * 8))
                 Text {
                     text: fact.modelData.value
-                    font.family: Theme.fontHud; font.pixelSize: Theme.textFigure; font.weight: Font.DemiBold
+                    font.family: Theme.fontDisplay; font.pixelSize: Theme.textFigure; font.weight: Font.Bold
                     color: root.bright
                 }
                 Label { text: fact.modelData.label; font.weight: Theme.weightLabel; color: root.quiet }

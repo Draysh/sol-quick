@@ -44,3 +44,4 @@ mod fonts;
 mod live;
 
 pub use app::{run, run_with};
+pub use fonts::add_font;

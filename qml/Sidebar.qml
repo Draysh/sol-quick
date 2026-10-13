@@ -80,7 +80,7 @@ Item {
                     visible: side.hud
                     anchors.centerIn: parent
                     text: Theme.jpOf(side.frame.world).charAt(0)
-                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 14
+                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: 14
                     color: Theme.hudText
                 }
             }
@@ -91,7 +91,7 @@ Item {
                 // The world's name in Japanese over the name.
                 Text {
                     text: Theme.jpOf(side.frame.world)
-                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: Theme.textM + 2
+                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: Theme.textM + 2
                     color: Theme.hudText
                 }
                 Text {
@@ -268,7 +268,7 @@ Item {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "衛星"
-                            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold
+                            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
                             color: Theme.textQuiet
                         }
                         Text {

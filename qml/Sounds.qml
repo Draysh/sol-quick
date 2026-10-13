@@ -12,20 +12,27 @@ import QtMultimedia
     blip, made by `scripts/world-sounds.py`) for its main good moment only:
     an episode watched, a right answer, a habit done. On by default and
     low (`level`), so they sit under whatever else is playing; one switch
-    in a Settings page's DeviceCard turns them all off on a device (a
-    device that has said already keeps what it said). Never while the
-    window is asleep, and never two over each other: the voice takes the
-    place of a "done" just played, and a burst of presses ticks once.
+    in a Settings page's DeviceCard turns them all off on a device, and
+    that stays. An off written before sounds were on by default (with no
+    `soundsVersion`, as some apps had on 2026-10-11) is forgotten: the app
+    writes them on once, outside a preview, and keeps what is chosen from
+    then on. Never while the window is asleep, and never two over each
+    other: the voice takes the place of a "done" just played, and a burst
+    of presses ticks once.
 
         Sounds.tick()   Sounds.done()   Sounds.off()   Sounds.chime()   Sounds.voice()
 */
 QtObject {
     id: sounds
 
-    component Prefs: Settings { property bool sounds: true }
+    component Prefs: Settings { property bool sounds: true; property int soundsVersion: 0 }
     property Prefs prefs: Prefs { category: "sol.device" }
-    readonly property bool on: prefs.sounds
-    function setOn(v) { prefs.sounds = v; if (v) tick() }
+    /** Which choice of sounds is kept: 1 since the sounds are on by default; an older off is not the person's. */
+    readonly property int soundsVersion: 1
+    readonly property bool on: prefs.soundsVersion >= soundsVersion ? prefs.sounds : true
+    function setOn(v) { prefs.sounds = v; prefs.soundsVersion = soundsVersion; if (v) tick() }
+    // The old off is forgotten in the file too, once; a preview shares the installed app's file and leaves it.
+    Component.onCompleted: if (prefs.soundsVersion < soundsVersion && !Sol.preview) { prefs.sounds = true; prefs.soundsVersion = soundsVersion }
 
     /** How loud they all are, 0 to 1: low, under music and speech. Each sound's own volume is its share of it. */
     readonly property real level: 0.5

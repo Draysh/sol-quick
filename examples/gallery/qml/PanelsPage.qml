@@ -142,7 +142,7 @@ Screen {
             // A lit sign beside a title that splits its colours (both the neon flavour's).
             Row {
                 spacing: Theme.s4
-                ChromaText { anchors.verticalCenter: parent.verticalCenter; text: "Neon Rain"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 48; color: Theme.textBright }
+                ChromaText { anchors.verticalCenter: parent.verticalCenter; text: "Neon Rain"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: 48; color: Theme.textBright }
                 NeonSign { text: "レコード"; size: 20 }
             }
             HudPanel { width: parent.width; title: "A HudPanel"; jp: "硝子"; aside: "03"; brackets: Theme.hudSecond

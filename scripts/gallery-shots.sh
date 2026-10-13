@@ -48,6 +48,16 @@ else
     echo "Only .qml changed since the last build: reading it from the checkout, no build."
 fi
 
+# The worlds' own title faces, when their checkouts sit beside the kit (as in
+# a checkout of Sol): each world's app carries its own, the kit doesn't, so
+# the gallery is handed them (SOL_FONTS) to show each flavour in its face.
+fonts=()
+for f in ../../worlds/terra/assets/fonts/Keifont.ttf ../../worlds/mercury/assets/fonts/YujiSyuku-Regular.ttf \
+    ../../worlds/neptune/assets/fonts/Makinas-4-Square.otf; do
+    [[ -f $f ]] && fonts+=("$(cd "$(dirname "$f")" && pwd)/$(basename "$f")")
+done
+export SOL_FONTS=$(IFS=:; echo "${fonts[*]}")
+
 # A fresh throwaway copy, so the window opens at its own size.
 rm -rf /tmp/sol-preview-gallery
 start=$(date '+%Y-%m-%d %H:%M:%S')

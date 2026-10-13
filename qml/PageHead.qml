@@ -119,19 +119,30 @@ Item {
         textRow.opacity = 0
         actionRow.opacity = 0
         tabStrip.opacity = 0
-        // The words slide in behind the page's turn, the way it runs (back: from the other side).
-        const by = Theme.calm ? 0 : Theme.hud.motif === "shrine" ? 12 : 36
+        // The words slide in behind the page's turn, the way it runs (back: from the other side);
+        // a tab's page only fades in, in place.
+        plain = dir === "tab"
+        const by = Theme.calm || plain ? 0 : Theme.hud.motif === "shrine" ? 12 : 36
         textShift.x = dir === "back" ? -by : by
         actionShift.x = dir === "back" ? -by / 2 : by / 2
         headIn.start()
-        if (Theme.hud.motif === "neon" && !Theme.calm) glitch.restart()
+        if (plain) still()
+        else if (Theme.hud.motif === "neon" && !Theme.calm) glitch.restart()
+    }
+    /** Arriving as a tab does: a plain fade. */
+    property bool plain: false
+    // Neptune's flicker stopped where it was, the words back in place.
+    function still() {
+        glitch.stop()
+        ghostRed.opacity = 0; ghostCyan.opacity = 0
+        ghostRed.x = 0; ghostCyan.x = 0; jpText.x = 0
     }
     Settling { when: headIn.running || glitch.running }
     ParallelAnimation {
         id: headIn
-        NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: actionRow; property: "opacity"; to: 1; duration: Theme.turn; easing: Theme.easeOut }
-        NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: Theme.turn; easing: Theme.easeOut }
+        NumberAnimation { target: textRow; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
+        NumberAnimation { target: actionRow; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
+        NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: root.plain ? Theme.fade : Theme.turn; easing: Theme.easeOut }
         NumberAnimation { target: textShift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
         NumberAnimation { target: actionShift; property: "x"; to: 0; duration: Theme.turn; easing: Theme.easeOut }
     }
@@ -252,7 +263,7 @@ Item {
                 Text {
                     id: jpText
                     text: root.jpTitle
-                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 26
+                    font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: 26
                     color: Theme.hudText
                 }
             }
@@ -271,9 +282,9 @@ Item {
                     text: root.title
                     width: Math.min(implicitWidth, textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0))
                     elide: Text.ElideRight
-                    // A few words are HUD capitals; a longer title, or Japanese, as written in the sans.
+                    // The subtitle, in the display face: a few words in capitals; a longer title, or Japanese, as written.
                     readonly property bool caps: Theme.capsFor(root.title)
-                    font.family: caps ? Theme.fontCaps : Theme.font; font.pixelSize: caps ? Theme.textS : Theme.textM; font.weight: caps ? Font.Bold : Font.DemiBold
+                    font.family: Theme.fontDisplay; font.pixelSize: caps ? Theme.textS : Theme.textM; font.weight: Font.Bold
                     font.letterSpacing: caps ? Theme.track(Theme.trackHud, Theme.textS) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
                     color: Theme.hudText
                 }

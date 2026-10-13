@@ -82,7 +82,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.ceil(room.advanceWidth)
             text: root.shown
-            font.family: Theme.fontHud; font.pixelSize: root.size; font.weight: Font.Medium
+            font.family: Theme.fontDisplay; font.pixelSize: root.size; font.weight: Font.Bold
             font.capitalization: Font.AllUppercase
             color: Theme.artBright
         }
@@ -98,7 +98,7 @@ Item {
             Text {
                 visible: root.jp !== ""
                 text: root.jp
-                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold
+                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
                 color: Theme.artAccent
             }
         }

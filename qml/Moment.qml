@@ -162,7 +162,7 @@ FocusScope {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: Theme.jpOf(Theme.worldId)
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.weightTitle
             color: Theme.tint(Theme.artBright, 0.72)
         }
         Text {

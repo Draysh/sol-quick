@@ -134,6 +134,7 @@ replaced: don't use them.
 | `SOL_DRIVE=<file.qml>` | A script loaded into the window (handed `win`) that drives it end to end, and ends the run with `Qt.quit()` |
 | `SOL_CALM` | This run with less motion (moments short and still), whatever the device's setting says |
 | `SOL_FLAVOUR=<world>` | This run wears that world's flavour (`saturn`, `mercury`, `neptune`, `terra`), whichever world the app is (the gallery's pictures of each flavour; `SolBackend.flavour`, read by `Theme.lookWorld`) |
+| `SOL_FONTS=<file>:<file>` | Fonts this run adds to the kit's: the gallery is handed the worlds' own title faces with it (`scripts/gallery-shots.sh` does it when the worlds' checkouts sit beside the kit) |
 | `SOL_FAKE_NAVIDROME=off` | A music world's preview without the stand-in Navidrome (`navidrome::preview()` answers none), to see its pages unconnected |
 | `QT_SCALE_FACTOR` | Qt's own: `1.5` to check fractional scaling; a large one (3) also makes a narrow window |
 
@@ -218,11 +219,11 @@ for `Design.Screen` (Qt has a `Screen` of its own).
 - `Screen`: a page in the pane (`header`, `filter`/`filters`, `hero`,
   `scrollBy`, `wheel(event)`, `notch`, `pageStep`, `actions`: the page's
   own rows in the palette and on the `?` sheet, "Rate 8", "Bury this card").
-  Its content is never wider than `maxWidth` (1400): a wider pane centres
-  it, or gives the room to `side` (a column beside it, above it on a
+  Its content starts at the pane's margin and is never wider than
+  `maxWidth` (1400): a wider pane leaves the rest on the right to the
+  still, after `side` (a column just right of it, above it on a
   narrow pane: a cover, art; `sideAbove: false` leaves it out on a narrow
-  pane, for a page that shows the same things in its column there); `atStart` keeps the
-  content to the left of a wide pane, the still's figure on the right; `sparse` composes a page with little on it
+  pane, for a page that shows the same things in its column there); `sparse` composes a page with little on it
   to the still on a wide pane (its title large and its content in a column under it, one group low
   on the left that scrolls together, the still's figure keeping the rest; written down with the
   flavour's `tategaki` (Mercury's), the title stands beside the column instead); `contentX` and `contentWidth` say
@@ -273,10 +274,15 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `pressable` (or `openable`) gives under a press; `lockOn()` locks its
   brackets on with a few sparks, for a thing that has just gone live), `Grid` (cards in auto-fit columns, row by row; `masonry: true`
   puts each card into the shortest column instead, for pages of cards of
-  very different heights: Settings, Today, Taste, Discover). A pair (a
+  very different heights: Settings, Today, Taste, Discover; never more
+  columns than the cards beside each other need, a card across the whole
+  row not counted; `even: true` fills every row it can, four cards two
+  and two rather than three and one). A pair (a
   card across two columns beside the cards that fill the rest of its band)
   ends level: the shorter are drawn as tall as the tallest, a Card or
-  HudPanel holding its body in the middle of the room (`spare`). When a grid
+  HudPanel holding its body in the middle of the room (`spare`); cards
+  starting on one line whose feet nearly meet (`level`, 128 px and a
+  quarter of the taller at most) end level too, their bodies at the top. When a grid
   places its cards again (one grows, hides or shows) they glide to their
   new places (not the first time, not while the width changes, not with
   less motion). `Callout` (a dotted leader and a short list, in a Sheet).
@@ -383,7 +389,11 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   corners are square, panels cut one corner at 45° (`Theme.hudCut`), there
   is no day, and capitals are set in the HUD face (`Theme.fontCaps`) for
   labels of one to three words, so the kit's components follow by
-  themselves. The
+  themselves. Titles and Japanese tags are in the flavour's own title face
+  (`Theme.fontTitle`, drawn in `Theme.weightTitle`: Corporate Logo for
+  Saturn, Yuji Syuku for Mercury, Makinas 4 for Neptune, Keifont for Terra
+  and Luna), subtitles and big figures in Corporate Logo
+  (`Theme.fontDisplay`). The
   Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
   one of the world's stills turned over by section, `Theme.groundsOf`, a
   moon's own when it has some, `Theme.ownGroundsOf`, graded, the shade
@@ -510,11 +520,16 @@ turning a page, which the Shell plays over its pane), `Settling` (a picture for 
 `Caret` (the text cursor).
 
 **Assets** (`assets/`, in the module's resources): the fonts (`fonts/`: Outfit, Shippori
-Mincho, Shippori Mincho B1, Zen Kaku Gothic New, Chakra Petch, each with its
+Mincho, Zen Kaku Gothic New, Chakra Petch and Corporate Logo Bold, each with its
 `OFL-*.txt` licence; `src/fonts.rs` and `cpp/fonts.h` register them at
-start-up, and `scripts/fonts.py assets/fonts` fetches them from google/fonts
+start-up, and `scripts/fonts.py assets/fonts` fetches the Google Fonts ones
 at a fixed commit and cuts the Japanese families to JIS X 0208, kana,
-punctuation and Latin, kept TrueType so nothing is unpacked at start-up), every world's photo (`worlds/`), the sounds (`sounds/`,
+punctuation and Latin, kept TrueType or OpenType so nothing is unpacked at
+start-up; `scripts/fonts.py --cut` cuts one already downloaded, as
+Corporate Logo is, `--space` narrowing its space and `--palt` giving it
+proportional punctuation; a world's own title face lives in that world's
+repository and is added with `sol_quick::add_font(include_bytes!(…))`
+before `run`), every world's photo (`worlds/`), the sounds (`sounds/`,
 generated WAVs; `chime.wav` too; `scripts/world-sounds.py` makes each world's own, `<world>.wav`; `scripts/night-sounds.py` makes Luna's rain, fire and space loops, which Luna keeps itself), `sol-tray.png` (the tray's icon),
 `widget/DesktopWidget.qml` and `capture/Capture.qml` (quick capture's line),
 loaded by URL from outside the compiled module (they import
@@ -626,6 +641,7 @@ scripts/shots.sh terra /tmp/t today=/ end='/?_scroll=end'   # a world's pages, i
 SOL_HIDDEN_SIZE=1920x1080 scripts/shots.sh …       # the hidden display at another size (hidden.sh's --size)
 scripts/yozora-art.sh                             # the Yozora look's stills and navigators, into ~/.local/share/sol-yozora (this computer only)
 scripts/fonts.py assets/fonts                     # the fonts, from google/fonts at a fixed commit, the Japanese two cut to size
+scripts/fonts.py --cut <font> <out> [--space 0.25] [--palt]   # a face already downloaded, cut the same way
 ```
 
 `gallery-shots.sh` takes its pictures in seven runs (one for each flavour,
@@ -788,7 +804,8 @@ Each turn is the world's own (`PageTurn`): a slanted wipe in its light with
 the PageHead's words sliding in behind it, Saturn's a film's cut with black
 bars, Neptune's red with a cyan ghost under its glitch, Mercury's an ink
 wash clearing from the title, Terra's a soft sweep of sunlight; going back
-runs the other way, and less motion only fades.
+runs the other way, and less motion only fades. A tab (or a Settings
+part) is no new page: it changes with a plain fade, no turn.
 The sidebar's field filters the page in place when the page says
 `filters: true` (it reads `filter`), and searches the app otherwise; `/`
 focuses it (on the rail it waits behind a button and floats over the pane).

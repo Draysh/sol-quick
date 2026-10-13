@@ -71,7 +71,8 @@ Screen {
                 moment: scene.moment
                 width: Math.min(scene.width - 64, 720)
                 x: (scene.width - width) / 2
-                y: scene.height * 0.6
+                // Standing on the bottom bar, as Saturn's does, so its figures are never under it.
+                y: scene.height - implicitHeight - (scene.moment ? scene.moment.barHeight : 0) - Theme.s7
                 lead: scene.moment ? scene.moment.facts.lead : ""
                 title: scene.moment ? scene.moment.facts.title : ""
                 line: scene.moment ? scene.moment.facts.line : ""

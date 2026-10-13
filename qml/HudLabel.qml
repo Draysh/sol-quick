@@ -46,7 +46,7 @@ Row {
             id: signText
             anchors.centerIn: parent
             text: root.jp
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.size + 1; font.weight: Font.Black
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.size + 1; font.weight: Theme.weightTitle
             color: Theme.hud.ground
         }
     }
@@ -109,7 +109,7 @@ Row {
         visible: root.jp !== "" && !root.sign
         anchors.verticalCenter: parent.verticalCenter
         text: "· " + root.jp
-        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.size + 2; font.weight: Font.Bold
+        font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.size + 2; font.weight: Theme.weightTitle
         color: root.light
     }
 }

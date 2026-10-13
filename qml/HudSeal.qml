@@ -40,7 +40,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: root.text
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: Math.round(root.size * 0.6)
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: Math.round(root.size * 0.6)
             color: root.paper
         }
     }

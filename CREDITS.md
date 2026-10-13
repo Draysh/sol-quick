@@ -21,6 +21,16 @@ tight to the disc and converted to WebP.
 [Outfit](https://github.com/Outfitio/Outfit-Fonts) by Rodrigo Fuenzalida, SIL
 Open Font License 1.1, installed from `@fontsource-variable/outfit`.
 
+[Corporate Logo Bold](https://logotype.jp/) (ver3) by LOGOTYPE.JP, its kanji and
+Latin from Source Han Sans (© 2014-2020 Adobe), SIL Open Font License 1.1
+(`assets/fonts/OFL-CorporateLogo.txt`, with the maker's note in
+`CorporateLogo-readme-ja.txt`). Cut down to JIS X 0208 by `scripts/fonts.py
+--cut`, its space narrowed to a quarter square and proportional punctuation
+(`palt`) added.
+
+Chakra Petch, Shippori Mincho and Zen Kaku Gothic New are under the SIL Open
+Font License 1.1 too, their licences beside them in `assets/fonts/`.
+
 ## Icons
 
 Most of `qml/Icon.qml`'s glyphs are [Lucide](https://lucide.dev)'s, their

@@ -68,8 +68,15 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   carries `// not a token: <why>` on its line or the line above. A
   component still decides what less motion (`Theme.calm`) does to it.
 - Fonts: `assets/fonts/` holds the faces and their licences (`OFL-*.txt`);
-  `src/fonts.rs` and `cpp/fonts.h` register every `.ttf` there at
-  start-up; `scripts/fonts.py assets/fonts` makes them.
+  `src/fonts.rs` and `cpp/fonts.h` register every `.ttf` and `.otf` there
+  at start-up; `scripts/fonts.py` makes them. Only openly licensed faces go
+  here (this repository is public). A world's own title face stays in its
+  repository and is added with `sol_quick::add_font` (Neptune's Makinas 4
+  may not be changed or handed on, so it is carried there as it came); the
+  kit names each flavour's face (`Theme.yozoraLooks`' `title`) and falls
+  back to Corporate Logo where the app doesn't carry it. A title face has
+  one weight: set titles in `Theme.weightTitle`, never `Font.Bold`/`Black`,
+  or Qt thickens it.
 - Assets in `assets/` are packed into the module (not `.txt`/`.md`); QML
   reaches them as `../assets/…` from `qml/`.
 - Every file starts with a `/* … */` block saying what it is, with a usage
@@ -111,15 +118,17 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `screen.shell.retab(params)`; AppWindow finds it among the page's
   `header` (`tabs`, `current`, `choose`) for the palette's tab rows.
 - **The page turn**: `Shell.show` plays its `PageTurn` (over the pane, above the
-  pages) with `in`, `up` or `back` as it calls the page's `reveal(dir)`; the
+  pages) with `in`, `up` or `back` as it calls the page's `reveal(dir)`; a
+  tab's own page (`retab`) is `tab`: no turn, the two pages only fade; the
   Screen's and the PageHead's own arrival match each flavour's turn by
   `Theme.hud.motif` (`dusk`, `shrine`, `neon`, `summer`).
 - **The hero flight** morphs by scale: the flyer takes the landing's size
   and is scaled from where it left (Pictures are square, so it reads no
   `rounded` or `radius`).
 - **Containers that place children**: Grid writes `card.index`, reads
-  `card.span`, calls `card.glide(dx, dy)` when it has one, sets a pair's
-  `height` (and `spare`, when the card has it) so the pair ends level, and skips
+  `card.span`, calls `card.glide(dx, dy)` when it has one, sets the
+  `height` of cards ending level (a pair, or feet within `level`) and a
+  pair's `spare` (when the card has it), and skips
   Repeaters (`Theme.isRepeater`); PageHead reads `Button.natural`;
   `Button.room` walks up to a parent with `childRoom` (Sheet sets it);
   Grid lets go of its cards' signals on destruction (a grid made by a
@@ -207,7 +216,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
 - **Settings files**: `~/.config/sol/device.conf` `[appearance] motion`
   (`full` / `less`: `Theme.calm`) (every Sol app; no app of this kit reads `mode`); the app's own
   file (name from `set_application_name` and `set_organization_domain("sachi.digital")` in `run`) with categories
-  `sol.device` (`sounds`: on unless written false) and `sol.<world>` (`accent`, no longer read: the flavour's light
+  `sol.device` (`sounds`: on unless written false with `soundsVersion` 1; an older false is forgotten and written over once, `Sounds.qml`) and `sol.<world>` (`accent`, no longer read: the flavour's light
   is the accent; `widget`, `corner`,
   `toured` (the first-run tour seen); Luna's `nightSounds`, `nightVolume`;
   Neptune's `notToday`; Triton's `dj`). A preview shares the installed app's

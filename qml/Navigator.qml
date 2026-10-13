@@ -83,7 +83,6 @@ Item {
         visible: !root.chip && root.says
         x: root.width - width
         width: Math.min(root.width, naturalWidth)
-        world: root.world
         jp: root.jp
         line: root.line
         tail: "down"
@@ -107,7 +106,7 @@ Item {
         spacing: 2
         Text {
             text: "案内役"
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 1; font.weight: Font.Bold
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 1; font.weight: Theme.weightTitle
             color: Theme.hudAccent
         }
         Text {
@@ -158,7 +157,6 @@ Item {
         Speech {
             id: popSpeech
             width: parent.width
-            world: root.world
             jp: root.jp
             line: root.line
             tail: "left"

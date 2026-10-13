@@ -11,7 +11,7 @@ Text {
 
     property bool caps: level === 3 && Theme.capsFor(text)
     font.family: level < 3 ? Theme.fontTitle : caps ? Theme.fontCaps : Theme.font
-    font.weight: level < 3 ? Font.Black : Theme.weightName
+    font.weight: level < 3 ? Theme.weightTitle : Theme.weightName
     readonly property int size: level === 1 ? Theme.textXl : level === 2 ? Theme.textL : Theme.textM
     font.pixelSize: size
     font.letterSpacing: caps ? Theme.track(Theme.trackCaps, size) : 0

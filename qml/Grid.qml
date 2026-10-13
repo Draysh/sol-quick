@@ -2,20 +2,26 @@ import QtQuick
 
 /*
     Cards in an auto-fit grid: as many columns of at least `min` as fit
-    (never more than there are cards showing, so a short set fills the row),
-    24 px apart, each row as tall as its tallest card and every card
-    starting at the top of its row. Put it in a Screen; give the cards
-    nothing but their content. A card may take two columns or the whole
-    row (`Card.span`). With `masonry`, each card goes into the shortest
-    column instead, so cards of very different heights leave no holes.
-    A pair (a card across two columns beside the cards that fill the rest
-    of its band) ends level: the shorter ones are drawn as tall as the
-    tallest, so their feet meet on one line.
+    (never more than the cards beside each other need, so a short set fills
+    the row; a card across the whole row doesn't count), 24 px apart, each
+    row as tall as its tallest card and every card starting at the top of
+    its row. Put it in a Screen; give the cards nothing but their content.
+    A card may take two columns or the whole row (`Card.span`). With
+    `masonry`, each card goes into the shortest column instead, so cards of
+    very different heights leave no holes.
+    Cards side by side end level where it reads as one band: a pair (a card
+    across two columns beside the cards that fill the rest of its band)
+    always, and any cards starting on one line whose feet nearly meet
+    (`level`): the shorter are drawn as tall as the tallest among them, so
+    their feet meet on one line (in a pair what a card holds sits in the middle of the
+    room, else at its top). A card much shorter than its neighbour keeps
+    its own height rather than a stretch of empty glass.
     When the grid places them again (a card grows, hides or shows), cards
     glide to their new place.
 
         Grid { Card { title: "Log"; … } Card { title: "Sol"; … } }
         Grid { masonry: true; Card { title: "Today"; span: 2; … } Card { … } }
+        Grid { even: true; Repeater { model: stations; delegate: StationCard { … } } }
 */
 Item {
     id: grid
@@ -24,6 +30,8 @@ Item {
     property real gap: Theme.s4
     /** Each card into the shortest column, not row by row: for pages of cards of very different heights. */
     property bool masonry: false
+    /** How far apart the feet of cards starting on one line may be and still be drawn level (never more than a quarter of the taller's height); 0 keeps each its own height, but for a pair. */
+    property real level: Theme.s6 * 2
     default property alias cards: slot.data
 
     // Set by place(), from the cards that show.
@@ -32,14 +40,18 @@ Item {
 
     /** How many columns of at least `min` the width holds. */
     readonly property int fit: Math.max(1, Math.floor((width + gap) / (min + gap)))
-    /** The columns the cards that show would take side by side (set by place()): a short set fills the row instead of leaving empty columns. */
+    /** The columns the cards that show would take side by side, those across the whole row left out (set by place()): a short set fills the row instead of leaving empty columns. */
     property int shown: 0
-    readonly property int columns: Math.max(1, Math.min(fit, shown > 0 ? shown : fit))
+    /** As many cards in every row as it can: four that would go three and one go two and two, each a little wider (for a few cards of one kind, not a wall of posters). */
+    property bool even: false
+    readonly property int columns: Math.max(1, even && shown > 0 ? Math.ceil(shown / Math.ceil(shown / fit)) : Math.min(fit, shown > 0 ? shown : fit))
     readonly property real cell: (width - gap * (columns - 1)) / columns
 
     onCellChanged: place()
     onGapChanged: place()
     onMasonryChanged: place()
+    onLevelChanged: place()
+    onEvenChanged: place()
     Component.onCompleted: place()
 
     Item {
@@ -93,12 +105,13 @@ Item {
         if (placing) { again = true; return }
         placing = true
         // Counted first: a card showing or hiding can change the columns, and with them the cell.
+        // One across the whole row takes whatever there is, so only the others count.
         let n = 0
         const cards = []
         for (const c of slot.children) {
             if (!c || !c.visible || Theme.isRepeater(c)) continue
             cards.push(c)
-            n += c.span === "row" ? 1 : Math.max(1, Math.round(Number(c.span) || 1))
+            if (c.span !== "row") n += Math.max(1, Math.round(Number(c.span) || 1))
         }
         shown = n
         const glide = placedWidth === grid.width
@@ -107,16 +120,17 @@ Item {
         // How many columns a card takes: its `span` (1, 2, or "row" for all), never more than there are.
         const spanOf = c => c.span === "row" ? grid.columns : Math.max(1, Math.min(grid.columns, Math.round(Number(c.span) || 1)))
         // Placed again somewhere else, a card glides there (Card.glide); not the first time, nor while the width changes.
-        const put = (c, x, y, w, h) => {
+        const put = (c, x, y, w, h, middle) => {
             if (glide && placed.indexOf(c) >= 0 && typeof c.glide === "function" && (c.x !== x || c.y !== y)) c.glide(c.x - x, c.y - y)
             c.width = w
             c.x = x
             c.y = y
-            // Drawn taller to end level with its pair, or back to its own height; a card that can
-            // centres what it holds in the room (`spare`).
+            // Drawn taller to end level, or back to its own height. Beside its pair a card that can
+            // centres what it holds in the room (`spare`); a card a little shorter than its
+            // neighbours keeps what it holds at the top, under its title like theirs.
             if (h > c.implicitHeight + 0.5) c.height = h
             else if (stretched.indexOf(c) >= 0) c.height = Qt.binding(() => c.implicitHeight)
-            if (c.hasOwnProperty("spare")) c.spare = Math.max(0, h - c.implicitHeight)
+            if (c.hasOwnProperty("spare")) c.spare = middle ? Math.max(0, h - c.implicitHeight) : 0
         }
         // Where each card goes, `tall` holding the heights of the cards drawn taller than their own.
         const lay = tall => {
@@ -157,25 +171,36 @@ Item {
             }
             return out
         }
-        // A pair: cards starting on one line that fill every column between them, one across
-        // more than one. They end level, as tall as the tallest; masonry then places the rest
-        // under them again (twice at most: a band found the second time is rare).
+        // Cards starting on one line end level, as tall as the tallest: a pair (they fill every
+        // column between them, one across more than one) always, others when their feet nearly
+        // meet. Masonry then places the rest under them again (a few times at most: a band
+        // found later is rare).
+        // Which of them are in a pair, to centre what they hold.
+        let paired = new Set()
         const pairs = spots => {
             const tall = new Map()
+            paired = new Set()
             const bands = {}
             for (const p of spots) (bands[Math.round(p.y)] = bands[Math.round(p.y)] || []).push(p)
             for (const key in bands) {
                 const band = bands[key]
-                if (band.length < 2 || !band.some(p => p.s > 1 && p.s < grid.columns)) continue
-                if (band.reduce((n, p) => n + p.s, 0) !== grid.columns) continue
+                if (band.length < 2) continue
+                const pair = band.some(p => p.s > 1 && p.s < grid.columns) && band.reduce((n, p) => n + p.s, 0) === grid.columns
                 const h = Math.max(...band.map(p => p.c.implicitHeight))
-                for (const p of band) if (p.c.implicitHeight < h - 0.5) tall.set(p.c, h)
+                for (const p of band) {
+                    const own = p.c.implicitHeight
+                    // In a pair, the tallest; else the tallest beside it whose foot is near its own.
+                    let to = own
+                    if (pair) { to = h; paired.add(p.c) }
+                    else for (const q of band) { const t = q.c.implicitHeight; if (t > to && t - own <= Math.min(grid.level, t / 4)) to = t }
+                    if (to > own + 0.5) tall.set(p.c, to)
+                }
             }
             return tall
         }
         let tall = new Map()
         let spots = lay(tall)
-        for (let pass = 0; pass < 2; pass++) {
+        for (let pass = 0; pass < 3; pass++) {
             const next = pairs(spots)
             if (next.size === tall.size && [...next].every(([c, h]) => tall.get(c) === h)) break
             tall = next
@@ -184,7 +209,7 @@ Item {
         let bottom = 0
         for (const p of spots) {
             const h = tall.has(p.c) ? tall.get(p.c) : p.c.implicitHeight
-            put(p.c, p.x, p.y, across(p.s), h)
+            put(p.c, p.x, p.y, across(p.s), h, paired.has(p.c))
             bottom = Math.max(bottom, p.y + h)
         }
         stretched = [...tall.keys()]

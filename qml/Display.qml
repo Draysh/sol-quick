@@ -17,9 +17,9 @@ Text {
     property real shown: 0
     property bool first: true
 
-    // A figure is the HUD's: its squared face, medium.
-    font.family: Theme.fontHud
-    font.weight: Font.Medium
+    // A big figure is in the display face, every app's second voice.
+    font.family: Theme.fontDisplay
+    font.weight: Font.Bold
     property int size: 44
     font.pixelSize: size
     font.letterSpacing: Theme.track(0.01, size)

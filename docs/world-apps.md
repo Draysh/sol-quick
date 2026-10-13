@@ -41,6 +41,7 @@ qml/Main.qml      the AppWindow: sections, pages, the window's own wiring
 qml/<World>.qml   the world's singleton: state and words the screens share
 qml/*Page.qml     one Screen per page; other files are the pieces they share
 sample.json       preview data, where a world keeps it outside sample.rs
+assets/fonts/     the world's own title face and its licence, where it has one
 scripts/          icon.sh, install-local.sh, signing-key.sh
 update.pub        the key release files are signed with
 ```
@@ -49,7 +50,12 @@ update.pub        the key release files are signed with
   version, bin, icons, handler, commands: world::commands(), main, source,
   sample, prepare, tray, shortcuts })`, and the engine's static for a world
   with one (`use <world>_core as world;`). The logic and the commands live
-  in the crate `<world>-core`.
+  in the crate `<world>-core`. A world whose flavour has a title face of
+  its own (`Theme.yozoraLooks`' `title`) carries it in `assets/fonts/` and
+  adds it before `run`: `sol_quick::add_font(include_bytes!("../assets/fonts/<face>"))`
+  (Terra's Keifont, Mercury's Yuji Syuku, Neptune's Makinas 4; its moons'
+  pages use it too). Titles take `Theme.fontTitle` in `Theme.weightTitle`;
+  subtitles and big figures `Theme.fontDisplay`.
 - **The logic crate** (`crates/<world>-core`) depends on orbit and the
   kit's half without Qt (`sol-quick = { package = "sol-quick-core", … }`,
   so it says `sol_quick::…` as the app does), never on cxx-qt: its tests

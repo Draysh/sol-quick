@@ -142,7 +142,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             y: (parent.height - height) / 2 - (cardName.visible ? cardName.height / 2 : 0)
             text: root.cardGlyph
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle
             font.pixelSize: Math.max(12, Math.min(root.width, root.height) * 0.46)
             color: root.nameHash % 3 === 0 ? Theme.tint(Theme.artSecond, 0.85) : Theme.tint(Theme.artAccent, 0.85)
         }

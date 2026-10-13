@@ -83,7 +83,7 @@ Item {
                 width: 24; height: 24
                 anchors.verticalCenter: parent.verticalCenter
                 Rectangle { anchors.centerIn: parent; width: 18; height: 18; rotation: 45; antialiasing: true; color: Theme.tint(Theme.hudAccent, 0.12); border.width: 1.5; border.color: Theme.hudAccent }
-                Text { anchors.centerIn: parent; text: Theme.jpOf(root.world).charAt(0); font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: 12; color: Theme.hudText }
+                Text { anchors.centerIn: parent; text: Theme.jpOf(root.world).charAt(0); font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: 12; color: Theme.hudText }
             }
             Text { text: root.name !== "" ? root.name : root.w.name; anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.weight: Theme.weightName; font.pixelSize: Theme.textM; font.letterSpacing: Theme.track(0.12, Theme.textM); font.capitalization: Font.AllUppercase; color: Theme.textBright }
             Text { visible: root.figures.length > 0 && width >= 80; text: root.figures.map(f => f.value + " " + f.label).join(" · "); anchors.verticalCenter: parent.verticalCenter; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.letterSpacing: Theme.track(Theme.trackCaps, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.textQuiet; elide: Text.ElideRight; width: Math.max(0, root.width - 400) }
@@ -121,7 +121,7 @@ Item {
                 text: root.jp !== "" ? root.jp : Theme.jpOf(root.world)
                 elide: Text.ElideRight
                 readonly property real size: root.tight ? Math.min(76, Math.max(48, root.width / 12)) : Math.min(Theme.textHero * 0.85, Math.max(48, root.width / 10))
-                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Font.Black; font.pixelSize: size
+                font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: size
                 // A long title (a song's, a station's) shrinks to its line before it is cut short.
                 fontSizeMode: Text.HorizontalFit; minimumPixelSize: 40
                 color: Theme.artBright
@@ -134,8 +134,8 @@ Item {
                 wrapMode: Text.Wrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
-                // English: the sans, as written (the serif is for the Japanese).
-                font.family: Theme.font; font.pixelSize: Math.round(Theme.textLede * 0.8); font.weight: Theme.weightName
+                // English, as written, in the display face: the subtitle under the Japanese.
+                font.family: Theme.fontDisplay; font.pixelSize: Math.round(Theme.textLede * 0.8); font.weight: Font.Bold
                 color: Theme.tint(Theme.artBright, 0.92)
             }
         }
@@ -151,7 +151,7 @@ Item {
             text: root.vertical.split("").map(c => ({ "、": "\ufe11", "。": "\ufe12", "ー": "\ufe31" })[c] || c).join("\n")
             horizontalAlignment: Text.AlignHCenter
             lineHeight: 1.05
-            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.tight ? 17 : 22; font.weight: Font.Black
+            font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.pixelSize: root.tight ? 17 : 22; font.weight: Theme.weightTitle
             color: Theme.tint(Theme.hud.washi || Theme.artBright, 0.85)
         }
 

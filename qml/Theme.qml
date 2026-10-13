@@ -108,15 +108,26 @@ QtObject {
     readonly property string fontJp: "Shippori Mincho"
     /** Japanese set in a sans on its own, for a block of it (lyrics, a line said). */
     readonly property string fontJpSans: "Zen Kaku Gothic New"
-    /** Titles, and every Japanese tag beside a HUD label: a heavy Japanese serif. Set its punctuation with `titleFeatures`. */
-    readonly property string fontTitle: "Shippori Mincho B1"
+    /**
+        Titles, and every Japanese tag beside a HUD label: the flavour's own
+        face (its `title`: Corporate Logo for Saturn, Yuji Syuku's brush for
+        Mercury, Makinas for Neptune, Keifont for Terra and Luna), each
+        world's app carrying its own (`sol_quick::add_font`); where the app
+        doesn't carry it, `fontDisplay`. Drawn in `weightTitle`, never
+        thicker, and its punctuation set with `titleFeatures`.
+    */
+    readonly property string fontTitle: Qt.fontFamilies().indexOf(hud.title) >= 0 ? hud.title : fontDisplay
+    /** The weight a title face is drawn in: its one weight (Corporate Logo's is bold, the others' regular), so it is never thickened. */
+    readonly property int weightTitle: fontTitle === fontDisplay ? Font.Bold : Font.Normal
+    /** Subtitles (the English line under a big title, a PageHead's English title) and big figures, in every app: Corporate Logo Bold. */
+    readonly property string fontDisplay: "Corporate Logo ver3"
     /** HUD capitals and figures: a squared sans, cut like a game's menus. */
     readonly property string fontHud: "Chakra Petch"
     /** The face for words set in capitals (labels, buttons, tabs, quiet facts): the HUD face. */
     readonly property string fontCaps: fontHud
     /** Tabular numbers only, where digits must stand in columns (a timer, a frequency): the mono face. */
     readonly property string fontMono: "JetBrains Mono"
-    /** A title's OpenType features: proportional Japanese punctuation (、。「」 take half a square). */
+    /** A title's OpenType features: proportional Japanese punctuation (、。「」 take half a square) in a face that has it; the title faces set them in a full square, or (Corporate Logo) are cut proportional. */
     readonly property var titleFeatures: ({ "palt": 1 })
     /** Whether `s` has Japanese in it (kana or kanji): it is never set in capitals or tracked. */
     function hasJp(s) { return /[\u3040-\u30ff\u3400-\u9fff\uff66-\uff9f]/.test(String(s)) }
@@ -170,10 +181,12 @@ QtObject {
         (its name in Japanese) and `glyph` (one kanji, the rail's diamond),
         `navigator` (the name of the character who says the page's line),
         `motif` (what its panels carry: "dusk", "shrine", "neon" or
-        "summer"), `bubble` (the paper of the navigator's speech, written
-        on in the `ground`), `blush` (the warm light over the navigator when
+        "summer"), `bubble` (the glass of the navigator's speech, nearly
+        opaque, written on in `text` and `quiet` inside an `edge` outline), `blush` (the warm light over the navigator when
         it cheers), `face` (where the face is on its portrait, as fractions
-        across and down, for a close crop: the head chip), `seal`
+        across and down, and how close the frame comes, 1 unless given: a
+        whole figure, a cut-out, wants about 1.7; the head chip comes closer
+        again), `seal`
         (Mercury's vermilion), `paper` and `ink` (Terra's notebook) and
         `film` (whose stills), `frame` (how its stills are framed, `[zoom,
         across]`: a little closer, and the part shown from left 0 to right 1,
@@ -184,7 +197,9 @@ QtObject {
         and posts under its Japanese title) and `tategaki` (a sparse
         page's big title written down, as a hanging scroll), `signs` (the
         first page's line down the right as a lit `NeonSign`) and `chroma`
-        (big titles with a red and a cyan edge, `ChromaText`). A day
+        (big titles with a red and a cyan edge, `ChromaText`), `title` (its
+        title face, `fontTitle`) and `kanjiNumbers` (the sidebar's numbers
+        in kanji in that face, 一, 二, 三, instead of 01, 02). A day
         flavour (Terra's noon) has `light` glass: frosted white, its words
         (`text`, `quiet`, `faint`, and `bright` the strongest) dark ink, its
         `edge` dark enough for hairlines on white; words on the still itself
@@ -197,9 +212,9 @@ QtObject {
     */
     readonly property var yozoraLooks: ({
         saturn: {
-            id: "saturn", navigator: "Suzume", motif: "dusk", film: "Suzume", jp: "土星", glyph: "土",
+            id: "saturn", navigator: "Suzume", title: "Corporate Logo ver3", motif: "dusk", film: "Suzume", jp: "土星", glyph: "土",
             ground: "#0b0e2a", glass: Qt.rgba(9 / 255, 11 / 255, 34 / 255, 0.62), edge: "#c8d0ff",
-            accent: "#ffc07e", second: "#7fe3ff", seal: "#f07a6a", bubble: "#f4f2ff", blush: "#ffb08a", face: [0.42, 0.36],
+            accent: "#ffc07e", second: "#7fe3ff", seal: "#f07a6a", bubble: Qt.rgba(9 / 255, 11 / 255, 34 / 255, 0.9), blush: "#ffb08a", face: [0.53, 0.44],
             text: "#f2f4ff", quiet: "#c8d0ff", faint: "#8e98d8",
             sky: ["#0b0e2a", "#2b2468", "#8a3c7e", "#f07a6a", "#ffc07e"], stars: true, shade: 0.78,
             // Dusk: indigo overhead, the horizon left warm (amber over the still's own glow), night at the foot.
@@ -207,18 +222,18 @@ QtObject {
             grade: [[0.17, 0.14, 0.41, 0.34], [1, 0.66, 0.4, 0.16], [0.17, 0.14, 0.41, 0.46], [0.043, 0.055, 0.165, 0.86], [0.043, 0.055, 0.165, 0.96]]
         },
         mercury: {
-            id: "mercury", navigator: "Mitsuha", hold: 0.3, motif: "shrine", film: "Your Name", jp: "水星", glyph: "水",
+            id: "mercury", navigator: "Mitsuha", title: "Yuji Syuku", hold: 0.3, motif: "shrine", film: "Your Name", jp: "水星", glyph: "水",
             ground: "#07081c", glass: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.66), edge: "#ffe6d6",
-            accent: "#ff8fa8", second: "#ffd58a", seal: "#e2412e", washi: "#fff4da", bubble: "#fff4da", blush: "#ff9fb4", face: [0.5, 0.42],
+            accent: "#ff8fa8", second: "#ffd58a", seal: "#e2412e", washi: "#fff4da", bubble: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.9), blush: "#ff9fb4", face: [0.5, 0.42],
             text: "#fff8ee", quiet: "#e9dccf", faint: "#a99a9e",
             sky: ["#05061a", "#121848", "#2e1e4e", "#7a2a3c", "#c94a35"], stars: true, shade: 0.8,
-            torii: true, tategaki: true,
+            torii: true, tategaki: true, kanjiNumbers: true,
             grade: [[0.89, 0.25, 0.18, 0.12], [0.03, 0.03, 0.11, 0.3], [0.03, 0.03, 0.11, 0.5], [0.027, 0.031, 0.11, 0.86], [0.027, 0.031, 0.11, 0.96]]
         },
         neptune: {
-            id: "neptune", navigator: "Lucy", hold: 0.34, motif: "neon", film: "Weathering With You", jp: "海王星", glyph: "海",
+            id: "neptune", navigator: "Lucy", title: "Makinas", hold: 0.34, motif: "neon", film: "Weathering With You", jp: "海王星", glyph: "海",
             ground: "#0a1426", glass: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.68), edge: "#8fe7ff",
-            accent: "#ff4a5a", second: "#8fe7ff", seal: "#ff4a5a", bubble: "#eef6ff", blush: "#ff8aa8", face: [0.52, 0.52],
+            accent: "#ff4a5a", second: "#8fe7ff", seal: "#ff4a5a", bubble: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.9), blush: "#ff8aa8", face: [0.55, 0.33, 1.7],
             text: "#eef6ff", quiet: "#b9cbe8", faint: "#7590b4",
             sky: ["#040814", "#0a1730", "#14284f", "#3a1c46", "#a32a48"], stars: false, shade: 0.8, rain: 1, haze: "#ff4a5a", signs: true, chroma: true,
             grade: [[0.56, 0.9, 1, 0.1], [0.04, 0.08, 0.15, 0.42], [0.04, 0.08, 0.15, 0.56], [0.039, 0.078, 0.149, 0.86], [0.039, 0.078, 0.149, 0.96]]
@@ -226,19 +241,19 @@ QtObject {
         // Noon: frosted white glass with dark ink on it (ramune blue its light, sunflower its
         // primary), the sky lifted with a little summer haze, the shade the deep of the sky.
         terra: {
-            id: "terra", navigator: "Hina", hold: 0, motif: "summer", film: "Weathering With You and 5 Centimeters per Second", jp: "地球", glyph: "地",
+            id: "terra", navigator: "Hina", title: "Keifont", hold: 0, motif: "summer", film: "Weathering With You and 5 Centimeters per Second", jp: "地球", glyph: "地",
             light: true, ground: "#14233f", dim: "#0a3a85", glass: Qt.rgba(246 / 255, 250 / 255, 1, 0.8), edge: "#1b4a86",
             accent: "#1157ab", second: "#3b3f9e", primary: "#ffb81c", artAccent: "#ffe07a", artSecond: "#fff3a6",
-            seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f", bubble: "#fbf8ee", blush: "#ffc9a0", face: [0.52, 0.44],
+            seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f", bubble: Qt.rgba(246 / 255, 250 / 255, 1, 0.92), blush: "#ffc9a0", face: [0.52, 0.44],
             bright: "#0b1730", text: "#10203a", quiet: "#33476a", faint: "#3f5378",
             sky: ["#1f6fd6", "#4a90e2", "#8fbdf0", "#cfe4fa", "#eef6ff"], stars: false, shade: 0.2, pool: 0.4,
             grade: [[1, 1, 1, 0.16], [0.86, 0.93, 1, 0.1], [0.86, 0.93, 1, 0.04], [0.8, 0.9, 1, 0.1], [0.78, 0.88, 1, 0.18]]
         },
         // Luna: Terra after sunset, under the moon: indigo glass, the moon's yellow its light.
         luna: {
-            id: "luna", navigator: "Hina", hold: 0.16, motif: "summer", film: "5 Centimeters per Second", jp: "月", glyph: "月",
+            id: "luna", navigator: "Hina", title: "Keifont", hold: 0.16, motif: "summer", film: "5 Centimeters per Second", jp: "月", glyph: "月",
             ground: "#0b0d2a", glass: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.66), edge: "#dcd8ff",
-            accent: "#ffe08a", second: "#b7c2ff", seal: "#ffe08a", bubble: "#fbf6e6", blush: "#ffc9a0", face: [0.52, 0.44],
+            accent: "#ffe08a", second: "#b7c2ff", seal: "#ffe08a", bubble: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.9), blush: "#ffc9a0", face: [0.52, 0.44],
             text: "#f7f5ff", quiet: "#d6d3f2", faint: "#a4a1cf",
             sky: ["#05061a", "#0d1238", "#1c2160", "#2b2f74", "#3d3a86"], stars: true, shade: 0.72,
             grade: [[0.05, 0.06, 0.2, 0.16], [0.05, 0.06, 0.2, 0.1], [0.05, 0.06, 0.2, 0.3], [0.043, 0.051, 0.165, 0.72], [0.043, 0.051, 0.165, 0.9]]
