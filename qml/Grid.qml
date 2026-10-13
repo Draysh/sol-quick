@@ -53,7 +53,8 @@ Item {
     onMasonryChanged: place()
     onLevelChanged: place()
     onEvenChanged: place()
-    Component.onCompleted: place()
+    // Its page draws its columns as hairlines (a flavour's `grid`) from the widest grid on it.
+    Component.onCompleted: { place(); const page = Theme.ruled ? Theme.screenOf(grid) : null; if (page) page.offerRuler(grid) }
 
     Item {
         id: slot
@@ -86,6 +87,8 @@ Item {
 
     // Let go of the cards first, so one going away with the grid doesn't ask a grid already gone to place it.
     Component.onDestruction: {
+        const page = Theme.ruled ? Theme.screenOf(grid) : null
+        if (page) page.dropRuler(grid)
         for (const c of watched) {
             if (!c) continue
             c.implicitHeightChanged.disconnect(grid.place)

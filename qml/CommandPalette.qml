@@ -22,7 +22,10 @@ import Sol.Design
     window's actions. A row's keys stand on the right as key caps
     (Ctrl+3 for a section, Space for Play). It opens with a slash: the
     panel slides in under a stroke of the world's light, with the open
-    sound; the keys moving from row to row tick softly.
+    sound; the keys moving from row to row tick softly. A flavour with
+    `drawer` (Neptune's and Saturn's, after SSS by applibot's menu) has it slide in from
+    the right as a flat panel of the light, the window's height, its words
+    in the ink and the chosen row a bar of the ink.
 
         CommandPalette { id: palette; sections: shell.sections; verbs: page.actions; verbsName: { label: "Neon Rain", jp: "アルバム" }; commands: [{ label: "Pick one for me", hint: "…", run: () => … }]; find: q => Sol.call("search", { query: q }).then(…) }
 */
@@ -62,6 +65,18 @@ Item {
     property var found: []
     property int at: 0
     property bool busy: false
+    /** A flat panel of the light down the right (the flavour's `drawer`), its words in the ink. */
+    readonly property bool drawer: !!Theme.hud.drawer
+    /** The words' colours on it: the ink on the light, else the glass's. */
+    readonly property color inkStrong: drawer ? Theme.cardInk : Theme.textBright
+    readonly property color ink: drawer ? Theme.cardInk : Theme.text
+    // On a light flavour's drawer (white on the blue) the quiet words keep all of the ink, so they keep 4.5:1.
+    readonly property color inkQuiet: drawer ? Theme.tint(Theme.cardInk, Theme.light ? 1 : 0.78) : Theme.textQuiet
+    readonly property color inkHead: drawer ? Theme.cardInk : Theme.hudAccent
+    /** On a drawer, the chosen row's bar and the words on it: the ink, the light's words on it (white on a light flavour's ink bar). */
+    readonly property color bar: Theme.light ? Theme.hud.ground : Theme.cardInk
+    readonly property color barInk: Theme.light ? Theme.cardInk : Theme.textBright
+    readonly property color barQuiet: Theme.light ? Theme.tint(Theme.cardInk, 0.78) : Theme.textQuiet
 
     anchors.fill: parent
     // Stays until it has faded out.
@@ -205,21 +220,24 @@ Item {
 
     // The open's slash: a stroke of the world's light across the panel, the panel sliding in behind it.
     property real slashAt: 1
-    NumberAnimation { id: slash; target: root; property: "slashAt"; from: 0; to: 1; duration: Theme.hit + Theme.hold; easing: Theme.easeOut }
+    NumberAnimation { id: slash; target: root; property: "slashAt"; from: 0; to: 1; duration: root.drawer ? Theme.settle : Theme.hit + Theme.hold; easing: Theme.easeOut }
+    Settling { when: slash.running }
     Item {
         id: box
-        x: (parent.width - width) / 2
-        transform: Translate { x: (1 - Math.min(1, root.slashAt * 2)) * -Theme.s4 }
-        y: Math.min(parent.height * 0.18, 120)
-        width: Math.min(560, parent.width - 32)
-        height: column.implicitHeight + 2
+        // A drawer comes in from the right, the window's height; else a panel under a slash, a little down.
+        x: root.drawer ? parent.width - width : (parent.width - width) / 2
+        transform: Translate { x: root.drawer ? (1 - root.slashAt) * box.width : (1 - Math.min(1, root.slashAt * 2)) * -Theme.s4 }
+        y: root.drawer ? 0 : Math.min(parent.height * 0.18, 120)
+        width: Math.min(root.drawer ? 600 : 560, parent.width - 32)
+        height: root.drawer ? parent.height : column.implicitHeight + 2
         opacity: root.open ? 1 : 0
-        scale: root.open ? 1 : 0.97
+        scale: root.open || root.drawer ? 1 : 0.97
         // In on the slash's hit, out on a fade.
         Behavior on opacity { NumberAnimation { duration: root.open ? Theme.hit : Theme.fade; easing: root.open ? Theme.easeOut : Theme.easeIn } }
         Behavior on scale { NumberAnimation { duration: root.open ? Theme.hit : Theme.fade; easing: Theme.easeOut } }
         MouseArea { anchors.fill: parent }
-        GlassPanel { anchors.fill: parent; edge: Theme.lineStrong; shade: 0.86 }
+        GlassPanel { visible: !root.drawer; anchors.fill: parent; edge: Theme.lineStrong; shade: 0.86 }
+        Rectangle { visible: root.drawer; anchors.fill: parent; color: Theme.hudAccent }
 
         Column {
             id: column
@@ -228,16 +246,16 @@ Item {
             // The HUD line along its top.
             Item {
                 width: parent.width
-                height: 30
+                height: root.drawer ? 30 + Theme.s5 : 30
                 Row {
                     x: Theme.s4
                     anchors.bottom: parent.bottom
                     spacing: Theme.s2
-                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; rotation: 45; antialiasing: true; color: Theme.hudAccent }
-                    Text { anchors.verticalCenter: parent.verticalCenter; text: "コマンド"; font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2); color: Theme.hudAccent }
-                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Command · Ctrl+K"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudAccent }
+                    Rectangle { anchors.verticalCenter: parent.verticalCenter; width: 6; height: 6; rotation: 45; antialiasing: true; color: root.inkHead }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "コマンド"; font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2); color: root.inkHead }
+                    Text { anchors.verticalCenter: parent.verticalCenter; text: "Command · Ctrl+K"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: root.inkHead }
                 }
-                Text { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.bottom: parent.bottom; text: root.busy ? "Looking…" : root.trail.length ? "Esc · back" : "Esc"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudFaint }
+                Text { anchors.right: parent.right; anchors.rightMargin: Theme.s4; anchors.bottom: parent.bottom; text: root.busy ? "Looking…" : root.trail.length ? "Esc · back" : "Esc"; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: root.drawer ? root.inkQuiet : Theme.hudFaint }
             }
             Item {
                 width: parent.width
@@ -252,9 +270,9 @@ Item {
                     elide: Text.ElideRight
                     text: root.trail.map(t => root.stem(t.label)).join(" › ") + " ›"
                     font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: Theme.weightValue
-                    color: Theme.textWorld
+                    color: root.drawer ? root.ink : Theme.textWorld
                 }
-                Field { id: field; bare: true; x: crumb.visible ? crumb.x + crumb.width + Theme.s2 : Theme.s4; width: parent.width - x - Theme.s4; anchors.verticalCenter: parent.verticalCenter; label: ""
+                Field { id: field; bare: true; ink: root.ink; faintInk: root.drawer && Theme.light ? Theme.tint(root.ink, 0.92) : (root.ink === Theme.text ? Theme.textFaint : Theme.tint(root.ink, 0.62)); x: crumb.visible ? crumb.x + crumb.width + Theme.s2 : Theme.s4; width: parent.width - x - Theme.s4; anchors.verticalCenter: parent.verticalCenter; label: ""
                     placeholder: root.trail.length ? "Choose one" : root.find ? "Go somewhere, do something, find anything" : "Go somewhere, do something"
                     Keys.onUpPressed: event => { root.move(-1); event.accepted = true }
                     Keys.onDownPressed: event => { root.move(1); event.accepted = true }
@@ -263,13 +281,13 @@ Item {
                     Keys.onRightPressed: event => { const e = root.entries[root.at]; if (e && e.items && field.input.cursorPosition === field.text.length) { root.enter(e); event.accepted = true } else event.accepted = false }
                     Keys.onLeftPressed: event => { if (field.text === "" && root.leave()) event.accepted = true; else event.accepted = false }
                     onAccepted: root.run() }
-                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
+                Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: root.drawer ? Theme.tint(Theme.cardInk, 0.4) : Theme.line }
             }
             // As many rows as the window has room for; the rest scroll, the keys' row in sight.
             Flickable {
                 id: rows
                 width: parent.width
-                height: Math.min(contentHeight, Math.max(44, root.height - box.y - 84 - Theme.s1 - Theme.s4))
+                height: Math.min(contentHeight, Math.max(44, root.height - box.y - (root.drawer ? rows.y + Theme.s4 : 84 + Theme.s1 + Theme.s4)))
                 contentHeight: rowColumn.implicitHeight
                 interactive: contentHeight > height
                 boundsBehavior: Flickable.StopAtBounds
@@ -297,14 +315,16 @@ Item {
                                 x: Theme.s4
                                 y: Theme.s3 - 2
                                 spacing: Theme.s2
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.jp : ""; font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2); color: Theme.hudQuiet }
-                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.label : ""; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: Theme.hudQuiet }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.jp : ""; font.family: Theme.titleFace(Theme.textXs + 2); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 2; font.weight: Theme.titleWeight(Theme.textXs + 2); color: root.drawer ? root.inkQuiet : Theme.hudQuiet }
+                                Text { anchors.verticalCenter: parent.verticalCenter; text: row.group ? row.group.label : ""; font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold; font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase; color: root.drawer ? root.inkQuiet : Theme.hudQuiet }
                             }
+                            // On a drawer, the chosen row is a bar of the ink.
+                            Rectangle { visible: row.on && root.drawer; y: row.head + 2; x: Theme.s2; width: parent.width - Theme.s2 * 2; height: 40; color: root.bar }
                             // The light on the chosen row: a slanted bar in the world's light.
                             Shape {
                                 y: row.head
                                 width: parent.width; height: 44
-                                visible: row.on
+                                visible: row.on && !root.drawer
                                 preferredRendererType: Shape.CurveRenderer
                                 readonly property real lean: 14
                                 ShapePath {
@@ -325,8 +345,8 @@ Item {
                                 x: Theme.s4 + Theme.s1
                                 y: row.head + (44 - height) / 2
                                 spacing: Theme.s3
-                                Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: row.on ? Theme.weightName : Theme.weightValue; color: row.modelData.danger ? Theme.dangerText : row.on ? Theme.textBright : Theme.text }
-                                Text { readonly property real spare: row.room - labelText.width - Theme.s3; visible: !!row.modelData.hint && spare >= 60; text: row.modelData.hint || ""; width: Math.max(0, Math.min(implicitWidth, spare)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: Theme.textQuiet; anchors.verticalCenter: parent.verticalCenter }
+                                Text { id: labelText; text: row.modelData.label; width: Math.max(0, Math.min(implicitWidth, row.room)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textM; font.weight: row.on ? Theme.weightName : Theme.weightValue; color: row.modelData.danger && !root.drawer ? Theme.dangerText : row.on ? (root.drawer ? root.barInk : Theme.textBright) : root.ink }
+                                Text { readonly property real spare: row.room - labelText.width - Theme.s3; visible: !!row.modelData.hint && spare >= 60; text: row.modelData.hint || ""; width: Math.max(0, Math.min(implicitWidth, spare)); elide: Text.ElideRight; font.family: Theme.font; font.pixelSize: Theme.textS; color: row.on && root.drawer ? root.barQuiet : root.inkQuiet; anchors.verticalCenter: parent.verticalCenter }
                             }
                             // Its keys as key caps on the right ("Ctrl" "3"), or for a row with a list of its own, the way in.
                             Row {
@@ -343,20 +363,20 @@ Item {
                                         width: Math.max(height, capText.implicitWidth + Theme.s2 * 2 - 2)
                                         height: 20
                                         radius: Theme.radiusS
-                                        color: Theme.tint(Theme.ink, row.on ? 0.12 : 0.05)
+                                        color: root.drawer ? "transparent" : Theme.tint(Theme.ink, row.on ? 0.12 : 0.05)
                                         border.width: 1
-                                        border.color: row.on ? Theme.tint(Theme.hudAccent, 0.7) : Theme.lineMid
+                                        border.color: root.drawer ? (row.on ? (Theme.light ? Theme.tint(root.barInk, 0.6) : Theme.hudAccent) : Theme.tint(Theme.cardInk, 0.6)) : row.on ? Theme.tint(Theme.hudAccent, 0.7) : Theme.lineMid
                                         Text {
                                             id: capText
                                             anchors.centerIn: parent
                                             text: cap.modelData
                                             font.family: Theme.fontHud; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold
                                             font.letterSpacing: Theme.track(0.06, Theme.textXs)
-                                            color: row.on ? Theme.textBright : Theme.textQuiet
+                                            color: row.on ? (root.drawer ? root.barInk : Theme.textBright) : root.inkQuiet
                                         }
                                     }
                                 }
-                                Quiet { visible: !!row.modelData.items; text: "›" }
+                                Quiet { visible: !!row.modelData.items; text: "›"; color: !root.drawer ? Theme.textQuiet : row.on ? root.barInk : root.inkQuiet }
                             }
                             MouseArea { y: row.head; width: parent.width; height: 44; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.at = row.index; onClicked: root.run() }
                         }
@@ -364,13 +384,13 @@ Item {
                 }
             }
             Item { visible: root.entries.length === 0; width: parent.width; height: 44
-                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; caps: false } }
+                Quiet { x: Theme.s4; anchors.verticalCenter: parent.verticalCenter; text: root.busy ? "Looking…" : "Nothing for that"; caps: false; color: root.inkQuiet } }
             // Room under the last row, so its light clears the panel's corners.
             Item { width: parent.width; height: Theme.s1 }
         }
         Shape {
             id: stroke
-            visible: slash.running
+            visible: slash.running && !root.drawer
             readonly property real lean: box.height * 0.35
             readonly property real wide: 36
             x: -wide - lean + root.slashAt * (box.width + wide * 2 + lean)

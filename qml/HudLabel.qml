@@ -28,6 +28,8 @@ Row {
     property bool mark: true
     /** The words' room: a long label elides within it. */
     property real room: 10000
+    /** A HUD line written as a caption (a flavour's `captions`): the words as given, lowercase, in the HUD face, tracked a little. */
+    property bool caption: false
 
     spacing: 10
 
@@ -98,10 +100,10 @@ Row {
         text: root.text
         width: Math.min(implicitWidth, root.room - (root.sign ? signBox.width + root.spacing : root.mark ? 18 : 0) - (tag.visible ? tag.implicitWidth + root.spacing : 0))
         elide: Text.ElideRight
-        // A label of a few words is capitals, tracked; a longer one, or one with Japanese, as written.
-        readonly property bool caps: Theme.capsFor(root.text)
-        font.family: caps ? Theme.fontCaps : Theme.font; font.pixelSize: caps ? root.size : root.size + 1; font.weight: Font.DemiBold
-        font.letterSpacing: caps ? Theme.track(Theme.trackHud, root.size) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
+        // A label of a few words is capitals, tracked; a longer one, or one with Japanese, as written; a caption in lowercase.
+        readonly property bool caps: !root.caption && Theme.capsFor(root.text)
+        font.family: caps || root.caption ? Theme.fontCaps : Theme.font; font.pixelSize: caps ? root.size : root.size + 1; font.weight: root.caption ? Font.Medium : Font.DemiBold
+        font.letterSpacing: caps ? Theme.track(Theme.trackHud, root.size) : root.caption ? Theme.track(0.04, root.size) : 0; font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
         color: root.color
     }
     Text {

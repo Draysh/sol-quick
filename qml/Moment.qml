@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Shapes
 import Sol.Design
 
 /*
@@ -27,6 +28,13 @@ import Sol.Design
     and pushed slowly in, black bars close in at the top and the bottom,
     and a HUD line runs along the top (the world, `hud` from the spec);
     MomentCaption sets its words as the film's title and subtitles.
+
+    In a flavour with an impact colour (`Theme.impacts`) it is a title
+    card instead, as a Trigger show cuts to one: a hard cut to two flat
+    colours split on the flavour's diagonal (the darkest ink, the lead
+    light), the still only inside a slanted window cut into the light, no
+    bars; the caption's kanji slams in huge on the ink with a one-drawing
+    invert, its figures count up under it, then it holds.
 */
 FocusScope {
     id: root
@@ -51,7 +59,10 @@ FocusScope {
     /** The still behind the scene: the spec's `ground`, else the page's. */
     property string still: ""
     /** The letterbox, 0 (open) → 1 (closed in to the scene): slammed in over the frame's first beats. */
-    readonly property real bars: calm ? 1 : 1 - Math.pow(1 - Math.min(1, elapsed / Math.max(1, Theme.hit * 3)), 3)
+    readonly property real bars: Theme.impacts ? 0 : calm ? 1 : 1 - Math.pow(1 - Math.min(1, elapsed / Math.max(1, Theme.hit * 3)), 3)
+    /** A title card (`Theme.impacts`): where the two colours meet across the top and the foot. */
+    readonly property real splitLean: Math.round(height * Theme.slantK)
+    readonly property real splitX: Math.round(width * 0.56)
     // The sting, as the title slams in.
     property bool stung: false
     onElapsedChanged: if (!stung && current && elapsed >= slamAt) { stung = true; if (current.chime) Sounds.moment() }
@@ -109,8 +120,8 @@ FocusScope {
     Keys.onPressed: event => { event.accepted = true; root.dismiss() }
 
     Settling { when: arrive.running || leave.running }
-    // In over a fade, the bars slamming in; out sharply, back to the page.
-    NumberAnimation { id: arrive; target: root; property: "opacity"; to: 1; duration: Theme.fade; easing: Theme.easeOut }
+    // In over a fade, the bars slamming in (a title card cuts in hard); out sharply, back to the page.
+    NumberAnimation { id: arrive; target: root; property: "opacity"; to: 1; duration: Theme.impacts && !root.calm ? 0 : Theme.fade; easing: Theme.easeOut }
     SequentialAnimation {
         id: leave
         NumberAnimation { target: root; property: "opacity"; to: 0; duration: root.calm ? Theme.fade : Theme.settle; easing: Theme.easeIn }
@@ -128,10 +139,57 @@ FocusScope {
 
     // The page goes dark under the scene.
     Rectangle { anchors.fill: parent; color: Theme.tint(Theme.veil, 0.96) }
+    // A title card (`Theme.impacts`): the ink and the light split on the diagonal, the still in a slanted
+    // window cut into the light.
+    Item {
+        anchors.fill: parent
+        visible: Theme.impacts
+        Rectangle { anchors.fill: parent; color: Theme.cardInk }
+        Shape {
+            anchors.fill: parent
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                strokeWidth: 0; strokeColor: "transparent"; fillColor: Theme.hudAccent
+                startX: root.splitX + root.splitLean / 2; startY: 0
+                PathLine { x: root.width; y: 0 }
+                PathLine { x: root.width; y: root.height }
+                PathLine { x: root.splitX - root.splitLean / 2; y: root.height }
+                PathLine { x: root.splitX + root.splitLean / 2; y: 0 }
+            }
+        }
+        Image {
+            id: cardStill
+            width: root.width; height: root.height
+            visible: false
+            source: Theme.impacts ? root.still : ""
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+        }
+        Shape {
+            id: stillWindow
+            anchors.fill: parent
+            visible: root.still !== ""
+            preferredRendererType: Shape.CurveRenderer
+            readonly property real upper: Math.round(root.height * 0.12)
+            readonly property real lower: Math.round(root.height * 0.88)
+            readonly property real near: root.splitX + Theme.s6
+            readonly property real far: root.width - Theme.s5
+            readonly property real lean: Math.round((lower - upper) * Theme.slantK)
+            ShapePath {
+                strokeWidth: 3; strokeColor: Theme.cardInk
+                fillItem: cardStill
+                startX: stillWindow.near + stillWindow.lean; startY: stillWindow.upper
+                PathLine { x: stillWindow.far; y: stillWindow.upper }
+                PathLine { x: stillWindow.far - stillWindow.lean; y: stillWindow.lower }
+                PathLine { x: stillWindow.near; y: stillWindow.lower }
+                PathLine { x: stillWindow.near + stillWindow.lean; y: stillWindow.upper }
+            }
+        }
+    }
     // The film: the still, darkened, coming slowly closer as the moment plays.
     Item {
         anchors.fill: parent
-        visible: root.still !== ""
+        visible: root.still !== "" && !Theme.impacts
         clip: true
         Image {
             anchors.fill: parent
@@ -171,7 +229,7 @@ FocusScope {
         x: Theme.s5
         y: Math.max(Theme.s3, (root.barHeight - height) / 2)
         spacing: Theme.s3
-        opacity: Math.max(0, root.bars * 2 - 1)
+        opacity: Theme.impacts ? 1 : Math.max(0, root.bars * 2 - 1)
         readonly property var world: Worlds.get(Theme.worldId)
         // The world's name in Japanese (the title serif, never tracked), then the HUD line in capitals.
         Text {
@@ -194,7 +252,8 @@ FocusScope {
         text: "Press any key"
         font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold
         font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
-        color: Theme.tint(Theme.artBright, 0.72)
+        // On a title card it stands on the light half.
+        color: Theme.tint(Theme.impacts ? Theme.lightInk : Theme.artBright, Theme.impacts && Theme.light ? 1 : 0.72)
         opacity: root.progress > 0.25 || root.calm ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Theme.rise } }
     }

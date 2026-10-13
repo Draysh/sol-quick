@@ -51,13 +51,19 @@ Item {
     onPartsChanged: {
         if (!arrived) return
         from = was
-        if (parts) { was = parts.n; if (animates) run.restart() }
+        if (parts) { was = parts.n; if (animates) { run.restart(); tick.restart() } }
+    }
+    // A new value after it arrived: the number ticks, a touch larger for a hit, then back with the spring.
+    SequentialAnimation {
+        id: tick
+        NumberAnimation { target: figure; property: "scale"; to: 1.12; duration: Theme.hit; easing: Theme.easeOut }
+        NumberAnimation { target: figure; property: "scale"; to: 1; duration: Theme.settle; easing: Theme.spring }
     }
     property var forget: null
     Component.onCompleted: forget = Theme.whenSeen(root, () => { arrived = true; from = 0; if (parts) was = parts.n; if (animates) run.restart(); else counted = 1 })
     Component.onDestruction: if (forget) forget()
     NumberAnimation { id: run; target: root; property: "counted"; from: 0; to: 1; duration: Theme.count; easing: Theme.easeOut }
-    Settling { when: run.running }
+    Settling { when: run.running || tick.running }
     TextMetrics { id: room; font: figure.font; text: root.value }
 
     implicitWidth: row.implicitWidth
@@ -81,6 +87,7 @@ Item {
             id: figure
             anchors.verticalCenter: parent.verticalCenter
             width: Math.ceil(room.advanceWidth)
+            transformOrigin: Item.Left
             text: root.shown
             font.family: Theme.fontDisplay; font.pixelSize: root.size; font.weight: Font.Bold
             font.capitalization: Font.AllUppercase

@@ -229,6 +229,21 @@ QtObject {
     function badge(count, what) { SolBackend.setBadge(count || 0, what || "") }
 
     /**
+        A main act's impact frame over `item` (the thing hit: the play
+        button, the ON AIR sign): a smear, an inverted drawing and a burst of
+        speed lines over its region only, the page shaken a few pixels, then
+        the held pose (Impact, over the window's pane). Only in a flavour
+        with an impact colour (`Theme.impacts`); never with less motion,
+        never more than three a second. `opts.way` -1 strikes right to left.
+    */
+    function impact(item, opts) {
+        if (!item || !Theme.impacts) return
+        const w = item.Window.window as AppWindow
+        const layer = w && w.shell ? (w.shell as Shell).impact as Impact : null
+        if (layer) layer.hit(item, opts)
+    }
+
+    /**
         The world's navigator reacts to something the person just did:
         `Sol.cheer()` after the world's main good act (an episode watched, a
         habit ticked, a card remembered): a warm light over the portrait,

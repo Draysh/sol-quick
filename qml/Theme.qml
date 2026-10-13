@@ -179,6 +179,8 @@ QtObject {
     // ---- The worlds' flavours ---------------------------------------------------
     /** The window's world, by id: the app's own, set by the Shell (the gallery's changes as it shows each). */
     property string worldId: SolBackend.world
+    /** The app's own world, whatever page is open ("" while `SOL_FLAVOUR` dresses it in another's). */
+    readonly property string appWorld: SolBackend.flavour !== "" ? "" : SolBackend.world
     /** The world whose flavour the window wears: the one `SOL_FLAVOUR` names (the gallery's pictures), else the window's (a moon's, its planet's). */
     readonly property string lookWorld: SolBackend.flavour !== "" ? SolBackend.flavour : worldId
     /**
@@ -207,8 +209,7 @@ QtObject {
         so their subject stands clear of a first page's title; whole and
         centred without one) and `letterbox` (a film's black bars over and
         under a still shown as a frame: a PageHead's feature, a title's
-        backdrop), `torii` (a band's foot a vermilion rule, a gate's beam
-        and posts under its Japanese title) and `tategaki` (a sparse
+        backdrop) and `tategaki` (a sparse
         page's big title written down, as a hanging scroll), `signs` (the
         first page's line down the right as a lit `NeonSign`) and `chroma`
         (big titles with a red and a cyan edge, `ChromaText`), `title` (its
@@ -225,54 +226,137 @@ QtObject {
         fills the primary button when the accent is too deep for words on it.
         A moon may have a flavour of its own (Luna's evening): its pages
         wear it in its planet's window.
+        A flavour with an `impact` colour (Neptune's, Mercury's, Terra's, Luna's) lands its main acts as
+        impact frames in it (`Sol.impact`), holds its page turns on an
+        eyecatch, plays its moments as title cards on its darkest ink (`cardInk`)
+        split on its `slant` (in degrees), and draws its hits on twos
+        (`steps`); its title card slams in `slam` where that isn't the impact colour.
+        The SSS keys, each on its own (every flavour has them all): `duotone` grades
+        the stills black into the light, as one colour (a `light` flavour's, its light into paper, `PaperTone`,
+        and then the words on the still are ink: `paperArt`); `surface: "panel"`
+        makes panels near-opaque with a hairline in the light instead of
+        frosted glass; `outline` sets big English titles as stroke-only
+        capitals in the HUD face that draw themselves on (`OutlineText`), with
+        a page's number large beside them; `captions` writes HUD lines as
+        lowercase captions (`neptune_music / albums`); `scaffold` stands the
+        world's emblem huge and cropped behind the pages; `grid` draws the
+        content's columns as faint hairlines in the light; `drawer` slides the palette in from the right as a flat panel of
+        the light; `turn` names the page turn's way (and `tear` the curtain's one torn frame:
+        a glitch, "bars", a film's bars slamming shut, "brush", a stroke of ink across it, "flare", a flare of
+        sunlight, or "moon", a rip lit by the moon); `tag` is the world's word at the head of a caption
+        when its role is too long for one (Terra's "terra_days"); `mincho` is the face long
+        Japanese is set in, light (lyrics, a navigator's longer line); and
+        `signature` is the navigator's name as a hand signs it (an SVG path in
+        a box 320 by 150, `signatureLength` long when not about 780, drawn with a broad nib
+        `signatureNib` wide when it has one, as a brush), written under the
+        first page's character once a launch.
     */
     readonly property var yozoraLooks: ({
         saturn: {
             id: "saturn", navigator: "Suzume", title: "Corporate Logo ver3", motif: "dusk", film: "Suzume", jp: "土星", glyph: "土",
-            ground: "#0b0e2a", glass: Qt.rgba(9 / 255, 11 / 255, 34 / 255, 0.62), edge: "#c8d0ff",
-            accent: "#ffc07e", second: "#7fe3ff", seal: "#f07a6a", bubble: Qt.rgba(9 / 255, 11 / 255, 34 / 255, 0.9), blush: "#ffb08a", face: [0.53, 0.44],
-            text: "#f2f4ff", quiet: "#c8d0ff", faint: "#8e98d8",
-            sky: ["#0b0e2a", "#2b2468", "#8a3c7e", "#f07a6a", "#ffc07e"], stars: true, shade: 0.78,
-            // Dusk: indigo overhead, the horizon left warm (amber over the still's own glow), night at the foot.
+            // One hot amber on black and white, as SSS by applibot sets its pages: Suzume's stills graded black
+            // into the amber, panels near-opaque with an amber hairline, no second colour.
+            ground: "#090807", glass: Qt.rgba(10 / 255, 9 / 255, 8 / 255, 0.93), edge: "#efebe4",
+            accent: "#ffa21f", second: "#ece8e1", seal: "#ffa21f", bubble: Qt.rgba(10 / 255, 9 / 255, 8 / 255, 0.93), blush: "#ffc98a", face: [0.53, 0.44],
+            text: "#f6f4f0", quiet: "#c2beb6", faint: "#8f8a82",
+            sky: ["#070605", "#0c0a08", "#16110b", "#2c1a07", "#5c3409"], stars: false, shade: 0.78,
             hold: 0.2, frame: [1.22, 0], letterbox: true, openingName: true,
-            grade: [[0.17, 0.14, 0.41, 0.34], [1, 0.66, 0.4, 0.16], [0.17, 0.14, 0.41, 0.46], [0.043, 0.055, 0.165, 0.86], [0.043, 0.055, 0.165, 0.96]]
+            // The page turn is the amber curtain; its one torn frame is a film's black bars slamming shut.
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain", tear: "bars",
+            mincho: "Noto Serif CJK JP",
+            // Suzume's name as she signs it, one stroke in a box 320 by 150, about 835 long.
+            signature: "M 70 38 C 58 26, 30 34, 38 52 C 44 66, 70 70, 66 92 C 62 114, 30 116, 24 102 C 40 112, 64 104, 80 84 C 78 96, 78 108, 86 106 C 94 104, 100 92, 104 82 C 102 96, 102 106, 110 104 C 116 102, 120 84, 128 82 C 136 80, 140 84, 132 92 C 126 98, 120 104, 130 104 C 140 104, 138 120, 130 132 C 122 142, 112 136, 124 124 C 132 116, 140 108, 148 100 C 150 96, 150 86, 152 82 C 152 96, 152 106, 160 104 C 168 102, 172 90, 176 82 C 174 96, 174 106, 182 104 C 186 98, 188 90, 190 82 C 190 90, 190 98, 190 104 C 192 90, 196 80, 202 80 C 208 80, 206 94, 206 104 C 208 90, 212 80, 218 80 C 224 80, 222 94, 224 104 C 232 104, 244 96, 244 88 C 244 80, 232 82, 232 92 C 232 104, 244 108, 256 100 C 268 96, 282 96, 292 100",
+            signatureLength: 835,
+            grade: [[0, 0, 0, 0.12], [0.02, 0.02, 0.02, 0.4], [0.02, 0.02, 0.02, 0.55], [0.035, 0.031, 0.027, 0.86], [0.035, 0.031, 0.027, 0.96]]
+        },
+        // Titan: Saturn's look in its moon's darker gold (its stills, sounds and navigator stay Saturn's).
+        titan: {
+            id: "saturn", navigator: "Suzume", title: "Corporate Logo ver3", motif: "dusk", film: "Suzume", jp: "タイタン", glyph: "土",
+            ground: "#090807", glass: Qt.rgba(10 / 255, 9 / 255, 8 / 255, 0.93), edge: "#efebe4",
+            accent: "#d9ab3e", second: "#ece8e1", seal: "#d9ab3e", bubble: Qt.rgba(10 / 255, 9 / 255, 8 / 255, 0.93), blush: "#f0d08a", face: [0.53, 0.44],
+            text: "#f6f4f0", quiet: "#c2beb6", faint: "#8f8a82",
+            sky: ["#070605", "#0c0a08", "#15120b", "#2a2108", "#54420c"], stars: false, shade: 0.78,
+            hold: 0.2, frame: [1.22, 0], letterbox: true, openingName: true,
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain", tear: "bars",
+            mincho: "Noto Serif CJK JP",
+            grade: [[0, 0, 0, 0.12], [0.02, 0.02, 0.02, 0.4], [0.02, 0.02, 0.02, 0.55], [0.035, 0.031, 0.027, 0.86], [0.035, 0.031, 0.027, 0.96]]
         },
         mercury: {
             id: "mercury", navigator: "Mitsuha", title: "Yuji Syuku", hold: 0.3, motif: "shrine", film: "Your Name", jp: "水星", glyph: "水",
-            ground: "#07081c", glass: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.66), edge: "#ffe6d6",
-            accent: "#ff8fa8", second: "#ffd58a", seal: "#e2412e", washi: "#fff4da", bubble: Qt.rgba(7 / 255, 8 / 255, 28 / 255, 0.9), blush: "#ff9fb4", face: [0.5, 0.42],
-            text: "#fff8ee", quiet: "#e9dccf", faint: "#a99a9e",
-            sky: ["#05061a", "#121848", "#2e1e4e", "#7a2a3c", "#c94a35"], stars: true, shade: 0.8,
-            torii: true, tategaki: true, kanjiNumbers: true, openingName: true,
-            grade: [[0.89, 0.25, 0.18, 0.12], [0.03, 0.03, 0.11, 0.3], [0.03, 0.03, 0.11, 0.5], [0.027, 0.031, 0.11, 0.86], [0.027, 0.031, 0.11, 0.96]]
+            // One hot vermilion on black and white, as SSS by applibot sets its pages: Your Name's stills graded
+            // black into the vermilion, panels near-opaque with a vermilion hairline. The washi, the slips
+            // and the seals stay paper and a hanko's own vermilion.
+            ground: "#0a0706", glass: Qt.rgba(11 / 255, 8 / 255, 7 / 255, 0.93), edge: "#f2ebe6",
+            accent: "#ff4d23", second: "#ede7e2", seal: "#e2412e", washi: "#fff4da", bubble: Qt.rgba(11 / 255, 8 / 255, 7 / 255, 0.93), blush: "#ff9a7a", face: [0.5, 0.42],
+            text: "#f7f2ee", quiet: "#c4bcb6", faint: "#918987",
+            sky: ["#070505", "#0c0807", "#170d0a", "#2e0f08", "#5e1a0b"], stars: false, shade: 0.8,
+            tategaki: true, kanjiNumbers: true, openingName: true,
+            // Its acts land as a flash of washi (a seal pressed), its moments are title cards in the vermilion,
+            // cut on a gentle diagonal, a brush's.
+            slant: 8, impact: "#fff4da", slam: "#ff4d23", cardInk: "#060404",
+            // The page turn is the vermilion curtain; its one torn frame is a stroke of the brush across it.
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain", tear: "brush",
+            mincho: "Noto Serif CJK JP",
+            // Mitsuha's name as she signs it, one stroke in a box 320 by 150, about 1280 long, written with a brush's nib.
+            signature: "M 30 110 C 38 82, 46 46, 54 36 C 62 28, 64 62, 64 104 C 68 70, 76 44, 84 38 C 92 34, 92 70, 92 104 C 96 98, 101 86, 106 74 C 106 88, 105 100, 112 104 C 118 106, 124 96, 128 86 C 132 70, 136 46, 138 32 C 136 60, 134 90, 138 102 C 142 108, 150 100, 154 90 C 156 86, 158 82, 162 78 C 172 88, 172 102, 160 104 C 156 104, 166 100, 176 92 C 178 88, 179 84, 180 80 C 178 96, 180 106, 188 104 C 194 102, 196 90, 198 80 C 196 96, 198 106, 206 104 C 214 96, 222 60, 222 40 C 222 26, 212 30, 212 50 C 212 70, 212 90, 212 104 C 216 88, 222 80, 228 80 C 236 80, 232 96, 236 104 C 244 104, 254 92, 258 80 C 250 74, 236 82, 238 94 C 240 106, 254 102, 258 82 C 258 96, 258 104, 266 104 C 282 104, 300 96, 304 86 C 306 74, 250 62, 140 64 C 124 64, 112 60, 108 54",
+            signatureLength: 1281, signatureNib: 3.2,
+            grade: [[0, 0, 0, 0.12], [0.02, 0.016, 0.014, 0.4], [0.02, 0.016, 0.014, 0.55], [0.039, 0.027, 0.024, 0.86], [0.039, 0.027, 0.024, 0.96]]
         },
         neptune: {
             id: "neptune", navigator: "Lucy", title: "Makinas", hold: 0.34, motif: "neon", film: "Weathering With You", jp: "海王星", glyph: "海",
-            ground: "#0a1426", glass: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.68), edge: "#8fe7ff",
-            accent: "#ff4a5a", second: "#8fe7ff", seal: "#ff4a5a", bubble: Qt.rgba(4 / 255, 9 / 255, 22 / 255, 0.9), blush: "#ff8aa8", face: [0.55, 0.33, 1.7],
-            text: "#eef6ff", quiet: "#b9cbe8", faint: "#7590b4",
-            sky: ["#040814", "#0a1730", "#14284f", "#3a1c46", "#a32a48"], stars: false, shade: 0.8, rain: 1, haze: "#ff4a5a", signs: true, chroma: true, openingName: true,
-            grade: [[0.56, 0.9, 1, 0.1], [0.04, 0.08, 0.15, 0.42], [0.04, 0.08, 0.15, 0.56], [0.039, 0.078, 0.149, 0.86], [0.039, 0.078, 0.149, 0.96]]
+            // One hot red on black and white, as SSS by applibot sets its pages: the stills graded black
+            // into the red, panels near-opaque with a red hairline, no second colour.
+            ground: "#07070a", glass: Qt.rgba(8 / 255, 8 / 255, 11 / 255, 0.93), edge: "#ececf2",
+            accent: "#ff3040", second: "#e9e9ee", seal: "#ff3040", bubble: Qt.rgba(8 / 255, 8 / 255, 11 / 255, 0.93), blush: "#ff8a96", face: [0.55, 0.33, 1.7],
+            text: "#f4f4f6", quiet: "#bcbcc4", faint: "#8a8a94",
+            sky: ["#050507", "#0b0b0f", "#141218", "#2a0c10", "#5a0f16"], stars: false, shade: 0.8, rain: 1, haze: "#ff3040", openingName: true,
+            // Its acts land in white-hot yellow, drawn on twos (the flash only: a title card slams in the red);
+            // its title cards are cut on a 13° diagonal.
+            slant: 13, impact: "#fff35c", slam: "#ff3040", cardInk: "#04040a", steps: true,
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain",
+            mincho: "Noto Serif CJK JP",
+            // Lucy's name as she signs it, one stroke in a box 320 by 150.
+            signature: "M 56 70 C 66 48, 80 20, 92 15 C 101 12, 100 25, 92 36 C 78 56, 56 92, 46 110 C 41 119, 29 123, 28 116 C 28 107, 46 110, 58 112 C 66 113, 72 104, 78 94 C 82 88, 86 86, 85 93 C 82 104, 85 111, 93 106 C 99 101, 104 92, 108 85 C 105 98, 105 110, 113 108 C 119 106, 125 98, 131 90 C 135 84, 141 82, 141 88 C 137 82, 125 90, 125 102 C 125 112, 137 110, 147 100 C 153 94, 157 88, 161 84 C 157 96, 157 106, 165 104 C 171 102, 177 94, 183 84 C 179 104, 173 124, 161 138 C 151 148, 139 144, 149 132 C 163 116, 201 108, 261 100 C 275 98, 285 98, 293 100",
+            grade: [[0, 0, 0, 0.12], [0.02, 0.02, 0.03, 0.4], [0.02, 0.02, 0.03, 0.55], [0.027, 0.027, 0.039, 0.86], [0.027, 0.027, 0.039, 0.96]]
         },
-        // Noon: frosted white glass with dark ink on it (ramune blue its light, sunflower its
-        // primary), the sky lifted with a little summer haze, the shade the deep of the sky.
+        // Noon on paper, as SSS by applibot sets its pages but in daylight: the stills graded ramune
+        // blue into paper white, near-opaque white panels with a blue hairline, ink for the words.
+        // Sunflower stays the stamp of today and the furin's strip.
         terra: {
             id: "terra", navigator: "Hina", title: "Keifont", hold: 0, motif: "summer", film: "Weathering With You and 5 Centimeters per Second", jp: "地球", glyph: "地",
-            light: true, ground: "#14233f", dim: "#0a3a85", glass: Qt.rgba(246 / 255, 250 / 255, 1, 0.8), edge: "#1b4a86",
-            accent: "#1157ab", second: "#3b3f9e", primary: "#ffb81c", artAccent: "#ffe07a", artSecond: "#fff3a6",
-            seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f", bubble: Qt.rgba(246 / 255, 250 / 255, 1, 0.92), blush: "#ffc9a0", face: [0.52, 0.44],
+            light: true, ground: "#14233f", dim: "#f6f8fb", glass: Qt.rgba(250 / 255, 251 / 255, 253 / 255, 0.95), edge: "#1b4a86",
+            // On the still, small words in the light take a deeper blue, so they keep 4.5:1 over its blue shadows.
+            accent: "#1468d8", second: "#2b416a", primary: "#1468d8", artAccent: "#0a3f94", artSecond: "#2b416a",
+            seal: "#9fc4f0", paper: "#fbf8ee", ink: "#14233f", bubble: Qt.rgba(250 / 255, 251 / 255, 253 / 255, 0.96), blush: "#ffc9a0", face: [0.52, 0.44],
             bright: "#0b1730", text: "#10203a", quiet: "#33476a", faint: "#3f5378",
-            sky: ["#1f6fd6", "#4a90e2", "#8fbdf0", "#cfe4fa", "#eef6ff"], stars: false, shade: 0.2, pool: 0.4, openingName: true,
-            grade: [[1, 1, 1, 0.16], [0.86, 0.93, 1, 0.1], [0.86, 0.93, 1, 0.04], [0.8, 0.9, 1, 0.1], [0.78, 0.88, 1, 0.18]]
+            sky: ["#c9dcf5", "#dce8f8", "#e9f0fa", "#f2f6fb", "#f6f8fb"], stars: false, shade: 0.5, pool: 0.55, openingName: true,
+            // A caption's tag: Terra's role is long for one ("terra_days / tue_13_oct").
+            tag: "terra_days",
+            // Its acts land as a flash of ink (a stamp pressed), its moments are title cards of paper and blue.
+            slant: 10, impact: "#14233f", slam: "#1468d8", cardInk: "#f6f8fb",
+            // The page turn is a blue curtain; its one torn frame is a flare of sunlight across it.
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain", tear: "flare",
+            mincho: "Noto Serif CJK JP",
+            // Hina's name as she signs it, one stroke and the i's dot in a box 320 by 150, about 720 long.
+            signature: "M 62 30 C 60 58, 54 90, 44 116 C 54 92, 78 76, 112 72 C 104 60, 110 42, 116 28 C 112 58, 106 88, 102 112 C 108 100, 116 90, 124 80 C 122 92, 120 104, 128 106 C 134 106, 138 98, 142 86 C 144 84, 142 100, 140 108 C 144 94, 150 82, 158 82 C 166 82, 162 100, 168 106 C 174 108, 184 100, 192 88 C 184 78, 166 84, 166 98 C 166 110, 184 106, 192 88 C 190 100, 190 108, 198 106 C 220 104, 262 96, 300 88 M 127 64 C 128 63, 129 63, 130 64",
+            signatureLength: 720,
+            grade: [[1, 1, 1, 0.16], [1, 1, 1, 0.06], [1, 1, 1, 0], [0.96, 0.97, 0.98, 0.04], [0.96, 0.97, 0.98, 0.12]]
         },
-        // Luna: Terra after sunset, under the moon: indigo glass, the moon's yellow its light.
+        // Luna: Terra after sunset, under the moon, as SSS sets its pages: indigo-black, the stills graded
+        // black into the moon's yellow, near-opaque panels with a yellow hairline.
         luna: {
-            id: "luna", navigator: "Hina", title: "Keifont", hold: 0.16, motif: "summer", film: "5 Centimeters per Second", jp: "月", glyph: "月",
-            ground: "#0b0d2a", glass: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.66), edge: "#dcd8ff",
-            accent: "#ffe08a", second: "#b7c2ff", seal: "#ffe08a", bubble: Qt.rgba(12 / 255, 14 / 255, 46 / 255, 0.9), blush: "#ffc9a0", face: [0.52, 0.44],
-            text: "#f7f5ff", quiet: "#d6d3f2", faint: "#a4a1cf",
-            sky: ["#05061a", "#0d1238", "#1c2160", "#2b2f74", "#3d3a86"], stars: true, shade: 0.72, openingName: true, opening: "moon",
-            grade: [[0.05, 0.06, 0.2, 0.16], [0.05, 0.06, 0.2, 0.1], [0.05, 0.06, 0.2, 0.3], [0.043, 0.051, 0.165, 0.72], [0.043, 0.051, 0.165, 0.9]]
+            id: "luna", navigator: "Hina", title: "Keifont", hold: 0.2, motif: "summer", film: "5 Centimeters per Second", jp: "月", glyph: "月",
+            ground: "#08091a", glass: Qt.rgba(9 / 255, 10 / 255, 27 / 255, 0.93), edge: "#ebe9f6",
+            accent: "#ffe08a", second: "#e8e6f2", seal: "#ffe08a", bubble: Qt.rgba(9 / 255, 10 / 255, 27 / 255, 0.93), blush: "#ffc9a0", face: [0.52, 0.44],
+            text: "#f6f5fb", quiet: "#c6c4d8", faint: "#9a98b2",
+            sky: ["#05050e", "#09091a", "#121226", "#2a2614", "#5a4c18"], stars: false, shade: 0.8, openingName: true, opening: "moon",
+            tag: "luna_nights",
+            // Its moments are title cards of the night and the moon's yellow, cut on a gentle diagonal.
+            slant: 8, impact: "#fff4d6", slam: "#ffe08a", cardInk: "#06061a",
+            // The page turn is a yellow curtain; its one torn frame is a moonlit tear across it.
+            duotone: true, surface: "panel", outline: true, captions: true, scaffold: true, grid: true, drawer: true, turn: "curtain", tear: "moon",
+            mincho: "Noto Serif CJK JP",
+            grade: [[0, 0, 0, 0.12], [0.02, 0.02, 0.06, 0.4], [0.02, 0.02, 0.06, 0.55], [0.031, 0.035, 0.1, 0.86], [0.031, 0.035, 0.1, 0.96]]
         }
     })
     /** A world's flavour: its own (a moon may have one), or its planet's for a moon; Saturn's for any other. */
@@ -319,15 +403,78 @@ QtObject {
         as the words on glass, and over a light one white with the flavour's
         own lights for the art (`artAccent`, `artSecond`).
     */
-    readonly property color artBright: "#ffffff"
-    readonly property color artText: light ? "#ffffff" : text
-    readonly property color artQuiet: light ? Qt.rgba(1, 1, 1, 0.86) : textQuiet
-    readonly property color artFaint: light ? Qt.rgba(1, 1, 1, 0.66) : textFaint
+    readonly property color artBright: paperArt ? hud.bright : "#ffffff"
+    readonly property color artText: paperArt ? hud.text : light ? "#ffffff" : text
+    readonly property color artQuiet: paperArt ? hud.quiet : light ? Qt.rgba(1, 1, 1, 0.86) : textQuiet
+    readonly property color artFaint: paperArt ? hud.faint : light ? Qt.rgba(1, 1, 1, 0.66) : textFaint
     readonly property color artAccent: hud.artAccent || hud.accent
     readonly property color artSecond: hud.artSecond || hud.second
-    readonly property color artLine: light ? Qt.rgba(1, 1, 1, 0.3) : line
+    readonly property color artLine: paperArt ? line : light ? Qt.rgba(1, 1, 1, 0.3) : line
+    /**
+        A light flavour whose stills are graded into paper (Terra's, with `duotone`): the still is
+        as light as its panels, so the words on it are ink too, and the `art…` tokens are the glass's.
+    */
+    readonly property bool paperArt: light && !!hud.duotone
+    /** The paper a light flavour stands on (its `dim`, which its shade, pool and vignette are laid in); white otherwise. */
+    readonly property color paper: light && hud.dim ? hud.dim : "#ffffff"
     /** The primary button's fill: the flavour's light, or its `primary` where that light is too deep for words on it. */
     readonly property color hudPrimary: hud.primary || hud.accent
+
+    // ---- Impact (a flavour with an `impact` colour) ------------------------------
+    /** The flavour's main acts land as impact frames, its turns hold on an eyecatch and its moments are title cards. */
+    readonly property bool impacts: !!hud.impact
+    /** The flash of a hit (and a title card's slam, without `slam`), and nothing else: white-hot yellow in Neptune's. The light without one. */
+    readonly property color impact: hud.impact || hud.accent
+    /** A title card's one-drawing invert: the flavour's `slam`, else the impact colour. */
+    readonly property color slam: hud.slam || impact
+    /**
+        The darkest ink: what is drawn on the impact colour, and a title card's and an eyecatch's ground
+        (a light flavour's is paper). Not `onImpact`, which never took its value beside the `impact` property.
+    */
+    readonly property color cardInk: hud.cardInk || hud.ground
+    /** Words on a flat field of the light (a title card's light half): the darkest ink on a pale light (Luna's yellow) or a light flavour's, else white. */
+    readonly property color lightInk: light || (0.2126 * hudAccent.r + 0.7152 * hudAccent.g + 0.0722 * hudAccent.b) > 0.5 ? cardInk : artBright
+    /** The flavour's diagonal, in degrees from upright: a title card is split on it, an eyecatch slashed. 0 without one. */
+    readonly property real slant: hud.slant || 0
+    /** How far the diagonal moves across for each pixel down. */
+    readonly property real slantK: Math.tan(slant * Math.PI / 180)
+    // ---- The SSS keys (a flavour with `outline`, `surface: "panel"`, …: every flavour's) ----------
+    /** Panels are near-opaque with a hairline in the light, not frosted glass (`surface: "panel"`). */
+    readonly property bool panels: hud.surface === "panel"
+    /** Big English titles are stroke-only capitals in the HUD face that draw themselves on (`OutlineText`). */
+    readonly property bool outlines: !!hud.outline
+    /** Whether `s` is set as an outline title: the flavour has them and it has no Japanese (the title face keeps that). */
+    function outlined(s) { return outlines && String(s).trim() !== "" && !hasJp(s) }
+    /** HUD lines are lowercase captions: "neptune_music / albums". */
+    readonly property bool captions: !!hud.captions
+    /** A world's tag at the head of a caption: its flavour's `tag`, else its id and the first part of its role, "neptune_music", "saturn_films", "titan_what_to_watch". */
+    function tagOf(id) {
+        const w = Worlds.get(id)
+        const own = yozoraLooks[id]
+        if (own && own.tag) return own.tag
+        const word = w && w.role ? String(w.role).split(",")[0].trim().toLowerCase().replace(/\s+/g, "_") : ""
+        return String(id) + (word ? "_" + word : "")
+    }
+    /**
+        A HUD line as a caption: its parts (" · " apart) in lowercase, words
+        joined by underscores, a count "03 / 14" as "03_of_14", the parts
+        " / " apart, after the world's tag (`tag`, when given).
+    */
+    function caption(line, tag) {
+        const parts = String(line).split(" · ").map(p => p.trim().toLowerCase().replace(/(\d+)\s*\/\s*(\d+)/g, "$1_of_$2").replace(/\s+/g, "_")).filter(Boolean)
+        return (tag ? [tag] : []).concat(parts).join(" / ")
+    }
+    /** Faint hairlines down the content's columns, in the light (`grid`). */
+    readonly property bool ruled: !!hud.grid
+    readonly property color rule: tint(hud.accent, 0.12)
+    /** Long Japanese to read (lyrics, a navigator's longer line): the flavour's light mincho, else the Japanese sans. */
+    readonly property string fontLong: hud.mincho && Qt.fontFamilies().indexOf(hud.mincho) >= 0 ? hud.mincho : fontJpSans
+    readonly property int weightLong: fontLong === fontJpSans ? Font.Normal : Font.Light
+    /** Whether Japanese `s` is long enough to be set in `fontLong`: more than eight characters. */
+    function longJp(s) { return hasJp(s) && String(s).length > 8 }
+    /** The navigator's signature (an SVG path in a box 320 by 150) has been written this launch: it is written once. */
+    property bool signed: false
+
     /** The corner a panel has cut away (45°), and the arm of its brackets. */
     readonly property int hudCut: 18
     readonly property int hudBracket: 12
@@ -340,7 +487,8 @@ QtObject {
         The look's pictures on this computer (`~/.local/share/sol-yozora/`,
         fetched by the app as it starts when they are missing): the stills a
         world's pages stand on (`<planet>-ground-<n>.jpg`) and its navigator's
-        portrait (`<planet>-mascot.jpg` or `.png`). Empty lists and "" until
+        portrait (`<planet>-mascot.jpg` or `.png`), and a first page's hero where one was
+        put there (`<planet>-hero.png`). Empty lists and "" until
         they are there; the list follows when they come.
     */
     readonly property var yozoraArt: { try { return JSON.parse(SolBackend.lookArt || "[]") } catch (e) { return [] } }
@@ -357,6 +505,12 @@ QtObject {
     function mascotOf(id) {
         const name = "/" + yozoraOf(planetOf(id)).id + "-mascot."
         const f = yozoraArt.find(p => p.indexOf(name) >= 0)
+        return f ? fileUrl(f) : ""
+    }
+    /** The navigator as a first page's hero, a whole cut-out (`<planet>-hero.png`, put there by hand, never fetched); "" without one. */
+    function heroOf(id) {
+        const name = "/" + yozoraOf(planetOf(id)).id + "-hero.png"
+        const f = yozoraArt.find(p => p.endsWith(name))
         return f ? fileUrl(f) : ""
     }
 
@@ -414,6 +568,10 @@ QtObject {
     readonly property int stagger: beat.stagger
     /** One hit: the instant something lands (a slam, a cut, a stamp) before it settles. */
     readonly property int hit: SolBackend.shotCalm ? 0 : 80
+    /** One drawing at 24 frames a second: an impact's flash, a title's invert. */
+    readonly property int frame: SolBackend.shotCalm ? 0 : 42
+    /** One drawing on twos, 12 a second: how a hit steps when the beat has `steps`. */
+    readonly property int step: SolBackend.shotCalm ? 0 : 83
     /** A hold: the beat a hit is left to be seen before what follows it. */
     readonly property int hold: SolBackend.shotCalm ? 0 : 160
     /**
@@ -431,19 +589,22 @@ QtObject {
         (ms one takes), `curve` (its easing), `rise` and `slide` (pixels it
         comes up from, and in from the right), `grow` (the scale it grows
         from), `flick` (it flickers once as it comes) and `turn` (the page
-        turn's way: "slice", "cut", "ink" or "sweep"). Neptune is staccato
+        turn's way: "slice", "cut", "ink", "sweep", or the flavour's own `turn`:
+        "curtain"). Neptune is staccato
         and glitchy, Saturn a film's cut, Mercury slow ink, Terra a light
         bounce. A page's first card (the lead) lights its brackets as it lands.
+        `steps`: its hits are drawn on twos (`Theme.step`), a smear frame
+        first; titles slam and stay; arrivals stay smooth.
         With SOL_SHOT_CALM every length is nothing.
     */
     readonly property var beat: {
         const none = SolBackend.shotCalm
         const ms = n => none ? 0 : n
         const m = hud.motif
-        if (m === "neon") return { stagger: ms(40), arrive: ms(160), curve: easeOut, rise: 0, slide: 12, grow: 1, flick: true, turn: "slice" }
-        if (m === "shrine") return { stagger: ms(70), arrive: ms(360), curve: easeOut, rise: 0, slide: 0, grow: 1, flick: false, turn: "ink" }
-        if (m === "summer") return { stagger: ms(40), arrive: ms(300), curve: spring, rise: 14, slide: 0, grow: 0.97, flick: false, turn: "sweep" }
-        return { stagger: ms(30), arrive: ms(120), curve: easeOut, rise: 4, slide: 0, grow: 1, flick: false, turn: "cut" }
+        if (m === "neon") return { stagger: ms(40), arrive: ms(160), curve: easeOut, rise: 0, slide: 12, grow: 1, flick: true, turn: hud.turn || "slice", steps: !!hud.steps }
+        if (m === "shrine") return { stagger: ms(70), arrive: ms(360), curve: easeOut, rise: 0, slide: 0, grow: 1, flick: false, turn: hud.turn || "ink" }
+        if (m === "summer") return { stagger: ms(40), arrive: ms(300), curve: spring, rise: 14, slide: 0, grow: 0.97, flick: false, turn: hud.turn || "sweep" }
+        return { stagger: ms(30), arrive: ms(120), curve: easeOut, rise: 4, slide: 0, grow: 1, flick: false, turn: hud.turn || "cut" }
     }
     // What plays for as long as something lasts, so never nothing: each runs
     // only while it is needed and `alive`. A sweep for one pass of a busy

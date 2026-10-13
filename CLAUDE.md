@@ -152,6 +152,40 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   opening (its flavour's `opening`, Luna's "moon") and sting come from the
   first frame. A star's moment (`sky.lit`) waits `Theme.settle` twice in
   AppWindow (`starLater`), so the act that lit it, and its own moment, come first.
+- **Impact frames, eyecatches and title cards** (`Theme.impacts`, a
+  flavour with an `impact` colour: Neptune's, Mercury's, Terra's and Luna's): the Shell sets
+  `PageTurn.glyph`/`name` from the page arriving's `Screen.kanji`/`title`
+  before it plays (the eyecatch), and has `impact` (Impact over its pane,
+  whose `shakeX` moves the pane), which `Sol.impact` reaches through
+  `Window.window`; Moment and MomentCaption become a title card. Every one
+  is keyed on the flavour's own keys (`impact`, `cardInk`, `slant`,
+  `steps`), so a world without them is unchanged.
+- **The SSS keys** (`../../docs/yozora-sss.md`; every flavour has them all; Titan's is a
+  flavour of its own with Saturn's `id`, so its stings, stills and navigator stay Saturn's; a
+  light one with `duotone`, Terra's, stands on paper, `Theme.paperArt`, and its `art…` tokens
+  are ink): a Grid calls its page's
+  `offerRuler(grid)` as it is made and `dropRuler` as it goes, and the Screen
+  draws `rules` (the widest Grid's column edges) when the flavour has
+  `grid`; the Shell draws `Scaffold` over the ground, under the pages; a
+  Sheet calls `reveal(dir)` on what is in its `art`, and a PageHead calls
+  `reveal(dir, wait)` on its `feature` (a world's outline name draws on
+  there); OutlineText's and Signature's strokes are always dashed (Qt's
+  Shape doesn't take a change of `strokeStyle` once drawn) and a dash
+  starts again at every outline, so the dash is a letter's length; a
+  PathText's ink top, not its ascent, stands at its `y`. HudGlass's motif
+  `panel` is `5` in `hud.frag`. `Shell.show` defers `accent()` by
+  `Theme.turnCover` (`recolour`) when a page of another flavour arrives on
+  a curtain, and plays `crossTurn` (a PageTurn over the whole window, z 20)
+  instead of the pane's; PageTurn reads its colours once, in `play`.
+  Theme's `onImpact` never took its value (it read black in every flavour;
+  QML may take `on` and a capital for a signal's handler, here beside the
+  `impact` property): it is `cardInk` now; give no new property such a name.
+- **The band lines up with the rail**: `Sidebar.headHeight` (its brand
+  block, from the rail's top) reaches PageHead through the Shell's
+  `headHeight`, and `Shell.headTop` (the rail's inset) through
+  `Screen.headInset`, which moves a PageHead (not a Sheet) and the page
+  under it down to the rail's top edge. A change to the brand's height
+  changes every band's.
 - **The hero flight** morphs by scale: the flyer takes the landing's size
   and is scaled from where it left (Pictures are square, so it reads no
   `rounded` or `radius`).
@@ -244,7 +278,7 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `scripts/yozora-art.sh` reads too. Nothing in the kit or a world
   may ship those pictures.
 - **Singletons written from outside**: `Theme.world` and `Theme.worldId` (Shell),
-  `Theme.alive` (AppWindow), `Sounds.world` (Shell) and `Sounds.pressedAt` (AppWindow), `Worlds.surfaces`
+  `Theme.alive` (AppWindow), `Theme.signed` (Signature, once its name is written), `Sounds.world` (Shell) and `Sounds.pressedAt` (AppWindow), `Worlds.surfaces`
   (a world, through `Worlds.setSurface`: Terra's `green` and `cloudy`, the
   body shader's last two uniforms).
 - **Settings files**: `~/.config/sol/device.conf` `[appearance] motion`

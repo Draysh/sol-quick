@@ -19,6 +19,16 @@ import QtQuick.Effects
     `drift` is the pane's scroll: the title sinks a little slower than the
     band, so the sheet has depth.
 
+    With a flavour's `outline` an English title is set in outline capitals
+    that draw themselves on as the page lands, and again when it changes (a
+    new song), and so is an English `lede` under a Japanese title
+    (Mercury's "17 cards to review" under 「復習、十七枚。」); its `captions`
+    write the HUD line as a caption. `art` stands
+    at the band's right edge, behind the title, as tall as the band (a
+    character over a room: Neptune's Lucy); it has a `reveal(dir)` of its own
+    when it wants one, and the lit sign gives way to it. Beside the page it
+    isn't shown.
+
     With `aside`, in a window under 1300 px wide the title card stands
     beside the page instead of over it: a column down the left of the pane,
     on the still, the title at its top and what sits under it a step below
@@ -42,9 +52,15 @@ Item {
     property var moons: []
     /** Extra content under the name, such as the screen's main action. */
     default property alias under: underRow.data
+    /** Art at the band's right edge, behind the title and as tall as the band, `artWidth` wide: a character over a room. Not shown beside the page. */
+    property alias art: artSlot.data
+    property real artWidth: Math.round(Math.min(560, width * 0.36))
+    readonly property bool hasArt: artSlot.children.length > 0 && !beside && !portrait
     property real drift: 0
     /** The title in Japanese: "続きから。". The world's name in Japanese when not given. */
     property string jp: ""
+    /** An English line under a Japanese title, set in outline capitals where the flavour has them (`outline`), else not shown: "17 cards to review". */
+    property string lede: ""
     /** The HUD line over the title, and its Japanese: "Now playing · 3 of 11", "再生中". The world, the day and the hour when "". */
     property string hud: ""
     property string hudJp: ""
@@ -81,11 +97,15 @@ Item {
         landing.stop()
         // The window opening: once the title has landed, the flavour's sign catches its light.
         if (dir === "open" && sign.visible) sign.catchLight(Theme.calm ? 0 : Theme.land + Theme.hit)
+        for (const a of artSlot.children) if (typeof a.reveal === "function") a.reveal(dir)
         if (dir === "tab" || Theme.calm || Theme.land === 0) { landed = 1; return }
         const page = Theme.screenOf(root)
         landWait.duration = page && typeof page.landWait === "function" ? page.landWait(dir) : 0
         landed = 0
         landing.start()
+        // An outline title traces itself in as it lands.
+        if (outlineTitle.visible) outlineTitle.drawOn(landWait.duration)
+        if (outlineLede.visible) outlineLede.drawOn(landWait.duration + Theme.hit)
     }
     SequentialAnimation {
         id: landing
@@ -132,11 +152,22 @@ Item {
         // On a few days a year a comet crosses the still, behind the title card: catch it with a click.
         Comet { anchors.fill: parent; opacity: Math.max(0, 1 - root.collapse * 2) }
 
+        // The art at the right edge, behind the title card.
+        Item {
+            id: artSlot
+            visible: root.hasArt
+            x: band.width - width
+            width: root.artWidth
+            height: band.height
+            opacity: Math.max(0, 1 - root.collapse * 1.6)
+            onChildrenChanged: { for (const c of children) { c.width = Qt.binding(() => artSlot.width); c.height = Qt.binding(() => artSlot.height) } }
+        }
+
         // The title card: the HUD line, the Japanese, the English under it.
         Column {
             id: hero
             x: Theme.margin(root.width)
-            width: parent.width - x * (root.beside ? 1 : 2) - (tategaki.visible ? tategaki.width + Theme.s4 : sign.visible ? sign.width + (root.beside ? Theme.s3 * 2 : Theme.s5) : 0)
+            width: parent.width - x * (root.beside ? 1 : 2) - (tategaki.visible ? tategaki.width + Theme.s4 : sign.visible ? sign.width + (root.beside ? Theme.s3 * 2 : Theme.s5) : root.hasArt ? root.artWidth * 0.62 : 0)
             // Beside the page, at the column's top; over it, in the middle of the band, sinking as the page scrolls.
             y: root.beside ? Theme.s4 : Math.max(Theme.s3, (band.height - height - (center.height > 0 ? center.height + Theme.s3 : 0)) / 2) - root.drift * 0.1
             opacity: Math.min(1, root.landed * 1.6) * Math.max(0, 1 - root.collapse * 1.6)
@@ -147,7 +178,10 @@ Item {
             layer.effect: MultiEffect { shadowEnabled: true; shadowColor: Theme.hud.dim || Theme.hud.ground; shadowOpacity: 1; shadowBlur: 1; shadowScale: 1.02; shadowVerticalOffset: 2; shadowHorizontalOffset: 0 }
             HudLabel {
                 id: hudLine
-                text: root.hud !== "" ? root.hud : [root.name !== "" ? root.name : root.w.name, Qt.formatDate(Worlds.now, "ddd d MMM"), Qt.formatTime(Worlds.now, "HH:mm")].join(" · ")
+                readonly property string line: root.hud !== "" ? root.hud : [root.name !== "" ? root.name : root.w.name, Qt.formatDate(Worlds.now, "ddd d MMM"), Qt.formatTime(Worlds.now, "HH:mm")].join(" · ")
+                // A flavour's `captions`: "neptune_music / now_playing / 03_of_11".
+                caption: Theme.captions
+                text: caption ? Theme.caption(root.hud !== "" ? root.hud : "", Theme.tagOf(root.world)) : line
                 jp: root.hudJp
                 color: Theme.artAccent
                 light: Theme.artAccent
@@ -155,9 +189,26 @@ Item {
                 // Beside the page the line runs the column's width, over the sign hung under it.
                 room: root.beside ? band.width - hero.x - Theme.s3 - Theme.s5 : hero.width
             }
+            // In outline capitals (the flavour's `outline`), drawn on as it lands and when it changes.
+            OutlineText {
+                id: outlineTitle
+                visible: Theme.outlined(heroTitle.text)
+                text: visible ? heroTitle.text : ""
+                room: parent.width
+                size: Math.round(heroTitle.size * (root.beside ? 0.9 : 1.05))
+                minSize: 36
+                lines: root.beside ? 3 : 2
+                color: Theme.artBright
+                drawFor: Theme.settle
+                // A new title (the next song) traces itself in again, once the card is there.
+                onTextChanged: if (visible && root.landed === 1 && text !== "") drawOn(0)
+            }
+            // Its foot is the capitals' baseline: a step of room under it.
+            Item { visible: outlineTitle.visible; width: 1; height: Theme.s3 }
             // Neptune's splits its colours at the edges (the flavour's `chroma`).
             ChromaText {
                 id: heroTitle
+                visible: !outlineTitle.visible
                 width: parent.width
                 text: root.jp !== "" ? root.jp : Theme.jpOf(root.world)
                 elide: Text.ElideRight
@@ -177,6 +228,20 @@ Item {
                 fontSizeMode: root.beside ? Text.FixedSize : Text.HorizontalFit; minimumPixelSize: 40
                 color: Theme.artBright
             }
+            // The English under a Japanese title, in outline capitals, drawn on a beat after it lands.
+            Item { visible: outlineLede.visible; width: 1; height: Theme.s1 }
+            OutlineText {
+                id: outlineLede
+                visible: !outlineTitle.visible && Theme.outlined(root.lede)
+                text: visible ? root.lede : ""
+                room: parent.width
+                size: Math.round(heroTitle.size * (root.beside ? 0.62 : 0.56))
+                minSize: 28
+                lines: root.beside ? 3 : 2
+                color: Theme.artBright
+                onTextChanged: if (visible && root.landed === 1 && text !== "") drawOn(0)
+            }
+            Item { visible: outlineLede.visible; width: 1; height: Theme.s3 }
             Text {
                 visible: text !== ""
                 width: parent.width
@@ -193,7 +258,7 @@ Item {
         // Mercury's line, written down the right.
         Text {
             id: tategaki
-            visible: root.vertical !== "" && !root.portrait && !sign.wanted
+            visible: root.vertical !== "" && !root.portrait && !sign.wanted && !root.hasArt
             x: band.width - (root.beside ? Theme.s3 : Theme.margin(root.width)) - width
             y: root.tight ? Theme.s3 : Theme.s4
             // Gone before the shrinking band reaches its foot, so it is never cut.
@@ -209,7 +274,7 @@ Item {
         // Neptune's is a lit sign down the right (the flavour's `signs`), as a shop's over the street.
         NeonSign {
             id: sign
-            readonly property bool wanted: !!Theme.hud.signs
+            readonly property bool wanted: !!Theme.hud.signs && !root.hasArt
             visible: wanted && root.vertical !== "" && !root.portrait
             text: root.vertical
             size: root.tight ? 22 : 28

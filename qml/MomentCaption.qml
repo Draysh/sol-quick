@@ -17,6 +17,12 @@ import QtQuick
     subtitles are. The world's navigator says it: it stands large, low on
     the right, on the bottom bar, and cheers as the line comes. With less
     motion everything is in its place at once.
+
+    On a title card (`Theme.impacts`) its kanji (`glyph`, the first of
+    `jp`'s) slams in at about 45% of the frame's height with a one-drawing
+    invert and stays; the Japanese line, the English title in small
+    tracked capitals and the line follow; the figures count up as on any
+    moment; the subtitle is said small at the foot, without the navigator.
 */
 Column {
     id: root
@@ -42,6 +48,16 @@ Column {
     property color jpColor: Theme.artBright
     /** The English title's size under a Japanese one. */
     property int titleSize: Theme.textLede
+    /** A title card's one kanji: the first of `jp`'s unless given. */
+    property string glyph: ""
+    readonly property bool card: Theme.impacts
+    readonly property string cardGlyph: {
+        if (glyph !== "") return glyph
+        const k = /[\u3400-\u9fff]/.exec(jp)
+        return k ? k[0] : jp !== "" ? jp.charAt(0) : title.charAt(0)
+    }
+    /** The frame's height, for the kanji's size. */
+    readonly property real frameHeight: inMoment ? root.moment.height : Theme.s7 * 4
     readonly property color bright: onPhoto ? "#ffffff" : Theme.artBright
     readonly property color value: onPhoto ? Qt.rgba(1, 1, 1, 0.82) : Theme.light ? Theme.artQuiet : Theme.textValue
     readonly property color quiet: onPhoto ? Qt.rgba(1, 1, 1, 0.62) : Theme.artQuiet
@@ -74,14 +90,16 @@ Column {
         // A beat before the slam: the anticipation.
         opacity: root.soft(root.ramp(root.slamAt - Theme.hit * 2, Theme.hit * 2))
     }
-    // The hero: the Japanese, huge, or the title itself when there is none.
+    // The hero: the Japanese, huge, or the title itself when there is none; on a title card, its one kanji.
     SlamText {
         id: hero
         x: root.centred ? (root.width - width) / 2 : 0
         width: Math.min(implicitWidth, root.width)
-        text: root.titled ? root.jp : root.title
-        size: root.titled ? Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95)) : Theme.text2xl * 1.25
-        wrap: !root.titled
+        text: root.card ? root.cardGlyph : root.titled ? root.jp : root.title
+        size: root.card ? Math.round(root.frameHeight * 0.45) : root.titled ? Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95)) : Theme.text2xl * 1.25
+        impact: root.card
+        chroma: !root.card && !!Theme.hud.chroma
+        wrap: !root.titled && !root.card
         maximumLineCount: 2
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
         color: root.titled ? root.jpColor : root.bright
@@ -89,9 +107,20 @@ Column {
         way: root.way
         at: root.t - root.slamAt
     }
-    // Under a Japanese title, the English, in the display face, landing after the hold.
+    // A title card's Japanese line, under its kanji.
     Text {
-        visible: root.titled && root.title !== ""
+        visible: root.card && root.jp.length > 1
+        x: root.centred ? (root.width - width) / 2 : 0
+        width: Math.min(implicitWidth, root.width)
+        text: root.jp
+        font.family: Theme.titleFace(Theme.textXl); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Theme.titleWeight(Theme.textXl)
+        color: root.bright
+        opacity: root.t >= root.landAt ? 1 : 0
+    }
+    // Under a Japanese title, the English, in the display face, landing after the hold (a title card's
+    // small, in tracked capitals).
+    Text {
+        visible: root.titled && root.title !== "" && !root.card
         x: root.centred ? (root.width - width) / 2 : 0
         width: Math.min(implicitWidth, root.width)
         horizontalAlignment: root.centred ? Text.AlignHCenter : Text.AlignLeft
@@ -103,6 +132,19 @@ Column {
         color: root.bright
         opacity: root.ramp(root.landAt, Theme.hit)
         transform: Translate { y: (1 - root.soft(root.ramp(root.landAt, Theme.land))) * Theme.s3 }
+    }
+    Text {
+        visible: root.card && root.title !== ""
+        x: root.centred ? (root.width - width) / 2 : 0
+        width: Math.min(implicitWidth, root.width)
+        text: root.title
+        wrapMode: Text.Wrap
+        maximumLineCount: 2
+        elide: Text.ElideRight
+        font.family: Theme.fontCaps; font.pixelSize: Theme.textS; font.weight: Font.Bold
+        font.letterSpacing: Theme.track(Theme.trackHud, Theme.textS); font.capitalization: Font.AllUppercase
+        color: root.bright
+        opacity: root.t >= root.landAt + Theme.frame ? 1 : 0
     }
     Text {
         visible: root.line !== ""
@@ -126,7 +168,7 @@ Column {
     NavigatorFace {
         id: momentFace
         parent: root.inMoment ? root.moment : root.parent
-        visible: root.inMoment && here && (root.subtitleJp !== "" || root.subtitle !== "")
+        visible: root.inMoment && here && (root.subtitleJp !== "" || root.subtitle !== "") && !root.card
         z: 3
         readonly property real room: root.inMoment && parent ? parent.height - root.moment.barHeight * 2 : 0
         height: Math.round(Math.min(300, Math.max(150, room * 0.42)))
@@ -156,7 +198,8 @@ Column {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.Wrap
             text: root.subtitleJp
-            font.family: Theme.titleFace(Theme.textXl); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXl; font.weight: Theme.titleWeight(Theme.textXl)
+            readonly property int px: root.card ? Theme.textL : Theme.textXl
+            font.family: Theme.titleFace(px); font.features: Theme.titleFeatures; font.pixelSize: px; font.weight: Theme.titleWeight(px)
             color: "#ffffff"
             style: Text.Outline; styleColor: Theme.tint("#000000", 0.6)
         }

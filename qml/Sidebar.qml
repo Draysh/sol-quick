@@ -59,14 +59,16 @@ Item {
     Design.HudBrackets { visible: !side.frame.rail; anchors.fill: parent; color: Theme.tint(Theme.hudAccent, 0.7); cuts: [0, 0, Theme.hudCut + 6, 0] }
     Rectangle { visible: side.frame.rail; anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
 
-    // The brand: the world's disc, its name, and what the app is for.
+    /** The rail's head: from its top edge to the brand's foot. A page's band (PageHead) is as tall, beside it. */
+    readonly property real headHeight: brand.height
+    // The brand: the world's disc, its name, and what the app is for, centred in the rail's head.
     Item {
         id: brand
         x: side.frame.rail ? 0 : 20
         width: side.frame.rail ? parent.width : parent.width - 36
-        // As tall as its words (the name in Japanese, the name, what the app is for), never less than a bar.
-        height: Math.max(Theme.navHeight, brandRow.implicitHeight + Theme.s3)
-        y: Theme.s2
+        // As tall as its words (the name in Japanese, the name, what the app is for) and a margin
+        // over and under them, never less than a bar.
+        height: Math.max(Theme.navHeight, brandRow.implicitHeight + Theme.s4)
         Row {
             id: brandRow
             anchors.verticalCenter: parent.verticalCenter

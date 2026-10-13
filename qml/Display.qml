@@ -36,13 +36,22 @@ Text {
     function count() {
         run.stop()
         const from = first ? 0 : shown
+        const again = !first
         first = false
         if (Theme.calm || Theme.count === 0) { shown = value; return }
         run.from = from
         run.to = value
         run.start()
+        if (again) tick.restart()
     }
-    Settling { when: run.running }
+    // A new value after the first: it ticks, a touch larger for a hit, then back with the spring.
+    transformOrigin: Item.Left
+    SequentialAnimation {
+        id: tick
+        NumberAnimation { target: root; property: "scale"; to: 1.1; duration: Theme.hit; easing: Theme.easeOut }
+        NumberAnimation { target: root; property: "scale"; to: 1; duration: Theme.settle; easing: Theme.spring }
+    }
+    Settling { when: run.running || tick.running }
 
     NumberAnimation {
         id: run

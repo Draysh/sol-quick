@@ -14,7 +14,9 @@ import QtQuick.Effects
     or per frame. (It must be drawn straight into the window, not inside a
     `layer`.) The world's motif rides on it
     (`Theme.flavour`: Mercury's waves in the corners, Neptune's neon edge
-    and scanlines, Terra's daylight), drawn by the same shader.
+    and scanlines, Terra's daylight), drawn by the same shader. A flavour
+    with `surface: "panel"` has panels instead: the tint near-opaque and
+    even, no sheen, a hairline in the light.
 
     Put it first, under the content, filling the panel; HudPanel, Card and
     the sidebar's rail stand on it. Without a ground (the art not here
@@ -31,8 +33,8 @@ Item {
     property var cuts: [0, Theme.hudCut, 0, 0]
     property color tint: Theme.hudGlass
     property color line: Theme.hudLine
-    /** The world's motif on it ("dusk", "shrine", "neon", "summer"), "washi" for a sheet of paper (give it a paper `tint`), or "" for plain glass. */
-    property string motif: Theme.hud.motif
+    /** The world's motif on it ("dusk", "shrine", "neon", "summer"), "washi" for a sheet of paper (give it a paper `tint`), "panel" for a flat panel with a hairline in the light (the flavour's `surface: "panel"`), or "" for plain glass. */
+    property string motif: Theme.panels ? "panel" : Theme.hud.motif
     /** The motif's light. */
     property color accent: Theme.hudAccent
     /** How lit its edge is, 0 to 1 (Neptune's neon brightens under the pointer). */
@@ -119,7 +121,7 @@ Item {
         property real yUp: GraphicsInfo.api === GraphicsInfo.OpenGL ? 1 : 0
         property vector4d ground: Qt.vector4d(0, 0, 1, 1)
         property color accent: glass.accent
-        property real motif: ({ shrine: 1, neon: 2, summer: 3, washi: 4 })[glass.motif] || 0
+        property real motif: ({ shrine: 1, neon: 2, summer: 3, washi: 4, panel: 5 })[glass.motif] || 0
         property real glow: glass.glow
         vertexShader: "../shaders/hud.vert.qsb"
         fragmentShader: "../shaders/hud.frag.qsb"

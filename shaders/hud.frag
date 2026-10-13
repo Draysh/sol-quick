@@ -23,7 +23,9 @@
 // corners (Mercury); 2, a neon edge that glows inward and fine scanlines
 // (Neptune); 3, a sheen of daylight from the top (Terra); 4, washi: a
 // faint asanoha (hemp-leaf) lattice over the whole panel and the paper's
-// fibres, for a sheet of paper (Mercury's cards); 0, none (Saturn).
+// fibres, for a sheet of paper (Mercury's cards); 5, a panel rather than glass: the
+// tint alone, even, with no sheen or highlight, and its hairline in the light (the
+// flavour's `surface: "panel"`, SSS's flat dark panels); 0, none (Saturn).
 // `accent` is its light, `glow` how lit the edge is (a hover).
 
 layout(location = 0) in vec2 qt_TexCoord0;
@@ -123,11 +125,12 @@ void main() {
     vec3 base = glassy > 0.5 ? texture(source, at).rgb : vec3(0.0);
     // Thinner at the top, fuller at the foot (glass over art only: paper, the tint alone and Terra's
     // bright summer sky, where quiet words need all of the tint, stay even).
+    bool panel = motif > 4.5;
     float ta = glassy > 0.5 && motif < 2.5 ? clamp(tintAlpha + mix(-0.06, 0.04, qt_TexCoord0.y), 0.0, 1.0) : tintAlpha;
     vec3 c = base * (1.0 - ta) + tint.rgb * ta;
     float a = baseA * (1.0 - ta) + ta;
-    // The sheen: a little light from the top edge, gone a third of the way down.
-    c = mix(c, vec3(1.0), 0.045 * pow(clamp(1.0 - px.y / max(1.0, min(size.y, 160.0)), 0.0, 1.0), 2.0));
+    // The sheen: a little light from the top edge, gone a third of the way down (not on a panel).
+    if (!panel) c = mix(c, vec3(1.0), 0.045 * pow(clamp(1.0 - px.y / max(1.0, min(size.y, 160.0)), 0.0, 1.0), 2.0));
 
     vec3 hair = line.rgb;
     float hairA = lineAlpha;
@@ -146,6 +149,10 @@ void main() {
     } else if (motif > 2.5 && motif < 3.5) {
         // Daylight from above.
         c = mix(c, vec3(1.0), 0.07 * (1.0 - qt_TexCoord0.y));
+    } else if (panel) {
+        // A panel: its hairline in the light, brighter under the pointer.
+        hair = accent.rgb;
+        hairA = 0.42 + 0.48 * glow;
     } else if (motif > 3.5) {
         // Paper: long fibres running every way, a lattice of hemp leaves, and the light through it, warmer below.
         vec2 q = mat2(0.8, -0.6, 0.6, 0.8) * px;
@@ -161,7 +168,7 @@ void main() {
     // The highlight: the top edge and the top-right cut catch the light, brightest mid-way along.
     float top = min(px.y, (far.x + px.y - cuts.y) * k);
     float along = sin(3.14159265 * clamp(qt_TexCoord0.x, 0.0, 1.0));
-    float ha = (0.18 + 0.32 * along) * clamp(1.5 - top, 0.0, 1.0) * step(0.5, min(size.x, size.y));
+    float ha = panel ? 0.0 : (0.18 + 0.32 * along) * clamp(1.5 - top, 0.0, 1.0) * step(0.5, min(size.x, size.y));
     c = c * (1.0 - ha) + vec3(1.0) * ha;
     a = a * (1.0 - ha) + ha;
     fragColor = vec4(c, a) * (qt_Opacity * cover);

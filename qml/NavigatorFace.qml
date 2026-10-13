@@ -49,7 +49,7 @@ Item {
 
     /** A little hop: a line has arrived. */
     function bob() { if (Theme.calm || !here) return; hop.restart() }
-    /** A lean towards the pane and back: a page has opened. */
+    /** A glance towards the pane and back: a page has opened. */
     function lean() { if (Theme.calm || !here) return; tilt.restart() }
     /** Pleased: a warm light over the portrait. */
     function glow() { if (here) glowing.restart() }
@@ -71,16 +71,24 @@ Item {
     property real warm: 0
     property real bobY: 0
     property real tiltAngle: 0
+    property real glanceX: 0
 
     SequentialAnimation {
         id: hop
         NumberAnimation { target: face; property: "bobY"; to: -5; duration: Theme.lock; easing: Theme.easeOut }
         NumberAnimation { target: face; property: "bobY"; to: 0; duration: Theme.settle; easing: Theme.spring }
     }
+    // A glance towards the page: it leans and shifts a little towards the pane, and springs back.
     SequentialAnimation {
         id: tilt
-        NumberAnimation { target: face; property: "tiltAngle"; to: 2.5; duration: Theme.lock; easing: Theme.easeOut }
-        NumberAnimation { target: face; property: "tiltAngle"; to: 0; duration: Theme.settle; easing: Theme.easeInOut }
+        ParallelAnimation {
+            NumberAnimation { target: face; property: "tiltAngle"; to: 3; duration: Theme.lock; easing: Theme.easeOut }
+            NumberAnimation { target: face; property: "glanceX"; to: 4; duration: Theme.lock; easing: Theme.easeOut }
+        }
+        ParallelAnimation {
+            NumberAnimation { target: face; property: "tiltAngle"; to: 0; duration: Theme.settle; easing: Theme.spring }
+            NumberAnimation { target: face; property: "glanceX"; to: 0; duration: Theme.settle; easing: Theme.spring }
+        }
     }
     SequentialAnimation {
         id: jump
@@ -100,7 +108,7 @@ Item {
     Item {
         id: body
         width: face.width; height: face.height
-        transform: Translate { y: face.bobY }
+        transform: Translate { x: face.glanceX; y: face.bobY }
         rotation: face.tiltAngle
         transformOrigin: Item.Bottom
 

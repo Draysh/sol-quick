@@ -255,9 +255,7 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   the page's one lead object (an album's cover and name), on the still
   under the band, folding away under it as the page scrolls; with a
   flavour's `letterbox` (Saturn's) it stands between a film's thin black
-  bars (`letterbox: false` leaves them off). With the flavour's `torii`
-  (Mercury's) its foot is a vermilion rule, a gate's beam and posts under
-  its Japanese title (not where tabs run along the foot).
+  bars (`letterbox: false` leaves them off).
 - `Tabs`: uppercase words in a row, one of them on, along a hairline
   (`line`) or as plain choices: `options: [{ value, label, count?, hint?, jp? }]`
   (`jp` before the label),
@@ -487,6 +485,24 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   in a picture; a line that wraps is balanced, the Japanese broken after
   its 、 when that leaves two lines that fit, so nothing stands alone on
   the last line).
+- Impact (a flavour with an `impact` colour, `Theme.impacts`: Neptune's, Mercury's, Terra's, Luna's;
+  `../../docs/yozora-trigger.md`): `Sol.impact(item)` plays `Impact` over
+  the thing a main act hit (a smear, an inverted drawing, speed lines, a
+  3 px shake; on twos with the beat's `steps`; three a second at most,
+  `Sounds.hitAllowed`; none with less motion). A page turn holds on an
+  eyecatch (`Screen.glyph`, else the first kanji of its title's Japanese,
+  huge on `Theme.cardInk`, one slash, the page's name). A moment is a
+  title card (two colours split on `Theme.slant`, the still in a slanted
+  window, `MomentCaption`'s kanji slammed with `SlamText.impact`). The
+  impact colour (`Theme.impact`) is for the hit and the title card's slam
+  only.
+- Small living details, each played once and never while idle: a
+  `Picture` with `lift` rises and tilts a touch under the pointer; a row
+  (`Settle` wide and short, `sweeps`) has a light run across it once as
+  the pointer comes onto it (`sweep()`); `Settle` comes in from the
+  right by half the beat's `slide`; `HeroFigure` and `Display` tick when
+  their value changes; a PageHead's title lands a touch large; the
+  navigator glances towards a page as it opens.
 - `NeonSign` (a word in katakana written down in a lit tube, glowing on a
   dark board: `text`, `light`, `size`, `room`; drawn once, never moving;
   `catchLight(wait)` switches it on as a tube catches, with `Sounds.lit()`),
@@ -495,6 +511,45 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   Text otherwise). The neon flavour's `signs` makes a Sheet's `vertical` a
   NeonSign; its `chroma` edges the Sheet's title and a sparse page's big
   title.
+- The SSS keys (a flavour's `duotone`, `surface: "panel"`, `outline`,
+  `captions`, `scaffold`, `grid`, `drawer`, `turn: "curtain"`, `mincho`,
+  `signature`: every flavour's, after SSS by applibot; `../../docs/yozora-sss.md`),
+  each on its own: `Duotone` (a layer effect grading a picture black into
+  the light; DuskGround grades a `duotone` flavour's stills with it),
+  `PaperTone` (the same on a light flavour: the light in the shadows, paper,
+  `Theme.paper`, in the highlights, so the still is as light as the panels
+  and words on it are ink, `Theme.paperArt`: Terra's),
+  HudGlass's `"panel"` motif (near-opaque, even, a hairline in the light),
+  `OutlineText` (stroke-only capitals in the HUD face: `text`, `size`,
+  `minSize`, `room`, `lines`, `color`; `drawOn(wait)` traces every letter in
+  at once, then they stay; the Sheet's English title, a PageHead's title
+  and its section's number, a feature's name; `Theme.outlined(text)` says
+  when: Japanese keeps the title face), `Chevron` (a big ‹ or › in the
+  light for stepping to the thing before or after: `way`, `size`, `hint`,
+  `clicked`; faint when `enabled` is false), `Signature` (the flavour's
+  `signature` path written in one stroke of the light, `write(wait)` once a
+  launch, `Theme.signed`; a path much longer than Lucy's gives its
+  `signatureLength`, and `signatureNib` writes it with a broad nib, as a
+  brush: Mitsuha's), `Scaffold` (the world's diamond, its kanji cut
+  out, huge and cropped at the window's right, behind the pages; the Shell
+  draws it), the page's columns as hairlines (`Theme.rule`: Screen draws
+  them from its widest Grid, which offers itself, else at the content's
+  edges), HUD lines as captions (`Theme.caption(line, Theme.tagOf(world))`:
+  "neptune_music / albums", the tag the world's role up to its first comma:
+  "saturn_films", "titan_what_to_watch", or the flavour's own `tag`, "terra_days"; HudLabel's `caption`), the palette as a flat
+  panel of the light sliding in from the right (CommandPalette's `drawer`),
+  the page turn's `curtain` (PageTurn: a sweep of the light with one torn
+  frame, a glitch or, with the flavour's `tear: "bars"`, a film's black bars
+  shutting, with `tear: "brush"` a stroke of ink slashed across it, with
+  `tear: "flare"` a flare of sunlight, with `tear: "moon"` a rip lit by the
+  moon, the eyecatch in ink on it; a curtain keeps the colours it started
+  in, and a turn into a page of another flavour, Terra's day to Luna's
+  night, is a curtain over the whole window that changes the window's
+  flavour once it covers it) and long Japanese in `Theme.fontLong`
+  (`weightLong`; `longJp(s)`: Speech's longer lines, Neptune's lyrics). A
+  Sheet's `art` stands at its band's right edge (a character), its `lede`
+  is an English line in outline capitals under a Japanese title, and a
+  PageHead's `feature` with a `reveal(dir, wait)` is told as the page lands.
 - `Display` (a figure that counts up), `DataRows` (`Label: value`; `ledger`: a line
   each across the width, the value at its right end, hairlines between, as
   Settings' cards are),
@@ -579,7 +634,7 @@ HudGlass's, with `hud.vert`, which finds where the glass is drawn on the
 window), committed as `.qsb`; after changing one, from `shaders/`:
 
 ```sh
-for f in body glass picture light arc hud; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
+for f in body glass picture light arc hud impact tone; do /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o $f.frag.qsb $f.frag; done
 /usr/lib/qt6/bin/qsb --glsl "100 es,120,150" --hlsl 50 --msl 12 -o hud.vert.qsb hud.vert
 ```
 

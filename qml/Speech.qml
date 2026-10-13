@@ -54,11 +54,14 @@ Item {
     property real typed: 1
     readonly property string said: jp + "\n" + line
     onSaidChanged: say()
+    onVisibleChanged: if (visible) say()
     /** Types the words in again. */
     function say() {
         typing.stop()
         // A picture shows the words whole at once: the typing is the bubble's, not the page's arrival.
-        if (still || Theme.calm || Theme.speak === 0 || SolBackend.shot !== "") { typed = 1; return }
+        // Nothing to say, or a bubble not showing, types nothing (it would draw frames unseen); a bubble
+        // that comes into view types its line then.
+        if (still || !says || !visible || Theme.calm || Theme.speak === 0 || SolBackend.shot !== "") { typed = 1; return }
         typed = 0
         typing.start()
     }
@@ -191,7 +194,9 @@ Item {
             // (`voiced` off) says it in the display face.
             readonly property bool own: speech.voiced && Theme.titleFloor > 0 && Theme.titleFloor <= Theme.textL + 1
             readonly property int size: speech.large ? (own ? Math.max(Theme.textL, Theme.titleFloor) : Theme.textL) : own ? Theme.titleFloor : Theme.textS + 1
-            font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size)
+            // A longer line in the flavour's light mincho, where it has one (Neptune's), as a page's long Japanese is.
+            readonly property bool long: !!speech.flavour.mincho && Theme.longJp(speech.jp)
+            font.family: long ? Theme.fontLong : Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: long ? Theme.weightLong : Theme.titleWeight(size)
             font.pixelSize: size
             color: speech.flavour.bright || speech.flavour.text
         }

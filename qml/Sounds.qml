@@ -108,6 +108,15 @@ QtObject {
         lastSecond = lastSecond.concat([now])
         return true
     }
+    /** The limiter for what is seen, beside what is heard: an impact frame (Impact) at most three times a second, so a burst of acts lands as one. */
+    property var hitsLastSecond: []
+    function hitAllowed() {
+        const now = Date.now()
+        hitsLastSecond = hitsLastSecond.filter(t => now - t < 1000)
+        if (hitsLastSecond.length >= 3) return false
+        hitsLastSecond = hitsLastSecond.concat([now])
+        return true
+    }
     /** When the pointer last pressed (the window's), so moving focus by a click makes no sound. */
     property real pressedAt: 0
     /** A page turning: the flavour's sting, quiet; pages turned in quick succession sound once in `turnRest`. */

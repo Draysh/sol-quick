@@ -10,6 +10,10 @@ import QtQuick
     alive while the history leads to it, so going back lands where you
     left off.
 
+    With a flavour's `grid` the columns of the page's widest Grid (and its
+    side column) run down the page as hairlines of the light, behind the
+    cards, as SSS by applibot marks its columns.
+
     The content starts at the pane's left margin, as a first page's Sheet
     does, and is never wider than `maxWidth` (about 1400 px): a wider pane
     leaves the rest on the right to the still. The page's `side` column (a
@@ -64,6 +68,23 @@ Item {
     property string emptySay: ""
     /** The Sheet pinned over the page, shrinking as it scrolls, if there is one. */
     property Item pinned: null
+    /**
+        The page's one character (its 一字): shown huge on the page turn's
+        hold as the page arrives, in a flavour with `Theme.impacts` (the
+        eyecatch). "" takes the first kanji of its title's Japanese, else the
+        world's.
+    */
+    property string glyph: ""
+    /** The character the page stands on: `glyph`, or one from its title's Japanese, else the world's. */
+    readonly property string kanji: {
+        if (glyph !== "") return glyph
+        const head = headSlot.children.length ? headSlot.children[0] : null
+        const k = /[\u3400-\u9fff]/.exec(head && head.jpTitle ? head.jpTitle : "")
+        // The world's: its own flavour's (a moon's page arriving from its planet's wears it once it lands).
+        const of = world !== "" ? world : Theme.appWorld
+        const own = of !== "" ? Theme.yozoraOf(of).glyph : ""
+        return k ? k[0] : own || Theme.hud.glyph || ""
+    }
 
     /** A Sheet given as the header (or a PageHead with a feature) pins itself over the page: the page scrolls under it, and it shrinks to a bar. */
     function pin(item) {
@@ -183,9 +204,15 @@ Item {
         return screen.mapToItem(into, flick.x + p.x, flick.y + p.y)
     }
 
+    /** How far down the pane a band (PageHead) stands, level with the rail's top edge (`Shell.headTop`); 0 for a Sheet. */
+    readonly property real headInset: {
+        const h = headSlot.children.length ? headSlot.children[0] : autoHead.item
+        return h && (h as PageHead) && shell ? shell.headTop || 0 : 0
+    }
+
     Item {
         id: headSlot
-        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: screen.headInset
         height: childrenRect.height
         z: 10
         onChildrenChanged: { for (const h of children) { h.width = Qt.binding(() => headSlot.width); if (h.hasOwnProperty("screen")) h.screen = screen; if (h.hasOwnProperty("collapse") && h.hasOwnProperty("fullHeight") && h.pins !== false) screen.pin(h) } }
@@ -194,7 +221,7 @@ Item {
     // A page opened from another with no head of its own: the kit's, with its title and the way back.
     Loader {
         id: autoHead
-        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: screen.headInset
         z: 10
         active: !!screen.back && headSlot.children.length === 0
         // (Its own `screen` would hide the page's id inside it: both are set from here.)
@@ -202,11 +229,48 @@ Item {
         onLoaded: { const h = item as PageHead; if (!h) return; h.screen = screen; h.title = Qt.binding(() => screen.title); h.named = Qt.binding(() => screen.named) }
     }
 
+    // ---- The columns as hairlines (a flavour's `grid`) ---------------------------------------
+    /** The Grids on the page that offered their columns; the widest is drawn. */
+    property var rulers: []
+    function offerRuler(g) { if (rulers.indexOf(g) < 0) rulers = rulers.concat([g]) }
+    function dropRuler(g) { if (rulers.indexOf(g) >= 0) rulers = rulers.filter(r => r !== g) }
+    readonly property Item ruler: rulers.reduce((best, g) => g && g.visible && g.width > (best ? best.width : 0) ? g : best, null)
+    /** Where the lines fall across the page: each column's edges (without a Grid, the content's own), and the side column's. */
+    readonly property var rules: {
+        if (!Theme.ruled || width <= 0) return []
+        const r = ruler && ruler.width > 0 ? ruler : null
+        // Read again when the content moves across the page (the window is resized, a side column comes).
+        const moved = [screen.width, screen.contentX, screen.startX, flick.width]
+        const out = []
+        if (r) {
+            const at = moved.length ? r.mapToItem(screen, 0, 0).x : 0
+            for (let i = 0; i < r.columns; i++) out.push(Math.round(at + i * (r.cell + r.gap)))
+            out.push(Math.round(at + r.width) - 1)
+        } else {
+            const left = padded ? contentX : startX, wide = padded ? contentWidth : startWidth
+            out.push(Math.round(left), Math.round(left + wide) - 1)
+        }
+        if (sideBeside) out.push(Math.round(sideSlot.x), Math.round(sideSlot.x + sideSlot.width) - 1)
+        return out
+    }
+    Repeater {
+        model: screen.rules
+        delegate: Rectangle {
+            required property real modelData
+            x: modelData
+            width: 1
+            height: screen.height
+            color: Theme.rule
+        }
+    }
+
     Flickable {
         id: flick
         anchors.left: parent.left; anchors.right: parent.right
-        // Under a pinned Sheet the page starts at the top and scrolls beneath it.
+        // Under a pinned Sheet the page starts at the top and scrolls beneath it (a pinned band's
+        // top, level with the rail's, so nothing scrolls above it).
         anchors.top: screen.pinned ? parent.top : autoHead.item ? autoHead.bottom : headSlot.bottom
+        anchors.topMargin: screen.pinned ? screen.headInset : 0
         anchors.bottom: footSlot.top
         contentWidth: width
         contentHeight: Math.max(column.y + column.implicitHeight, screen.sideBeside ? sideSlot.y + sideSlot.height : 0) + Theme.s6
@@ -329,7 +393,7 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 2
         // Its track starts under a pinned Sheet, not behind it.
-        readonly property real trackTop: screen.pinned && !screen.besideHead ? screen.pinned.height : flick.y
+        readonly property real trackTop: screen.pinned && !screen.besideHead ? screen.headInset + screen.pinned.height : flick.y
         readonly property real track: flick.y + flick.height - trackTop
         y: trackTop + (track - height) * (flick.contentHeight > flick.height ? Math.max(0, Math.min(1, flick.contentY / (flick.contentHeight - flick.height))) : 0)
         width: 3

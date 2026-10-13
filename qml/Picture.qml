@@ -40,7 +40,7 @@ Item {
     property bool outline: false
     /** Its corners; 0 for a square picture (one that fills a panel shaped by something else). */
     property real radius: Theme.radiusM
-    /** Lifts a touch while `hovered`; the caller says when it is. */
+    /** Lifts a touch while `hovered` (it rises, tips back a little and its picture comes closer); the caller says when it is. */
     property bool lift: false
     property bool hovered: false
     /** Dimmed and grey, for something already seen. */
@@ -79,6 +79,14 @@ Item {
     implicitWidth: 100
     implicitHeight: width / ratio
     height: width / ratio
+    // Lifted under the pointer: up a few pixels and tilted a touch about its foot, as a card picked
+    // up, with a little spring; back down when the pointer leaves. Nothing with less motion.
+    property real raised: lift && hovered && !Theme.calm ? 1 : 0
+    Behavior on raised { NumberAnimation { duration: Theme.settle; easing: Theme.spring } }
+    transform: [
+        Translate { y: -4 * root.raised },
+        Rotation { origin.x: root.width / 2; origin.y: root.height; angle: -1.2 * root.raised * Math.min(1, 220 / Math.max(1, root.height)) }
+    ]
     // A square picture's lift stays inside it; a rounded one zooms inside its own shape.
     clip: !rounded
 
@@ -120,6 +128,8 @@ Item {
         visible: root.crop || !root.ready
         radius: root.radius
         color: Theme.surface
+        // Smooth edges while it is tilted.
+        antialiasing: root.raised !== 0
         border.width: root.outline ? 1 : 0
         border.color: root.hovered ? Theme.lineStrong : Theme.line
         Behavior on border.color { ColorAnimation { duration: Theme.fade } }

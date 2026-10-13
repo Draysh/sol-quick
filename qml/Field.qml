@@ -28,6 +28,10 @@ FocusScope {
     /** No well: only the text, for a field in a panel of its own. */
     property bool bare: false
     property alias readOnly: input.readOnly
+    /** The colour of what is typed (its placeholder the same, faint): the words' on glass, or the ink on a panel of the light (the palette's drawer). */
+    property color ink: Theme.text
+    /** Its placeholder's colour: the words' faint, or the ink held back. */
+    property color faintInk: ink === Theme.text ? Theme.textFaint : Theme.tint(ink, 0.62)
     property alias input: input
     signal accepted()
     /** The field was left, or Enter pressed, with its text changed since it was entered. */
@@ -63,8 +67,8 @@ FocusScope {
                 font.family: root.jp ? Theme.fontJp : Theme.font
                 font.pixelSize: Theme.textM
                 font.weight: Theme.weightValue
-                color: root.enabled ? Theme.text : Theme.textFaint
-                selectionColor: Theme.text
+                color: root.enabled ? root.ink : Theme.textFaint
+                selectionColor: root.ink
                 selectedTextColor: Theme.textInverse
                 maximumLength: root.maxLength
                 echoMode: root.password ? TextInput.Password : TextInput.Normal
@@ -92,11 +96,11 @@ FocusScope {
                 text: root.placeholder
                 visible: input.text === "" && !input.inputMethodComposing
                 font: input.font
-                color: Theme.textFaint
+                color: root.faintInk
                 elide: Text.ElideRight
             }
             // A bare field keeps only its foot's light.
-            Underline { visible: root.bare; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; resting: false; lit: input.activeFocus; invalid: root.invalid }
+            Underline { visible: root.bare && root.ink === Theme.text; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; resting: false; lit: input.activeFocus; invalid: root.invalid }
             HoverHandler { id: hover; enabled: root.enabled; cursorShape: Qt.IBeamCursor }
         }
 

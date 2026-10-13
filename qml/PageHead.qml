@@ -8,9 +8,15 @@ import QtQuick
     actions on the right. Neptune's flickers in as it comes. On a page opened from another,
     the way back comes first. Put it in a Screen's `header`.
 
+    With a flavour's `outline` the section's number stands first, large, in
+    outline figures of the light, and the English title in outline capitals
+    under a caption (`captions`: "neptune_music / albums"); both draw
+    themselves on as the page lands.
+
     A page's one lead object (an album's cover and name, a station's dial)
     goes in `feature`: it stands on the still under the band, and as the
-    page scrolls it folds away under the band, which stays.
+    page scrolls it folds away under the band, which stays. A feature with
+    a `reveal(dir, wait)` of its own is told as the page lands.
 
     With `tabs`, the tabs run along its foot. A tab is part of the page's
     path (`/schedule?tab=calendar`): choosing one changes the page's
@@ -87,8 +93,17 @@ Item {
         return e ? sh.rows.find(r => r.path === e.path) || null : null
     }
     readonly property string jpTitle: jp !== "" ? jp : row && row.jp ? row.jp : ""
-    /** The HUD line: the section's number and the eyebrow (or the world's name). */
-    readonly property string hudLine: [row ? (row.top + 1 < 10 ? "0" : "") + (row.top + 1) : "", eyebrow !== "" ? eyebrow : Worlds.get(screen && screen.world !== "" ? screen.world : Sol.world).name].filter(Boolean).join(" · ")
+    /** The section's number, two figures: "02" ("" on a page opened from another). */
+    readonly property string number: row ? (row.top + 1 < 10 ? "0" : "") + (row.top + 1) : ""
+    /** The world it is in: a moon's own. */
+    readonly property string worldId: screen && screen.world !== "" ? screen.world : Sol.world
+    /** The HUD line: the section's number and the eyebrow (or the world's name); a flavour's caption: its tag, then the eyebrow or the title. */
+    readonly property string hudLine: Theme.captions ? Theme.caption(eyebrow !== "" ? eyebrow : row ? row.label : title, Theme.tagOf(worldId))
+        : [number, eyebrow !== "" ? eyebrow : Worlds.get(worldId).name].filter(Boolean).join(" · ")
+    /** The English title in outline capitals: the flavour has them, it isn't a name set in the title face, and no feature carries a big title of its own (one outline title a page). */
+    readonly property bool outlineTitle: Theme.outlined(title) && !named && !editable && !pins
+    /** The size the number is set at: its figures as tall as the band's words allow. */
+    readonly property int numberSize: Math.round(Math.min(88, (railHead - Theme.s2 * 2) / 0.7))
     /** Where the page's content starts, so the words line up with it (the Screen's column). */
     readonly property bool lined: !!screen && screen.padded && !screen.composed
     readonly property real margin: lined ? screen.contentX : Theme.margin(width)
@@ -108,16 +123,18 @@ Item {
     /** The words on one line as they would like it: the way back, the title and the lead. */
     readonly property real wordsWidth: {
         const parts = [back ? backButton.implicitWidth : 0,
-                       editable ? titleEdit.implicitWidth + hudTitle.implicitWidth + textRow.spacing : hudTitle.implicitWidth, lead !== "" ? leadText.implicitWidth : 0].filter(w => w > 0)
+                       titleEdit.visible ? titleEdit.implicitWidth + hudTitle.implicitWidth + textRow.spacing : hudTitle.implicitWidth, lead !== "" ? leadText.implicitWidth : 0].filter(w => w > 0)
         return parts.reduce((a, w) => a + w, 0) + Math.max(0, parts.length - 1) * textRow.spacing
     }
     /** Too narrow for the words and the actions side by side (the words want their line, or 240 px of
         one): the actions go on lines of their own under the title and the lead, which get the full width. */
     readonly property bool stacked: hasActions && room - actionsWidth - Theme.s4 < Math.min(wordsWidth, 240)
 
-    /** The words and the actions, above the tabs. */
-    readonly property real topHeight: stacked ? textRow.implicitHeight + actionRow.height + Theme.s2 * 3
-                                              : Math.max(Theme.navHeight, Math.max(textRow.implicitHeight, actionRow.height) + Theme.s2 * 2)
+    /** The rail's head beside it (`Shell.headHeight`): the words' part of the band is as tall, so its foot is level with the brand's. */
+    readonly property real railHead: screen && screen.shell && screen.shell.headHeight ? screen.shell.headHeight : Theme.navHeight
+    /** The words and the actions, above the tabs: the rail's head, or more when they need it. */
+    readonly property real topHeight: stacked ? Math.max(railHead, textRow.implicitHeight + actionRow.height + Theme.s2 * 3)
+                                              : Math.max(railHead, Math.max(textRow.implicitHeight, actionRow.height) + Theme.s2 * 2)
     // The tabs take the words' bottom padding, so their line sits on the bar's hairline.
     implicitHeight: fullHeight
     height: pins ? Math.round(fullHeight - (fullHeight - compact) * collapse) : implicitHeight
@@ -137,9 +154,18 @@ Item {
         const by = Theme.calm || plain ? 0 : Theme.hud.motif === "shrine" ? 12 : 36
         textShift.x = dir === "back" ? -by : by
         actionShift.x = dir === "back" ? -by / 2 : by / 2
+        // The title lands a touch large and settles to its size: a small slam.
+        jpBox.scale = Theme.calm || plain ? 1 : 1.08
         headIn.start()
         if (plain) still()
         else if (Theme.hud.motif === "neon" && !Theme.calm) glitch.restart()
+        // The number and the outline title trace themselves in as the words land, and the feature
+        // is told (an outline name of its own draws on with them).
+        if (!plain) {
+            if (numberText.visible) numberText.drawOn(wait)
+            if (outlined.visible) outlined.drawOn(wait + Theme.hit)
+        }
+        for (const f of featureSlot.children) if (typeof f.reveal === "function") f.reveal(dir, wait)
     }
     /** How long the words wait under the page's turn before they land. */
     property real wait: 0
@@ -161,6 +187,7 @@ Item {
             NumberAnimation { target: tabStrip; property: "opacity"; to: 1; duration: root.plain || Theme.calm ? Theme.fade : Theme.land; easing: Theme.easeOut }
             NumberAnimation { target: textShift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
             NumberAnimation { target: actionShift; property: "x"; to: 0; duration: Theme.land; easing: Theme.easeOut }
+            NumberAnimation { target: jpBox; property: "scale"; to: 1; duration: Theme.land; easing: Theme.spring }
         }
     }
 
@@ -204,41 +231,7 @@ Item {
         width: root.width
         height: root.barHeight
         HudGlass { anchors.fill: parent; cuts: [0, 0, 0, 0] }
-        Rectangle { visible: !root.torii; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
-    }
-    // The flavour's `torii` (Mercury's): the foot is a vermilion rule, and under the Japanese
-    // title it is a gate's beam with the hint of its two posts.
-    readonly property bool torii: !!Theme.hud.torii
-    Item {
-        id: rule
-        visible: root.torii
-        y: bar.height - 1
-        width: root.width
-        readonly property color seal: Theme.hud.seal || Theme.hudAccent
-        // Across the band, fading out to the right.
-        Rectangle {
-            width: parent.width; height: 1
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: Theme.tint(rule.seal, 0.75) }
-                GradientStop { position: 0.6; color: Theme.tint(rule.seal, 0.3) }
-                GradientStop { position: 1; color: Theme.tint(rule.seal, 0.12) }
-            }
-        }
-        // The gate, under the title: a beam a little wider than the posts, and the posts' tops.
-        Item {
-            id: gate
-            // Not where tabs run along the foot: the beam would read as the first tab's.
-            visible: jpBox.visible && root.tabs.length === 0
-            x: textRow.x + hudTitle.x + jpBox.x - Theme.s1 + textShift.x
-            width: jpBox.width + Theme.s1 * 2
-            opacity: textRow.opacity
-            // The beam (kasagi), the tie-beam under it (nuki) and the posts' tops.
-            Rectangle { y: -1; width: parent.width; height: 3; color: rule.seal }
-            Rectangle { x: Theme.s1; y: 6; width: parent.width - Theme.s1 * 2; height: 2; color: rule.seal }
-            Rectangle { x: Theme.s2 + 1; y: 2; width: 3; height: Theme.s3 - 2; color: rule.seal }
-            Rectangle { x: parent.width - Theme.s2 - 4; y: 2; width: 3; height: Theme.s3 - 2; color: rule.seal }
-        }
+        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
     }
     // What slides under the bar dims out over a few pixels first; nothing has, nothing dims.
     readonly property real scrolled: screen && screen.contentY > featureHeight ? Math.min(1, (screen.contentY - featureHeight) / 32) : 0
@@ -257,18 +250,30 @@ Item {
         spacing: Theme.s3
         transform: Translate { id: textShift }
 
-        Back { id: backButton; visible: !!root.back; label: root.back ? root.back.label : ""; onGo: root.back.go() }
+        // The way back and the lead stand as tall as the title beside them, their words on its centre line.
+        Back { id: backButton; visible: !!root.back; height: Math.max(implicitHeight, hudTitle.height); label: root.back ? root.back.label : ""; onGo: root.back.go() }
         // The title: the Japanese in the title serif, then the HUD line over the English
         // (a title that can be renamed follows, as it is).
         Row {
             id: hudTitle
             spacing: Theme.s3
             height: Math.max(32, implicitHeight)
+            // The section's number, large, in outline figures of the light (the flavour's `outline`).
+            OutlineText {
+                id: numberText
+                visible: Theme.outlines && root.number !== "" && !(root.screen && root.screen.composed)
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.number
+                size: root.numberSize
+                color: Theme.hudAccent
+                drawFor: Theme.fade
+            }
             Item {
                 id: jpBox
                 // A page composed to the still sets its title large over it instead.
                 visible: root.jpTitle !== "" && !(root.screen && root.screen.composed)
                 anchors.verticalCenter: parent.verticalCenter
+                transformOrigin: Item.Left
                 width: jpText.implicitWidth
                 height: jpText.implicitHeight
                 // Neptune's title flickers in: two ghosts of it, red and cyan, jump and fade.
@@ -287,25 +292,40 @@ Item {
                 spacing: 3
                 Text {
                     text: root.hudLine
-                    font.family: Theme.fontCaps; font.pixelSize: Theme.textXs; font.weight: Font.DemiBold
-                    font.letterSpacing: Theme.track(Theme.trackHud, Theme.textXs); font.capitalization: Font.AllUppercase
+                    font.family: Theme.fontCaps; font.pixelSize: Theme.captions ? Theme.textXs + 1 : Theme.textXs; font.weight: Theme.captions ? Font.Medium : Font.DemiBold
+                    font.letterSpacing: Theme.track(Theme.captions ? 0.04 : Theme.trackHud, Theme.textXs); font.capitalization: Theme.captions ? Font.MixedCase : Font.AllUppercase
                     color: Theme.hudAccent
                 }
                 // The subtitle, in the display face: a few words in capitals; a longer title, or Japanese, as written.
                 // A `named` page's title is its name, in the title face, large; while a feature under the band
                 // carries the name large already, the band keeps the subtitle and the name takes its place as the
                 // feature folds away.
+                // With captions, a title that can be renamed stands under the caption, as any title does.
+                Editable { visible: root.editable && Theme.captions; text: root.title; width: Math.min(implicitWidth, textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0)); size: Theme.textM; weight: Theme.weightName; caps: true; color: Theme.text; height: 24; hint: "Click to rename"; onCommitted: t => root.renamed(t) }
                 Item {
                     id: titleBox
                     visible: !root.editable
-                    readonly property real room: textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0)
+                    // Beside the Japanese, and the section's number when it is drawn large.
+                    readonly property real room: textRow.width - (jpBox.visible ? jpBox.width + Theme.s3 * 2 + 1 : 0) - (numberText.visible ? numberText.width + Theme.s3 : 0)
                     /** 1 where the name stands in the title face, 0 where the subtitle does. */
                     readonly property real named: !root.named ? 0 : root.pins && root.featureNamed ? Math.max(0, Math.min(1, (root.collapse - 0.45) / 0.4)) : 1
-                    width: Math.min(Math.max(subtitle.visible ? subtitle.implicitWidth : 0, nameText.visible ? nameText.implicitWidth : 0), room)
-                    height: root.named ? nameText.implicitHeight : subtitle.implicitHeight
+                    width: Math.min(Math.max(subtitle.visible ? subtitle.implicitWidth : 0, nameText.visible ? nameText.implicitWidth : 0, outlined.visible ? outlined.implicitWidth : 0), room)
+                    height: root.named ? nameText.implicitHeight : root.outlineTitle ? outlined.implicitHeight + 3 : subtitle.implicitHeight
+                    // In outline capitals (the flavour's `outline`), as large as the band allows.
+                    OutlineText {
+                        id: outlined
+                        visible: root.outlineTitle
+                        y: 3
+                        text: root.title
+                        room: titleBox.room
+                        size: 40
+                        minSize: 26
+                        color: Theme.hudText
+                        drawFor: Theme.fade
+                    }
                     Text {
                         id: subtitle
-                        visible: titleBox.named < 1
+                        visible: titleBox.named < 1 && !root.outlineTitle
                         opacity: 1 - titleBox.named
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.title
@@ -332,17 +352,24 @@ Item {
                 }
             }
         }
-        Editable { id: titleEdit; visible: root.editable; text: root.title; width: Math.min(implicitWidth, textRow.width); size: Theme.textM; weight: Theme.weightName; caps: true; color: Theme.text; height: 32; hint: "Click to rename"; onCommitted: t => root.renamed(t) }
-        // The lead: beside the title when it fits, else on its own line, wrapping (at most two lines).
+        Editable { id: titleEdit; visible: root.editable && !Theme.captions; text: root.title; width: Math.min(implicitWidth, textRow.width); size: Theme.textM; weight: Theme.weightName; caps: true; color: Theme.text; height: 32; hint: "Click to rename"; onCommitted: t => root.renamed(t) }
+        // The lead: beside the title, in two lines where one doesn't fit, so the band stays as tall as the
+        // rail's head; on its own line only when there are not 200 px beside the title.
         Text {
             id: leadText
             visible: root.lead !== ""
             text: root.lead
-            width: Math.min(implicitWidth, textRow.width)
+            readonly property real beside: textRow.width - [backButton, hudTitle, titleEdit].filter(i => i.visible).reduce((w, i) => w + i.width + textRow.spacing, 0)
+            width: Math.min(implicitWidth, beside >= 200 ? beside : textRow.width)
             wrapMode: Text.Wrap
             maximumLineCount: 2
             elide: Text.ElideRight
-            height: Math.max(32, implicitHeight); verticalAlignment: Text.AlignVCenter
+            // Beside the title, as tall as it; on a line of its own, its own height, drawn up into the
+            // row's gap, so the band stays as tall as the rail's head.
+            readonly property bool own: y > hudTitle.y + 1
+            topPadding: own ? -Theme.s3 : 0
+            height: !own ? Math.max(32, hudTitle.height, implicitHeight) : implicitHeight
+            verticalAlignment: Text.AlignVCenter
             font.family: Theme.font; font.pixelSize: Theme.textS; font.weight: Theme.weightValue
             color: Theme.textQuiet
             onTextChanged: fade.restart()

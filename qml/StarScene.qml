@@ -24,9 +24,10 @@ Item {
     /** The line back to the star before, drawn after the light. */
     readonly property real reach: moment && moment.calm ? 1 : Math.max(0, Math.min(1, (p - 0.25) * 3))
     readonly property color warm: Qt.tint("#fff2df", Theme.tint(Theme.world, 0.45))
-    // The star stands up and to the right; its words on the left, as a film's title card.
-    readonly property real cx: width * 0.7
-    readonly property real cy: height * 0.32
+    // The star stands up and to the right (on a title card, inside the still's slanted window); its
+    // words on the left, as a film's title card.
+    readonly property real cx: width * (Theme.impacts ? 0.8 : 0.7)
+    readonly property real cy: height * (Theme.impacts ? 0.4 : 0.32)
 
     // The star before: already lit, quiet, up and to the left.
     readonly property real bx: cx - Math.min(220, width * 0.2)
@@ -95,7 +96,8 @@ Item {
     MomentCaption {
         moment: scene.moment
         centred: false
-        width: Math.min(scene.width - Theme.s6 * 2, 760)
+        // On a title card, on the ink, short of where the light begins.
+        width: Theme.impacts ? Math.round(scene.width * 0.5) - Theme.s6 : Math.min(scene.width - Theme.s6 * 2, 760)
         x: Theme.s6
         // Low on the left, over the bars, as the other moments' title cards stand.
         y: scene.height - implicitHeight - (scene.moment ? scene.moment.barHeight : 0) - Theme.s6

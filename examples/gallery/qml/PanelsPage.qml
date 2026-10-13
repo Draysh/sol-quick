@@ -11,7 +11,11 @@ import Sol.Design
     a masonry grid of uneven cards with a feature card across two columns
     (Again grows one, and the cards under it glide to their new places).
     A card more shows the look's own pieces (HudLabel, HudSeal square and
-    round, AngledButton, SlantTicks, ChromaText beside a NeonSign, HudPanel, a ruled TextArea in ink). The pictures are the
+    round, AngledButton, SlantTicks, ChromaText beside a NeonSign, an
+    OutlineText title over two lines and its figures between Chevrons, a
+    Signature written again by Again, a Duotone picture and a PaperTone
+    one (a light flavour's), HudPanel, a ruled
+    TextArea in ink). The pictures are the
     kit's own photographs.
 */
 Screen {
@@ -144,6 +148,28 @@ Screen {
                 spacing: Theme.s4
                 ChromaText { anchors.verticalCenter: parent.verticalCenter; text: "Neon Rain"; font.family: Theme.fontTitle; font.features: Theme.titleFeatures; font.weight: Theme.weightTitle; font.pixelSize: 48; color: Theme.textBright }
                 NeonSign { text: "レコード"; size: 20 }
+            }
+            // SSS's pieces: an outline title that draws itself on, a count between chevrons, a signature, a still graded in one colour.
+            OutlineText { id: outlineSample; room: parent.width; text: "Quiet Static Over Neon Rain"; size: 56; lines: 2; Component.onCompleted: drawOn(0) }
+            Row {
+                spacing: Theme.s3
+                Chevron { anchors.verticalCenter: parent.verticalCenter; way: -1; hint: "The one before" }
+                OutlineText { anchors.verticalCenter: parent.verticalCenter; text: "03 / 14"; size: 40; color: Theme.hudAccent }
+                Chevron { anchors.verticalCenter: parent.verticalCenter; way: 1; hint: "The one after" }
+                Chevron { anchors.verticalCenter: parent.verticalCenter; way: 1; enabled: false; hint: "Nothing after this" }
+            }
+            Row {
+                spacing: Theme.s4
+                Image { width: 200; height: 120; fillMode: Image.PreserveAspectCrop; source: "qrc:/qt/qml/Sol/Design/assets/worlds/saturn.png"; layer.enabled: true; layer.effect: Duotone { } }
+                Image { width: 200; height: 120; fillMode: Image.PreserveAspectCrop; source: "qrc:/qt/qml/Sol/Design/assets/worlds/saturn.png"; layer.enabled: true; layer.effect: PaperTone { } }
+                Signature {
+                    id: signatureSample
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 220
+                    path: Theme.hud.signature || "M 30 100 C 60 40, 90 40, 110 90 C 130 140, 170 140, 200 90 C 220 60, 250 60, 290 100"
+                    Connections { target: page; function onRoundChanged() { Theme.signed = false; signatureSample.write(0); outlineSample.drawOn(0) } }
+                    Component.onCompleted: write(0)
+                }
             }
             HudPanel { width: parent.width; title: "A HudPanel"; jp: "硝子"; aside: "03"; brackets: Theme.hudSecond
                 Words { width: parent.width; quiet: true; text: "Glass over the still, its corner cut, brackets in the second light." } }

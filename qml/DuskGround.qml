@@ -9,7 +9,8 @@ import QtQuick.Shapes
     vermilion, Neptune's neon night, Terra's noon sky lifted with a summer
     haze, Luna's indigo), a soft vignette, and a shade down the left where
     the page's title stands, so white words on it keep 4.5:1. A new still fades in
-    over the one before. Without one it is the world's drawn sky (stars, or
+    over the one before. A `duotone` flavour (Neptune's) grades its stills in
+    one colour, black into its light. Without one it is the world's drawn sky (stars, or
     Terra's summer sun). Neptune's has rain over it and a neon glow. The Shell draws it under the sidebar and the
     pages; HudGlass reads it, blurred once (`Shell.groundBlur`).
 
@@ -119,12 +120,18 @@ Item {
         Behavior on opacity { NumberAnimation { duration: Theme.rise; easing: Theme.easeOut } }
         onStatusChanged: if (status === Image.Ready) root.pick()
     }
+    // A `duotone` flavour's stills are graded black into its light, as one colour (Neptune's red);
+    // a light one's, its light into paper (Terra's blue).
     Item {
         id: stills
         anchors.fill: parent
         Still { id: one }
         Still { id: two }
+        layer.enabled: !!root.look.duotone
+        layer.effect: root.look.light ? paperTone : duotone
     }
+    Component { id: duotone; Duotone { tone: root.look.accent } }
+    Component { id: paperTone; PaperTone { shadow: root.look.accent; highlight: root.dim; contrast: 0.35; brightness: 0.02 } }
     Settling { when: one.status === Image.Loading || two.status === Image.Loading || (one.opacity > 0 && one.opacity < 1) || (two.opacity > 0 && two.opacity < 1) }
 
     // The grade: the whole picture held down a little, then the world's light from top to

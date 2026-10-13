@@ -132,6 +132,7 @@ Item {
     // The accent: every page, a moon's too, wears the flavour's own light; a moon with a
     // flavour of its own (Luna's evening) wears that one while its page is open.
     function accent() {
+        recolour.stop()
         const of = here >= 0 && history[here] ? worldOf(history[here].path) : world
         Theme.worldId = Theme.yozoraLooks[of] ? of : world
         Theme.world = Theme.hudAccent
@@ -355,7 +356,13 @@ Item {
         item.x = 0
         item.opacity = 1
         item.back = backFor(entry)
-        accent()
+        // Into a page that wears another flavour (Terra's day to Luna's night) on a curtain: the
+        // curtain covers the whole window in the colours it leaves, and the window changes under it.
+        const of = worldOf(entry.path)
+        const crossing = !!was && was !== item && dir !== "tab" && !Theme.calm && Theme.turn > 0
+            && Theme.beat.turn === "curtain" && (Theme.yozoraLooks[of] ? of : world) !== Theme.worldId
+        if (crossing) recolour.restart()
+        else accent()
         if (was && was !== item) {
             // The page that was here leaves under the one arriving. In a turn it gives a little
             // against the way for one beat (the anticipation) and is gone once the wipe covers it
@@ -371,7 +378,15 @@ Item {
             coverWait.duration = turning ? Math.max(0, Theme.turnCover - Theme.hit) : 0
             leave.restart()
             if (item.hasOwnProperty("reveal")) item.reveal(dir === "out" ? "back" : dir)
-            if (!tab) { turn.play(dir === "out" ? "back" : dir); if (turning) Sounds.turn() }
+            if (!tab) {
+                // The eyecatch on the hold names the page arriving (a flavour with `Theme.impacts`).
+                const arriving = item as Design.Screen
+                const t = crossing ? crossTurn : turn
+                t.glyph = arriving ? arriving.kanji : ""
+                t.name = arriving ? arriving.title : ""
+                t.play(dir === "out" ? "back" : dir)
+                if (turning) Sounds.turn()
+            }
         }
         shell.forceActiveFocus()
         const screen = page as Design.Screen
@@ -549,10 +564,23 @@ Item {
         }
     }
 
+    // The world's emblem, huge and cropped, behind the pages (a flavour's `scaffold`).
+    Design.Scaffold { anchors.fill: parent }
+
     // The sidebar floats on its own glass, clear of the window's edges.
     readonly property real sideInset: !rail ? Theme.s4 : 0
+    /**
+        A page's band (PageHead) lines up with the rail's head: its top edge
+        level with the rail's (`headTop` down the pane) and as tall as the
+        rail's brand block (`headHeight`), so the page's title and the
+        world's name sit on one line.
+    */
+    readonly property real headTop: sideInset
+    readonly property real headHeight: side.headHeight
     Sidebar { id: side; frame: shell; x: shell.sideInset; y: shell.sideInset; height: parent.height - shell.sideInset * 2 }
 
+    /** The impact frames over the pane (`Sol.impact(item)`): a main act's hit, over the thing hit only. */
+    readonly property Item impact: impactLayer
     // The pane: the pages, and a footer that is always there.
     Item {
         id: pane
@@ -560,6 +588,8 @@ Item {
         width: parent.width - x
         height: parent.height
         clip: true
+        // An impact shakes the page a few pixels for a beat.
+        transform: Translate { x: impactLayer.shakeX }
 
         Item {
             id: paneSlot
@@ -576,7 +606,14 @@ Item {
             width: parent.width
             height: childrenRect.height
         }
+        // A main act's impact frames, over the pages and the footer, over the thing hit only.
+        Design.Impact { id: impactLayer; anchors.fill: parent; z: 6 }
     }
+
+    // A turn into a page of another flavour: the curtain over the whole window, the rail too, and
+    // the window taking the new flavour once it is covered.
+    Design.PageTurn { id: crossTurn; anchors.fill: parent; z: 20 }
+    Timer { id: recolour; interval: Math.max(1, Theme.turnCover); onTriggered: shell.accent() }
 
     // The world's opening, over everything, once a launch.
     Design.Opening { id: openingItem; anchors.fill: parent; z: 30; shell: shell; rail: side }

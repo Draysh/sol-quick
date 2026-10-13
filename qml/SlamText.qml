@@ -40,6 +40,15 @@ Item {
     property real tear: 0
     /** How it arrives: "slam" (cut, the halves meeting), "bounce" (a soft drop, a touch past its size) or "rise" (up out of the dark). */
     property string way: "slam"
+    /**
+        A title card's slam (`Theme.impacts`): drawn on twos, from larger, its
+        first drawing inverted (a block of the impact colour, the words in
+        ink on it), then a drawing past its size, then still; no halves, no
+        ghosts. The words slam and stay.
+    */
+    property bool impact: false
+    /** The first drawing of an `impact` slam: inverted. */
+    readonly property bool inverted: impact && at >= 0 && at < Math.max(1, Theme.frame)
     /** A soft shadow under the words, so they read over a still. */
     property color shadow: Theme.tint(Theme.hud.dim || Theme.hud.ground, 0.6)
 
@@ -54,20 +63,22 @@ Item {
     /** A rise takes the hit and the hold. */
     readonly property real risen: 1 - Math.pow(1 - Math.max(0, Math.min(1, at / (hit + Math.max(1, Theme.hold)))), 3)
     /** Past the hit: one frame past its size, then at its size (a bounce: a touch past, easing back over a hold). */
-    readonly property real s: way === "bounce" ? (at < 0 ? 0.82 : at < hit ? 0.82 + 0.24 * eased : 1.06 - 0.06 * (1 - Math.pow(1 - held, 2)))
+    readonly property real frame: Math.max(1, Theme.frame)
+    readonly property real s: impact ? (at < frame ? 1.3 : at < frame * 2 ? 1.06 : at < frame * 3 ? 0.97 : 1)
+        : way === "bounce" ? (at < 0 ? 0.82 : at < hit ? 0.82 + 0.24 * eased : 1.06 - 0.06 * (1 - Math.pow(1 - held, 2)))
         : way === "rise" ? (at < 0 ? 0.97 : 0.97 + 0.03 * risen)
         : at < 0 ? 1.3 : at < hit ? 1.3 - 0.34 * k * k : at < hit + Theme.flicker ? 0.96 : 1
     /** How far it is from its place, up or down: a bounce drops from above, a rise comes up from below. */
     readonly property real lift: way === "bounce" ? (at < hit ? -Theme.s4 * (1 - eased) : 0)
         : way === "rise" ? Theme.s3 * (1 - risen) : 0
     /** How far apart the halves are, closing over the hit. */
-    readonly property real apart: way === "slam" && at < hit && at >= 0 ? Math.pow(1 - k, 2) * Math.max(24, width * 0.16) : 0
+    readonly property real apart: way === "slam" && !impact && at < hit && at >= 0 ? Math.pow(1 - k, 2) * Math.max(24, width * 0.16) : 0
     /** The glint and the ghosts, from the hit through a hold. */
-    readonly property real after: way === "rise" || at < 0 ? 0 : at < hit ? k : Math.max(0, 1 - (at - hit) / Math.max(1, Theme.hold))
+    readonly property real after: way === "rise" || impact || at < 0 ? 0 : at < hit ? k : Math.max(0, 1 - (at - hit) / Math.max(1, Theme.hold))
     /** Where the cut runs, from the top. */
     readonly property real cut: Math.round(height * 0.54)
 
-    opacity: at < 0 ? 0 : way === "rise" ? risen : Math.min(1, 0.4 + k)
+    opacity: at < 0 ? 0 : impact ? 1 : way === "rise" ? risen : Math.min(1, 0.4 + k)
     transform: [
         Scale { origin.x: root.width / 2; origin.y: root.height / 2; xScale: root.s; yScale: root.s },
         Translate { y: root.lift }
@@ -81,8 +92,16 @@ Item {
         maximumLineCount: root.maximumLineCount
         elide: root.wrap ? Text.ElideRight : Text.ElideNone
         font.family: root.family; font.weight: root.weight; font.pixelSize: root.size; font.features: Theme.titleFeatures
-        color: root.color
-        style: Text.Raised; styleColor: root.shadow
+        color: root.inverted ? Theme.cardInk : root.color
+        style: root.impact ? Text.Normal : Text.Raised; styleColor: root.shadow
+    }
+
+    // The inverted drawing's block, behind the words.
+    Rectangle {
+        visible: root.inverted
+        x: -Theme.s3; y: -Theme.s2
+        width: root.width + Theme.s3 * 2; height: root.height + Theme.s2 * 2
+        color: Theme.slam
     }
 
     // The ghosts, behind (Neptune's), split off for the hit and for each tear.
