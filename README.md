@@ -304,7 +304,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   page scrolls them like anything else: `LongGrid` (tiles of at least
   `min` across, `tileHeight` tall, on a GridView that uses its tiles again;
   `rows` for whole rows only) and `LongList` (rows each as tall as they
-  are). Their delegates are Settles with `animated: list.arrives(index)`,
+  are; the rows on screen are made at once, those a screen either side a
+  row a frame, so a scroll never stops to make several). Their delegates are Settles with `animated: list.arrives(index)`,
   so the first screenful settles in. `Sift` sorts and filters the rows for
   them once per change (`rows`, `order`, `text`, `keep`, `words`; the
   typing filtered once it rests), and `shown` is the result.
@@ -423,8 +424,8 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   `titleWeight(size)` give the display face under it, where a brush or a
   squared face turns fussy; marks (a seal, the rail's diamond, Mercury's rail
   numbers) keep the title face. The navigator's Japanese line is said at the
-  face's floor where that is only a little over a line's size (Lucy's, in
-  Makinas at 18; Mitsuha's, in Yuji Syuku at 20) when its bubble still leaves the portrait its room
+  face's floor where that is only a little over a line's size (Rebecca's, in
+  Makinas at 18; Ryuko's, in Yuji Syuku at 20) when its bubble still leaves the portrait its room
   (`Speech.voiced`), else in the display face; a large bubble says it at the floor at least. `Empty` sets its `jp` over its line in it. The
   Shell lays `DuskGround` under everything (the page's `Screen.ground`, or
   one of the world's stills turned over by section, `Theme.groundsOf`, a
@@ -519,7 +520,9 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   the light; DuskGround grades a `duotone` flavour's stills with it),
   `PaperTone` (the same on a light flavour: the light in the shadows, paper,
   `Theme.paper`, in the highlights, so the still is as light as the panels
-  and words on it are ink, `Theme.paperArt`: Terra's),
+  and words on it are ink, `Theme.paperArt`: Terra's; with a `middle`
+  colour, three tones, a flavour's `tones`: Luna's indigo lit by the moon;
+  a title card's window grades its still the same way),
   HudGlass's `"panel"` motif (near-opaque, even, a hairline in the light),
   `OutlineText` (stroke-only capitals in the HUD face: `text`, `size`,
   `minSize`, `room`, `lines`, `color`; `drawOn(wait)` traces every letter in
@@ -529,15 +532,17 @@ for `Design.Screen` (Qt has a `Screen` of its own).
   light for stepping to the thing before or after: `way`, `size`, `hint`,
   `clicked`; faint when `enabled` is false), `Signature` (the flavour's
   `signature` path written in one stroke of the light, `write(wait)` once a
-  launch, `Theme.signed`; a path much longer than Lucy's gives its
+  launch, `Theme.signed`; its pen is a flourish, which a picture waits for
+  and a page's settling doesn't; a path much longer than Lucy's on Terra gives its
   `signatureLength`, and `signatureNib` writes it with a broad nib, as a
-  brush: Mitsuha's), `Scaffold` (the world's diamond, its kanji cut
+  brush: Ryuko's), `Scaffold` (the world's diamond, its kanji cut
   out, huge and cropped at the window's right, behind the pages; the Shell
   draws it), the page's columns as hairlines (`Theme.rule`: Screen draws
   them from its widest Grid, which offers itself, else at the content's
   edges), HUD lines as captions (`Theme.caption(line, Theme.tagOf(world))`:
   "neptune_music / albums", the tag the world's role up to its first comma:
-  "saturn_films", "titan_what_to_watch", or the flavour's own `tag`, "terra_days"; HudLabel's `caption`), the palette as a flat
+  "saturn_films", "titan_what_to_watch", or the flavour's own `tag`, "terra_days"; HudLabel's `caption`, which takes a
+  second line after a slash when its room is short), the palette as a flat
   panel of the light sliding in from the right (CommandPalette's `drawer`),
   the page turn's `curtain` (PageTurn: a sweep of the light with one torn
   frame, a glitch or, with the flavour's `tear: "bars"`, a film's black bars
@@ -599,7 +604,10 @@ then 150 ms without a new frame. A page where something never stops moving
 (a primary button's breath, a turning world, a busy sweep) keeps painting,
 so there it is a second with nothing settling (longer than any arrival
 not counted). A component of a world's own with a long arrival or a timer
-before its staging counts it with `Settling { when: anim.running }`.
+before its staging counts it with `Settling { when: anim.running }`. Something played over
+a page already in its place (a navigator's name signing itself) is a flourish,
+`Settling { when: pen.running; flourish: true }` (`Theme.flourishing`): a picture
+waits for it too, but `SOL_TRACE`'s `page-settled` leaves it out.
 
 **Primitives**: `Ticks` (the focus mark, rounded with what it marks:
 `radius`), `Rounded` (an image's picture with rounded corners, cut in a
@@ -610,7 +618,7 @@ under a press), `Lean` (a thing leans to the pointer and, with `presses`,
 gives under a press: put it last inside the thing and list its
 `transforms` in the thing's `transform`), `PageTurn` (the world's way of
 turning a page, which the Shell plays over its pane), `Settling` (a picture for review waits while
-`when` holds), `Underline` (a field's line and its focus light),
+`when` holds; `flourish` for one over a page already in place), `Underline` (a field's line and its focus light),
 `Caret` (the text cursor).
 
 **Assets** (`assets/`, in the module's resources): the fonts (`fonts/`: Outfit, Shippori
@@ -658,7 +666,9 @@ glass and its two lights.
 | `Theme.deep` | The flavour's ground, a little see-through: what lies behind a page's chrome where there is no glass |
 | `Theme.space` | The flavour's ground (`hud.ground`: Saturn's `#0b0e2a`), under everything before the still is drawn |
 | `Theme.raised` / `raisedTop` | The flavour's glass tint (`hud.glass`): what `HudGlass` lays over the blurred still |
-| `Theme.textWorld` | A panel's title, in the flavour's accent, over a hairline that splits head from body |
+| `Theme.textWorld` | A panel's title, in the flavour's light for small words (`hudAccentText`), over a hairline that splits head from body |
+| `Theme.hudAccentText` | Small words in the light (a caption, a tag, a current row's number): the flavour's `accentText` where its light is too deep for them on the black (Mercury's crimson), else the light |
+| `Theme.pen` | The colour the navigator signs in: the flavour's `pen` (Rebecca's pink), else the light |
 | `Theme.light` | The flavour's glass is light (Terra's noon): the words on glass (`text…`, `hudText`, `hudQuiet`, `hudFaint`), `ink`, `deep`, `danger` and `ok` are dark |
 | `Theme.artBright` / `artText` / `artQuiet` / `artFaint` / `artAccent` / `artSecond` / `artLine` | Words and marks on the still itself, not on glass (a Sheet's title card, `HeroFigure`s in a PageHead's feature, a sparse page's big title, moon links, moments): always light; over a dark flavour the same as the glass's |
 | `Theme.frost` | The tint live glass lays over the page (menus, the palette, dialogs): the ground, or a light flavour's frost |

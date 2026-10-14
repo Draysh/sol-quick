@@ -97,7 +97,7 @@ Item {
         if (!fits(set, s)) {
             set = set.slice(0, lines)
             let last = set[set.length - 1]
-            while (last.length > 1 && widthOf(last + "…", s) > room) last = last.slice(0, -1).trimEnd()
+            while (last.length > 1 && widthOf(last + "…", s) > room) last = last.slice(0, -1).replace(/\s+$/, "")
             set[set.length - 1] = last + "…"
             set = set.map(l => { let t = l; while (t.length > 1 && widthOf(t, s) > room) t = t.slice(0, -1); return t })
         }

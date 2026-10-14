@@ -121,17 +121,18 @@ Item {
         onStatusChanged: if (status === Image.Ready) root.pick()
     }
     // A `duotone` flavour's stills are graded black into its light, as one colour (Neptune's red);
-    // a light one's, its light into paper (Terra's blue).
+    // a light one's, its light into paper (Terra's blue); one with `tones`, in its three (Luna's moonlit indigo).
     Item {
         id: stills
         anchors.fill: parent
         Still { id: one }
         Still { id: two }
         layer.enabled: !!root.look.duotone
-        layer.effect: root.look.light ? paperTone : duotone
+        layer.effect: root.look.light ? paperTone : root.look.tones ? tones : duotone
     }
     Component { id: duotone; Duotone { tone: root.look.accent } }
     Component { id: paperTone; PaperTone { shadow: root.look.accent; highlight: root.dim; contrast: 0.35; brightness: 0.02 } }
+    Component { id: tones; PaperTone { shadow: root.look.tones[0]; middle: root.look.tones[1]; highlight: root.look.tones[2]; contrast: 0.2; brightness: -0.04 } }
     Settling { when: one.status === Image.Loading || two.status === Image.Loading || (one.opacity > 0 && one.opacity < 1) || (two.opacity > 0 && two.opacity < 1) }
 
     // The grade: the whole picture held down a little, then the world's light from top to

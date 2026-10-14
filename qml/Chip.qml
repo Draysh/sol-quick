@@ -62,7 +62,7 @@ Item {
         font.weight: caps ? Font.DemiBold : Theme.weightName
         font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
         font.letterSpacing: caps ? Theme.track(Theme.trackCaps, Theme.textXs) : 0
-        color: !root.enabled ? Theme.textFaint : root.on ? Theme.hudAccent : mouse.containsMouse ? Theme.textBright : Theme.textQuiet
+        color: !root.enabled ? Theme.textFaint : root.on ? Theme.hudAccentText : mouse.containsMouse ? Theme.textBright : Theme.textQuiet
         Behavior on color { ColorAnimation { duration: Theme.fade } }
     }
     scale: mouse.pressed ? 0.97 : 1

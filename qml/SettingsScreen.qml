@@ -109,7 +109,7 @@ Design.Screen {
                                 anchors.baseline: rowName.baseline
                                 text: (row.index + 1 < 10 ? "0" : "") + (row.index + 1)
                                 font.family: Theme.fontHud; font.pixelSize: Theme.textXs + 1; font.weight: Font.DemiBold
-                                color: row.on ? Theme.hudAccent : Theme.hudFaint
+                                color: row.on ? Theme.hudAccentText : Theme.hudFaint
                             }
                             Text {
                                 visible: text !== ""

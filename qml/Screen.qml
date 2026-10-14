@@ -338,7 +338,7 @@ Item {
                 horizontalAlignment: bigTitle.down ? Text.AlignHCenter : Text.AlignLeft
                 font.family: Theme.fontDisplay; font.pixelSize: Theme.textM; font.weight: Font.Bold
                 font.letterSpacing: Theme.track(Theme.trackHud, Theme.textM); font.capitalization: Font.AllUppercase
-                color: Theme.hudAccent
+                color: Theme.hudAccentText
                 visible: Theme.capsFor(text)
             }
         }

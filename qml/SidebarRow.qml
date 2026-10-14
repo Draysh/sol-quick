@@ -80,7 +80,7 @@ Settle {
             // A kanji number is a mark (一, 二, 三: a few strokes), so it keeps the title face at any size.
             font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
             font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
-            color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
+            color: row.current ? Theme.hudAccentText : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
         }
         Text {
             visible: row.railJp !== ""
@@ -109,7 +109,7 @@ Settle {
             font.family: row.kanjiNumber ? Theme.fontTitle : Theme.fontHud; font.pixelSize: row.kanjiNumber ? Theme.textS + 1 : Theme.textXs + 1
             font.weight: row.kanjiNumber ? Theme.weightTitle : Font.DemiBold
             font.letterSpacing: row.kanjiNumber ? 0 : Theme.track(0.06, Theme.textXs)
-            color: row.current ? Theme.hudAccent : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
+            color: row.current ? Theme.hudAccentText : rowMouse.containsMouse ? Theme.hudText : row.moon ? Theme.tint(Theme.hudSecond, 0.8) : Theme.hudFaint
             Behavior on color { ColorAnimation { duration: Theme.fade } }
         }
         Item {

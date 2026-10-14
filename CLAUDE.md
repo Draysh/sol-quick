@@ -439,7 +439,12 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   `phase === Qt.NoScrollPhase` tells it from a touchpad (`Theme.wheel`).
 - The hero is measured after `frameSwapped`; Tone gets no `imageLoaded`
   for an image already decoded; Settle/Card `whenSeen` must forget on
-  destruction and treat a Flickable of height ≤ 0 as in view.
+  destruction and treat a Flickable of height ≤ 0 as in view. Settle, Card
+  and HudPanel put off their arrival with `Qt.callLater(root.start)`, never
+  a closure that looks at `root.start`: Qt skips the call for an item
+  already going, where looking up the function of one a Loader has just let
+  go of warns "QQmlVMEMetaObject: … invalid context" (Saturn's Home made its
+  words twice as the window took its size).
 - Commands reply as JSON text (an `f32` through `serde_json::Value`
   widens); a panicking command still replies. A command's closure returns
   `anyhow::Result` and `Commands` says the error (`say`); `undoable` is a
@@ -478,8 +483,11 @@ Every world app and `kit/template` build on it; Sol's own web app does not
   iterating on core, `cargo test -p sol-quick-core` builds no Qt.
 - **Pictures wait for ready** (`WindowShots`, the window's `shots`): `Theme.settling`
   (every `Settling`: Settle, Card, Chart, Screen, PageHead, Shell, Picture,
-  Tour, Moment, the frame) and `Sol.waiting` (commands not yet answered)
-  at 0, then 150 ms without a frame, or a second when frames never stop. A
+  Tour, Moment, the frame), `Theme.flourishing` (a `Settling` with
+  `flourish`: a Signature's pen) and `Sol.waiting` (commands not yet
+  answered) at 0, then 150 ms without a frame, or a second when frames
+  never stop. `SOL_TRACE`'s `page-settled` (what `measure.py` reads) is
+  the same rule with the flourishes and their frames left out. A
   new arrival longer than a second, or a timer before something shows,
   adds a `Settling`, or pictures catch it half-way. `SolBackend.shot` and
   `shotPath` are the current picture's (a batch writes them), so a

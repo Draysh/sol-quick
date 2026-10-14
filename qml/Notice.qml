@@ -74,7 +74,7 @@ Item {
                 width: parent.width
                 text: root.jp
                 wrapMode: Text.Wrap
-                // In the world's own face where it reads a little over a line's size (Lucy's Makinas at 18), as the navigator says it.
+                // In the world's own face where it reads a little over a line's size (Rebecca's Makinas at 18), as the navigator says it.
                 readonly property int size: Theme.titleFloor > 0 && Theme.titleFloor <= Theme.textL - 1 ? Theme.titleFloor : Theme.textM
                 font.family: Theme.titleFace(size); font.features: Theme.titleFeatures; font.weight: Theme.titleWeight(size); font.pixelSize: size
                 color: Theme.textBright

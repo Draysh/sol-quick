@@ -48,7 +48,7 @@ Item {
     property var forget: null
     /** It has come into view: its glass is made then, not before. */
     property bool seen: false
-    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; Qt.callLater(() => { if (root && typeof root.start === "function") root.start() }) })
+    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; Qt.callLater(root.start) })
     Component.onDestruction: if (forget) forget()
     /** The page's lead panel: its brackets light in the world's light as it lands, held a beat, then go. */
     property bool lead: false

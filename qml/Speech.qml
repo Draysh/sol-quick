@@ -187,7 +187,10 @@ Item {
             text: speech.shown(speech.jp, speech.jp.length * Math.min(1, speech.typed / Math.max(0.01, speech.jpPart)), speech.jpCut)
             textFormat: Text.StyledText
             wrapMode: Text.Wrap
-            lineHeight: 1.1
+            // The mincho's own line is tall (about one and a half of its size): its lines keep a set step
+            // instead, room between them still, so a bubble in it is no taller than one in the title face.
+            lineHeightMode: long ? Text.FixedHeight : Text.ProportionalHeight
+            lineHeight: long ? Math.round(size * 1.45) : 1.1
             // In the world's own face where it reads at a line's size: a face whose floor is a little
             // over it (Makinas 18, Yuji Syuku 20) sets the line at its floor, so it is said in that
             // voice, and a large bubble at its floor at least; a bubble without the room for that

@@ -49,8 +49,9 @@ Item {
     property bool late: false
     property var forget: null
     // Started once the page has had its say, so a page turning has told when it lands (not when it was
-    // dropped meanwhile, by a Loader that changed its mind).
-    Component.onCompleted: if (animated) forget = Theme.whenSeen(root, waited => { late = waited; Qt.callLater(() => { if (root && typeof root.start === "function") root.start() }) })
+    // dropped meanwhile, by a Loader that changed its mind: the call is put off on the Settle itself, so
+    // one already going is never called, nor even looked at).
+    Component.onCompleted: if (animated) forget = Theme.whenSeen(root, waited => { late = waited; Qt.callLater(root.start) })
     Component.onDestruction: if (forget) forget()
     /** How long until it starts: its stagger, and while its page turns, until the page lands. */
     property real pause: 0

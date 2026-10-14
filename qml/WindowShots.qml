@@ -11,9 +11,10 @@ import Sol.Design as Design
     run: `<file.png>=<path?keys>` each, a line or `;` apart). Each opens its
     page, scrolls it (`_scroll=N`, `end`), stages what its keys ask for and
     is taken once the page is ready: nothing arriving or loading
-    (Theme.settling), every command answered (Sol.waiting), then 150 ms
-    without a new frame (or a second, when something keeps moving: a
-    breathing button, a turning world). SOL_SHOT_AFTER (8 s unless given) is
+    (Theme.settling) and no flourish playing (Theme.flourishing), every
+    command answered (Sol.waiting), then 150 ms without a new frame (or a
+    second, when something keeps moving: a breathing button, a turning
+    world). SOL_SHOT_AFTER (8 s unless given) is
     the most a picture waits; `_after=<ms>` makes one wait at least that
     long, for what the rule can't see. The clock starts when the window
     shows what it is for (the Shell, Connect), not when it opened. Beside a
@@ -22,7 +23,9 @@ import Sol.Design as Design
     Also the window's measures: SOL_FPS (the frames painted each second, in
     the journal) and SOL_TRACE (the first frame, each page loaded and
     settled, and the frames drawn in two seconds of nothing happening after
-    the last picture). `AppWindow` keeps one; its `staging` and
+    the last picture). A page has settled when it is ready as a picture is,
+    flourishes aside: a name still signing itself over it is not the page
+    taking its place. `AppWindow` keeps one; its `staging` and
     `stageMoment` are these.
 
         WindowShots { id: shots; host: win; moons: carried; frameLoader: frame; waitView: waiting; capture: captureLoader; starView: starScene }
@@ -47,6 +50,10 @@ Item {
     property double since: 0
     property double calmSince: 0
     property double lastFrame: 0
+    /** `SOL_TRACE`: as `calmSince` and `lastFrame`, flourishes aside, for when the page settled. */
+    property double stillSince: 0
+    property double lastBareFrame: 0
+    property bool settledTraced: false
     property Item scrolledPage: null
     readonly property bool active: at >= 0 && at < list.length
     /** `SOL_TRACE`: this picture's page has had every reply it asked for. */
@@ -79,10 +86,12 @@ Item {
         stage = host.goTo(e.path)
         step = "page"
         loaded = false
+        settledTraced = false
         // What was calm stays calm: a page that is already there and settled (the same one,
         // scrolled elsewhere next) is taken at once; one that changes counts itself busy.
         since = Date.now()
         if (i === 0) calmSince = since
+        stillSince = calmSince
         tick.start()
     }
     // What the picture before staged goes, so the next starts from the page alone.
@@ -107,7 +116,14 @@ Item {
         const moment = host.moment
         const busy = Theme.settling > 0 || Sol.waiting > 0 || !framed
             || (moment.showing && !moment.calm && moment.progress < 0.6) || t - since < waitFor
-        if (busy) { calmSince = t; return false }
+        if (SolBackend.traceOn && step === "page" && !settledTraced) {
+            if (busy) stillSince = t
+            else if (t - stillSince >= 150 && (t - lastBareFrame >= 150 || t - stillSince >= (SolBackend.shotCalm ? 300 : 1000))) {
+                settledTraced = true
+                SolBackend.trace("page-settled " + list[at].path + " " + (t - since) + "ms")
+            }
+        }
+        if (busy || Theme.flourishing > 0) { calmSince = t; return false }
         if (t - calmSince < 150) return false
         // Frames that never stop are something that keeps moving: then a while longer than the
         // slowest arrival nothing counts (a rise), or with SOL_SHOT_CALM, when nothing takes time, less.
@@ -120,7 +136,7 @@ Item {
         }
         if (!ready()) return
         if (step === "page") {
-            if (SolBackend.traceOn) SolBackend.trace("page-settled " + list[at].path + " " + (Date.now() - since) + "ms")
+            if (SolBackend.traceOn && !settledTraced) { settledTraced = true; SolBackend.trace("page-settled " + list[at].path + " " + (Date.now() - since) + "ms") }
             step = "scrolled"
             const p = host.shell ? host.shell.page as Design.Screen : null
             if (p && (stage._scroll || scrolledPage === p)) {
@@ -194,7 +210,7 @@ Item {
     }
 
     Timer { id: tick; interval: 30; repeat: true; onTriggered: shots.advance() }
-    Connections { target: shots.host; enabled: shots.active; function onFrameSwapped() { shots.lastFrame = Date.now() } }
+    Connections { target: shots.host; enabled: shots.active; function onFrameSwapped() { shots.lastFrame = Date.now(); if (Theme.flourishing === 0) shots.lastBareFrame = shots.lastFrame } }
     // Three breaths of 5.2 s (Button), with a little to spare.
     Timer { id: rest; interval: 16500; onTriggered: { idle.frames = 0; idle.start() } }
     Timer {

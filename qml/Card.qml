@@ -85,7 +85,7 @@ Item {
     /** It has come into view: its glass is made then, not before (a card far down a page costs nothing until it is scrolled to). */
     property bool seen: false
     // Started once the page has had its say, so a page turning has told when it lands.
-    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; Qt.callLater(() => { if (root && typeof root.start === "function") root.start() }) })
+    Component.onCompleted: forget = Theme.whenSeen(root, waited => { late = waited; seen = true; Qt.callLater(root.start) })
     Component.onDestruction: if (forget) forget()
     /** The first card of a page (its Grid's first): its brackets light in the world's light as it lands, then go. */
     property bool lead: false

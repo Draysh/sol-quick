@@ -25,9 +25,11 @@ StarField {
     readonly property string lit: hover !== "" ? hover : chosen
     readonly property var litStar: find(lit)
 
-    readonly property color warm: Qt.tint("#fff2df", Theme.tint(Theme.world, 0.45))
-    readonly property color dim: "#5d6577"
-    readonly property color words: "#d4d8e0"
+    // On a light flavour's paper the lit stars are its light, the dark ones and the words ink.
+    readonly property color warm: Theme.light ? Theme.hudAccent : Qt.tint("#fff2df", Theme.tint(Theme.world, 0.45))
+    readonly property color dim: Theme.light ? Theme.hud.faint : "#5d6577"
+    readonly property color words: Theme.light ? Theme.hud.text : "#d4d8e0"
+    readonly property color halo: Theme.light ? Theme.tint(map.ground, 0.9) : Qt.rgba(0.02, 0.024, 0.04, 0.9)
 
     // The constellations' names, over each, brighter when any of it is lit. A name that would
     // run into one placed before it moves above it, or under its own stars, so none overlap.
@@ -68,7 +70,7 @@ StarField {
             font.capitalization: caps ? Font.AllUppercase : Font.MixedCase
             font.letterSpacing: caps ? Theme.track(Theme.trackCaps, Theme.textXs) : 0
             color: map.words
-            opacity: Theme.light ? (modelData.lit > 0 ? 0.94 : 0.8) : modelData.lit > 0 ? 0.7 : 0.36
+            opacity: Theme.light ? (modelData.lit > 0 ? 1 : 0.86) : modelData.lit > 0 ? 0.7 : 0.36
         }
     }
 
@@ -138,7 +140,7 @@ StarField {
             font.weight: Theme.weightName
             color: map.litStar && map.litStar.lit ? map.warm : map.words
             elide: Text.ElideRight
-            style: Text.Outline; styleColor: Qt.rgba(0.02, 0.024, 0.04, 0.9)
+            style: Text.Outline; styleColor: map.halo
         }
         Text {
             width: parent.width
@@ -149,7 +151,7 @@ StarField {
             color: map.words
             opacity: 0.8
             wrapMode: Text.WordWrap
-            style: Text.Outline; styleColor: Qt.rgba(0.02, 0.024, 0.04, 0.9)
+            style: Text.Outline; styleColor: map.halo
         }
         Text {
             text: !map.litStar ? "" : map.litStar.lit ? "Lit " + Format.date(map.litStar.at) : "Still dark"
@@ -158,7 +160,7 @@ StarField {
             font.capitalization: Font.AllUppercase
             font.letterSpacing: 1.2
             color: map.words
-            opacity: 0.55
+            opacity: Theme.light ? 0.86 : 0.55
         }
     }
 }

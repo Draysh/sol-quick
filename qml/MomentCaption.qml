@@ -19,7 +19,7 @@ import QtQuick
     motion everything is in its place at once.
 
     On a title card (`Theme.impacts`) its kanji (`glyph`, the first of
-    `jp`'s) slams in at about 45% of the frame's height with a one-drawing
+    `jp`'s) slams in at about 45% of the frame's height (less in a short one) with a one-drawing
     invert and stays; the Japanese line, the English title in small
     tracked capitals and the line follow; the figures count up as on any
     moment; the subtitle is said small at the foot, without the navigator.
@@ -96,7 +96,8 @@ Column {
         x: root.centred ? (root.width - width) / 2 : 0
         width: Math.min(implicitWidth, root.width)
         text: root.card ? root.cardGlyph : root.titled ? root.jp : root.title
-        size: root.card ? Math.round(root.frameHeight * 0.45) : root.titled ? Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95)) : Theme.text2xl * 1.25
+        // A card's kanji is about 45% of the frame's height; in a short frame less, so what is under it keeps clear of the foot.
+        size: root.card ? Math.round(Math.max(root.frameHeight * 0.3, Math.min(root.frameHeight * 0.45, root.frameHeight - 520))) : root.titled ? Math.min(150, Math.max(64, root.width / Math.max(2, root.jp.length) * 0.95)) : Theme.text2xl * 1.25
         impact: root.card
         chroma: !root.card && !!Theme.hud.chroma
         wrap: !root.titled && !root.card

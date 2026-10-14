@@ -128,7 +128,7 @@ Item {
         Text {
             text: "案内役"
             font.family: Theme.titleFace(Theme.textXs + 1); font.features: Theme.titleFeatures; font.pixelSize: Theme.textXs + 1; font.weight: Theme.titleWeight(Theme.textXs + 1)
-            color: Theme.hudAccent
+            color: Theme.hudAccentText
         }
         Text {
             width: parent.width

@@ -4,7 +4,8 @@ import QtQuick
     A picture graded in one colour on a light ground, as Duotone grades one
     on a dark: its colours gone, its light kept, the shadows in the deep of
     the flavour's light and the highlights in paper (Terra's ramune blue on
-    paper white). A light flavour's stills, and a picture standing on them.
+    paper white). A light flavour's stills, and a picture standing on them;
+    with a `middle` colour, a flavour's `tones` (Luna's indigo night lit by the moon's yellow).
     Use it as a layer's effect; the picture is graded once, as it is drawn
     into its layer, so a still picture costs nothing more while it rests.
 
@@ -18,6 +19,9 @@ ShaderEffect {
     /** How steep the ramp is round its middle, and how far it is lifted (-1 to 1). */
     property real contrast: 0.1
     property real brightness: 0.12
+    /** A third colour between the two, reached at `pivot` of the way up: the highlight's colour then lies only in the brightest parts. Transparent for two colours. */
+    property color middle: "transparent"
+    property real pivot: 0.62
 
     // Resolved here, beside the kit's shaders, wherever the effect is made.
     fragmentShader: Qt.resolvedUrl("../shaders/tone.frag.qsb")

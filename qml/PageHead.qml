@@ -294,7 +294,7 @@ Item {
                     text: root.hudLine
                     font.family: Theme.fontCaps; font.pixelSize: Theme.captions ? Theme.textXs + 1 : Theme.textXs; font.weight: Theme.captions ? Font.Medium : Font.DemiBold
                     font.letterSpacing: Theme.track(Theme.captions ? 0.04 : Theme.trackHud, Theme.textXs); font.capitalization: Theme.captions ? Font.MixedCase : Font.AllUppercase
-                    color: Theme.hudAccent
+                    color: Theme.hudAccentText
                 }
                 // The subtitle, in the display face: a few words in capitals; a longer title, or Japanese, as written.
                 // A `named` page's title is its name, in the title face, large; while a feature under the band

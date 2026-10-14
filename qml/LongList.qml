@@ -3,7 +3,8 @@ import QtQuick
 /*
     Rows in a list as long as a library, each as tall as it is: only the
     rows in sight (and a screen either side) are made, each used again for
-    another row as the page scrolls. The page scrolls it like anything else
+    another row as the page scrolls; those in sight at once, those either
+    side of it a row a frame, so a scroll never stops to make several. The page scrolls it like anything else
     on it: it is as tall as all its rows, those not made yet reckoned at
     the height of the ones made so far (a row made later that turns out
     taller or shorter moves what is below it, and the page keeps what
@@ -66,15 +67,30 @@ Item {
     readonly property int firstScreen: Math.ceil(Math.max(flick ? flick.height : 0, 600) / Math.max(24, estimate))
     Timer { id: settling; interval: Theme.delay(list.firstScreen) + Theme.settle; onTriggered: list.settled = true }
 
+    /** The rows made at the last fill, and whether their places have changed since: a scroll that keeps them does nothing. */
+    property int filledFrom: 0
+    property int filledTo: -1
+    property bool moved: true
+    /** Rows wanted ahead of the view (a screen either side of it) and not made yet: made one a frame, nearest first (`pace`). */
+    property var later: []
     function fill() {
         if (!delegate) return
-        let from = 0, to = rows.length - 1
+        let from = 0, to = rows.length - 1, seenFrom = 0, seenTo = rows.length - 1
         if (flick && flick.height > 0 && rows.length > 0) {
             const top = list.mapToItem(flick.contentItem, 0, 0).y
             const seenTop = flick.contentY - top - flick.height, seenBottom = flick.contentY - top + 2 * flick.height
             if (seenBottom < 0 || seenTop > total) { from = 0; to = -1 }
             else { from = rowAt(Math.max(0, seenTop)); to = rowAt(Math.min(total, seenBottom)) }
+            // The rows on screen now: these are made at once, the rest of the range a row a frame.
+            const viewTop = flick.contentY - top, viewBottom = viewTop + flick.height
+            if (viewBottom < 0 || viewTop > total) { seenFrom = 0; seenTo = -1 }
+            else { seenFrom = rowAt(Math.max(0, viewTop)); seenTo = rowAt(Math.min(total, viewBottom)) }
         }
+        // Scrolling within the rows already made (most frames of a scroll): nothing to make or move.
+        if (!moved && from === filledFrom && to === filledTo) return
+        moved = false
+        filledFrom = from
+        filledTo = to
         // Rows gone out of sight are put by.
         const keep = {}
         for (const k in shown) {
@@ -83,20 +99,46 @@ Item {
             else { item.visible = false; spare.push(item) }
         }
         shown = keep
+        const wait = []
         for (let i = from; i <= to; i++) {
-            let item = shown[i]
-            if (!item) {
-                item = spare.pop()
-                if (item) { item.index = i; item.modelData = rows[i]; item.visible = true }
-                else {
-                    item = delegate.createObject(list, { index: i, modelData: rows[i] })
-                    if (!item) return
-                    item.heightChanged.connect(() => list.measured(item))
-                }
-                shown[i] = item
-            } else if (item.modelData !== rows[i]) item.modelData = rows[i]
-            item.y = tops[i]
-            list.measured(item)
+            if (shown[i] || i >= seenFrom && i <= seenTo) { if (!place(i)) { moved = true; return } }
+            else wait.push(i)
+        }
+        // Nearest the view first: the next row below it, then the one above, and on.
+        const mid = (seenFrom + seenTo) / 2
+        later = wait.sort((a, b) => Math.abs(a - mid) - Math.abs(b - mid))
+        if (later.length) pace.start()
+    }
+    /** Makes the row at `i` (or uses one put by), or moves the one made to its place; false when it couldn't be made. */
+    function place(i) {
+        let item = shown[i]
+        if (!item) {
+            item = spare.pop()
+            if (item) { item.index = i; item.modelData = rows[i]; item.visible = true }
+            else {
+                item = delegate.createObject(list, { index: i, modelData: rows[i] })
+                if (!item) return false
+                item.heightChanged.connect(() => list.measured(item))
+            }
+            shown[i] = item
+        } else if (item.modelData !== rows[i]) item.modelData = rows[i]
+        item.y = tops[i]
+        list.measured(item)
+        return true
+    }
+    // A row a frame, so a scroll never makes several at once (a row of cards takes a frame's time of its own).
+    Timer {
+        id: pace
+        interval: 16  // not a token: about one frame, the pace rows are made at
+        repeat: true
+        onTriggered: {
+            while (list.later.length) {
+                const i = list.later.shift()
+                if (i < list.filledFrom || i > list.filledTo || list.shown[i] || i >= list.rows.length) continue
+                if (!list.place(i)) list.moved = true
+                return
+            }
+            stop()
         }
     }
     /** A row's height is known (or changed): what is below it moves; what shows stays in place. */
@@ -110,11 +152,13 @@ Item {
         Qt.callLater(list.relayout)
     }
     function relayout() {
+        moved = true
         reckon()
         for (const k in shown) shown[k].y = tops[Number(k)]
         fill()
     }
     function restart() {
+        moved = true
         heights = []
         reckon()
         fill()

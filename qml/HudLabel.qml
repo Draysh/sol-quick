@@ -22,13 +22,13 @@ Row {
     /** The words' colour. */
     property color color: Theme.hudText
     /** The mark's and the tag's light. */
-    property color light: Theme.hudAccent
+    property color light: Theme.hudAccentText
     property int size: Theme.textXs
     /** The world's mark before the words. */
     property bool mark: true
     /** The words' room: a long label elides within it. */
     property real room: 10000
-    /** A HUD line written as a caption (a flavour's `captions`): the words as given, lowercase, in the HUD face, tracked a little. */
+    /** A HUD line written as a caption (a flavour's `captions`): the words as given, lowercase, in the HUD face, tracked a little; one too long for its room takes a second line. */
     property bool caption: false
 
     spacing: 10
@@ -97,8 +97,11 @@ Row {
     Text {
         id: words
         anchors.verticalCenter: parent.verticalCenter
-        text: root.text
+        // A caption too long for its room goes on a second line after one of its slashes, never inside a part.
+        text: root.caption ? root.text.replace(/ \//g, "\u00a0/") : root.text
         width: Math.min(implicitWidth, root.room - (root.sign ? signBox.width + root.spacing : root.mark ? 18 : 0) - (tag.visible ? tag.implicitWidth + root.spacing : 0))
+        wrapMode: root.caption ? Text.WordWrap : Text.NoWrap
+        maximumLineCount: root.caption ? 2 : 1
         elide: Text.ElideRight
         // A label of a few words is capitals, tracked; a longer one, or one with Japanese, as written; a caption in lowercase.
         readonly property bool caps: !root.caption && Theme.capsFor(root.text)

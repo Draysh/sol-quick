@@ -157,13 +157,27 @@ FocusScope {
                 PathLine { x: root.splitX + root.splitLean / 2; y: 0 }
             }
         }
-        Image {
-            id: cardStill
+        // Graded as the world grades its stills, so it reads on the light round it: drawn
+        // once into a texture of its own (the window's fill), never on the card itself (the source is
+        // hidden, and the texture's own quad is a pixel off the card).
+        Item {
+            id: gradedStill
             width: root.width; height: root.height
-            visible: false
-            source: Theme.impacts ? root.still : ""
-            fillMode: Image.PreserveAspectCrop
-            asynchronous: true
+            Image {
+                anchors.fill: parent
+                source: Theme.impacts ? root.still : ""
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                layer.enabled: !!Theme.hud.duotone
+                layer.effect: Theme.light ? paperGrade : Theme.hud.tones ? tonesGrade : duoGrade
+            }
+        }
+        ShaderEffectSource {
+            id: cardStill
+            x: -1; y: -1; width: 1; height: 1
+            textureSize: Qt.size(root.width, root.height)
+            sourceItem: gradedStill
+            hideSource: true
         }
         Shape {
             id: stillWindow
@@ -186,6 +200,10 @@ FocusScope {
             }
         }
     }
+    // A still's grade in a `duotone` flavour: black into its light, its light into paper, or its three `tones`.
+    Component { id: duoGrade; Duotone { brightness: 0.06; contrast: 0.2 } }
+    Component { id: paperGrade; PaperTone { contrast: 0.3; brightness: -0.02; highlight: Theme.hud.dim || Theme.paper } }
+    Component { id: tonesGrade; PaperTone { shadow: Theme.hud.tones[0]; middle: Theme.hud.tones[1]; highlight: Theme.hud.tones[2]; contrast: 0.2; brightness: -0.04 } }
     // The film: the still, darkened, coming slowly closer as the moment plays.
     Item {
         anchors.fill: parent
@@ -197,6 +215,8 @@ FocusScope {
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             scale: 1.02 + 0.05 * root.progress
+            layer.enabled: !!Theme.hud.duotone
+            layer.effect: Theme.light ? paperGrade : Theme.hud.tones ? tonesGrade : duoGrade
         }
         Rectangle {
             anchors.fill: parent

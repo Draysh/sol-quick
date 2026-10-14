@@ -3,7 +3,8 @@ import QtQuick
 
 /*
     A night to draw stars on, the part the Sky, Mercury's path and Titan's
-    galaxy share: a dark panel in both lights with its far dust, the view
+    galaxy share: a dark panel with its far dust (on a light flavour's noon,
+    paper frost, the stars in ink and the light, `ground`), the view
     (the point of the sky in the middle, `cx`, `cy`, and how close,
     `zoom`), and the pointer: drag to wander, scroll or pinch to come
     closer, double-click to come closer (or open a star, with `opens`),
@@ -63,9 +64,11 @@ Rectangle {
     /** How long a flight takes, in ms. */
     property int flightMs: Theme.calm ? 0 : Theme.rise
 
+    /** What the sky is laid in over the still: the night, or a light flavour's paper. */
+    readonly property color ground: Theme.light ? (Theme.hud.dim || Theme.paper) : Theme.hud.ground
     /** How much of the ground lies over the still behind the night (top; the foot has a little more): little, so the film shows round the stars. */
-    // Over a light flavour's bright noon still the night is laid deeper, so its names still read.
-    property real dark: Theme.light ? 0.56 : 0.34
+    // Over a light flavour's bright noon still the paper is laid deep, so the names in ink keep 4.5:1.
+    property real dark: Theme.light ? 0.84 : 0.34
     /** The far dust: its own seed per map, how thinly it lies (square pixels to a grain), and how much of it is warm (warm dust is a little brighter). */
     property int dustSeed: 20261012
     property real dustSpread: 1500
@@ -143,8 +146,8 @@ Rectangle {
     border.width: 1
     border.color: Theme.line
     gradient: Gradient {
-        GradientStop { position: 0; color: Theme.tint(Theme.hud.ground, field.dark) }
-        GradientStop { position: 1; color: Theme.tint(Theme.hud.ground, Math.min(1, field.dark + 0.2)) }
+        GradientStop { position: 0; color: Theme.tint(field.ground, field.dark) }
+        GradientStop { position: 1; color: Theme.tint(field.ground, Math.min(1, field.dark + (Theme.light ? 0.1 : 0.2))) }
     }
     // The night is the still itself, a little darkened, its corners bracketed: no glass, so the
     // constellations float on the film.
@@ -166,7 +169,9 @@ Rectangle {
             const count = Math.round(width * height / field.dustSpread)
             for (let i = 0; i < count; i++) {
                 const big = next() > 0.95
-                if (field.dustWarm > 0) {
+                if (Theme.light) {
+                    c.fillStyle = Theme.tint(Theme.hudAccent, (big ? 0.3 : 0.12) + next() * 0.2)
+                } else if (field.dustWarm > 0) {
                     const warm = next() > 1 - field.dustWarm
                     c.fillStyle = warm ? Qt.rgba(1, 0.9, 0.78, (big ? 0.2 : 0.07) + next() * 0.16) : Qt.rgba(0.82, 0.87, 1, (big ? 0.22 : 0.07) + next() * 0.18)
                 } else {

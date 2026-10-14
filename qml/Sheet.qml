@@ -25,9 +25,10 @@ import QtQuick.Effects
     (Mercury's "17 cards to review" under 「復習、十七枚。」); its `captions`
     write the HUD line as a caption. `art` stands
     at the band's right edge, behind the title, as tall as the band (a
-    character over a room: Neptune's Lucy); it has a `reveal(dir)` of its own
+    character over a room: Neptune's Rebecca); it has a `reveal(dir)` of its own
     when it wants one, and the lit sign gives way to it. Beside the page it
-    isn't shown.
+    stands smaller at the column's foot, under the title card, where the
+    column leaves it room (its `beside`, when it has one, says so).
 
     With `aside`, in a window under 1300 px wide the title card stands
     beside the page instead of over it: a column down the left of the pane,
@@ -52,10 +53,18 @@ Item {
     property var moons: []
     /** Extra content under the name, such as the screen's main action. */
     default property alias under: underRow.data
-    /** Art at the band's right edge, behind the title and as tall as the band, `artWidth` wide: a character over a room. Not shown beside the page. */
+    /** Art at the band's right edge, behind the title and as tall as the band, `artWidth` wide: a character over a room. Beside the page, smaller at the column's foot. */
     property alias art: artSlot.data
     property real artWidth: Math.round(Math.min(560, width * 0.36))
     readonly property bool hasArt: artSlot.children.length > 0 && !beside && !portrait
+    /** Beside the page, the art at the column's foot: from a step under what the column holds (and no higher than `artFootMost` from its foot) to its foot, when that leaves it 180 px. */
+    readonly property real artFootMost: 380
+    readonly property real artTop: Math.max(Math.max(center.y + center.height, tonight.visible ? tonight.y + tonight.height : 0) + Theme.s5, band.height - artFootMost)
+    readonly property bool artBeside: beside && artSlot.children.length > 0 && band.height - artTop >= 180
+    readonly property bool artShown: hasArt || artBeside
+    // Art that wasn't shown as its page landed (the window too narrow or too short then) comes in once it is.
+    property bool artUnrevealed: false
+    onArtShownChanged: if (artShown && artUnrevealed) { artUnrevealed = false; for (const a of artSlot.children) if (typeof a.reveal === "function") a.reveal("tab") }
     property real drift: 0
     /** The title in Japanese: "続きから。". The world's name in Japanese when not given. */
     property string jp: ""
@@ -97,7 +106,9 @@ Item {
         landing.stop()
         // The window opening: once the title has landed, the flavour's sign catches its light.
         if (dir === "open" && sign.visible) sign.catchLight(Theme.calm ? 0 : Theme.land + Theme.hit)
-        for (const a of artSlot.children) if (typeof a.reveal === "function") a.reveal(dir)
+        // Art out of sight isn't revealed (its name would be signed unseen): it comes in once shown.
+        if (artShown) { for (const a of artSlot.children) if (typeof a.reveal === "function") a.reveal(dir) }
+        else artUnrevealed = true
         if (dir === "tab" || Theme.calm || Theme.land === 0) { landed = 1; return }
         const page = Theme.screenOf(root)
         landWait.duration = page && typeof page.landWait === "function" ? page.landWait(dir) : 0
@@ -152,15 +163,21 @@ Item {
         // On a few days a year a comet crosses the still, behind the title card: catch it with a click.
         Comet { anchors.fill: parent; opacity: Math.max(0, 1 - root.collapse * 2) }
 
-        // The art at the right edge, behind the title card.
+        // The art at the right edge, behind the title card; beside the page, at the column's foot.
         Item {
             id: artSlot
-            visible: root.hasArt
-            x: band.width - width
-            width: root.artWidth
-            height: band.height
+            visible: root.artShown
+            x: root.artBeside ? hero.x : band.width - width
+            y: root.artBeside ? root.artTop : 0
+            width: root.artBeside ? band.width - hero.x - Theme.s3 : root.artWidth
+            height: root.artBeside ? band.height - root.artTop : band.height
             opacity: Math.max(0, 1 - root.collapse * 1.6)
-            onChildrenChanged: { for (const c of children) { c.width = Qt.binding(() => artSlot.width); c.height = Qt.binding(() => artSlot.height) } }
+            onChildrenChanged: {
+                for (const c of children) {
+                    c.width = Qt.binding(() => artSlot.width); c.height = Qt.binding(() => artSlot.height)
+                    if ("beside" in c) c.beside = Qt.binding(() => root.artBeside)
+                }
+            }
         }
 
         // The title card: the HUD line, the Japanese, the English under it.

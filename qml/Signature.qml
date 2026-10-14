@@ -18,7 +18,7 @@ Item {
 
     /** The stroke, in its box of 320 by 150. */
     property string path: Theme.hud.signature || ""
-    property color color: Theme.hudAccent
+    property color color: Theme.pen
     /** How broad the nib is, in the box's units: 0 for a pen's even line. */
     property real nib: Theme.hud.signatureNib || 0
     /** How much of it is written, 0 to 1. */
@@ -40,7 +40,7 @@ Item {
         drawn = 0
         pen.start()
     }
-    Settling { when: pen.running }
+    Settling { when: pen.running; flourish: true }
     SequentialAnimation {
         id: pen
         PauseAnimation { id: penWait; duration: 0 }
