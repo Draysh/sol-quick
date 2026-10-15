@@ -1831,7 +1831,8 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "orbit"
-version = "1.0.0"
+version = "1.1.0"
+source = "git+https://github.com/Draysh/sol-orbit?tag=v1.1.0#5966103d86c40dca440aa1e2ffcba835a5b65f27"
 dependencies = [
  "anyhow",
  "base64",

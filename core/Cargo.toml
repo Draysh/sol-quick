@@ -11,7 +11,7 @@ publish = false
 [dependencies]
 # orbit's `testing` always: the kit's test helpers (`testing`) are always
 # built, so orbit and this crate are the same build for an app and its tests.
-orbit = { path = "../../orbit", features = ["app", "testing"] }
+orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v1.1.0", features = ["app", "testing"] }
 anyhow = "1"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
 dirs = "6"

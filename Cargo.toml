@@ -23,7 +23,7 @@ version = "1.1.0"
 
 [dependencies]
 sol-quick-core = { path = "core" }
-orbit = { path = "../orbit", features = ["app"] }
+orbit = { git = "https://github.com/Draysh/sol-orbit", tag = "v1.1.0", features = ["app"] }
 anyhow = "1"
 cxx = "1"
 cxx-qt = "0.10"
